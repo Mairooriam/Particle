@@ -4,6 +4,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#define TIME_IT(label, code) do { \
+  double _start = GetTime(); \
+  code; \
+  printf("%s: %.3f ms\n", label, (GetTime() - _start) * 1000.0); \
+} while(0)
+
 #define DA_CREATE(type)                                                        \
   static inline type *type##_create(size_t cap) {                              \
     type *da = malloc(sizeof(type));                                           \
@@ -56,9 +62,12 @@ typedef struct {
   int hello;
 } Grid;
 
+typedef struct SpatialContext SpatialContext;
 typedef struct {
   Vector2 pos;
+  Vector2 v; // Velocity
 } Particle;
+void particle_update(SpatialContext *ctx, Particle *p);
 
 typedef struct {
   int width, height;
@@ -74,12 +83,13 @@ DA_FREE(Particles)
 DA_INIT(Particles)
 
 typedef Camera2D Camera2D;
-typedef struct {
+typedef struct SpatialContext {
   Camera2D camera;
   AppState state;
   Animation animation;
   Particles *particles;
   Window window;
+  float frameTime;
 } SpatialContext;
 
 void render(SpatialContext *ctx);
