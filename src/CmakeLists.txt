@@ -1,0 +1,59 @@
+cmake_minimum_required(VERSION 3.10)
+project(Clua C)
+
+# Set C standard to C11
+set(CMAKE_C_STANDARD 23)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+   option(ANIMATED "Enable animation features" ON) 
+# Enable all warnings and sanitizers for GCC/Clang
+if(MSVC)
+    add_compile_options(/W4)
+else()
+    add_compile_options(
+        -Wall
+        -Wextra
+        -Wpedantic
+        -fdiagnostics-color=always
+        -Wno-newline-eof
+    )
+endif()
+
+option(USE_PREBUILT_DEPS "Use pre-built external dependencies" ON)
+
+if(USE_PREBUILT_DEPS)
+    set(EXTERNAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../deps/build")
+    
+    list(APPEND CMAKE_PREFIX_PATH "${EXTERNAL_DIR}")
+    include_directories("${EXTERNAL_DIR}/_deps/raylib-src/src")
+    link_directories("${EXTERNAL_DIR}/lib")
+    
+    find_library(RAYLIB_LIBRARY raylib PATHS "${EXTERNAL_DIR}/lib")
+    
+    set(RAYLIB_LIBRARIES ${RAYLIB_LIBRARY})
+    
+else()
+    # Fallback to building deps inline
+    add_subdirectory(../deps)
+endif()
+
+# Source files
+set(SOURCES
+    main.c
+    ht.c
+    spatial.c
+)
+
+add_executable(main ${SOURCES})
+target_compile_definitions(main PRIVATE LOG_USE_COLOR)
+target_link_libraries(main ${RAYLIB_LIBRARIES})
+if(ANIMATED)
+    target_compile_definitions(main PRIVATE ANIMATED)
+endif()
+if(WIN32)
+    target_link_libraries(main winmm gdi32 opengl32)
+endif()
+
+
