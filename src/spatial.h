@@ -85,7 +85,8 @@ DA_INIT(arr_size_t_ptr)
 typedef struct {
   int bX, bY; // Bounds x and y
   int spacing;
-  arr_size_t_ptr entities;
+  arr_size_t antitiesDense;
+  arr_size_t entities;
   size_t numY; // number of cells in Y
   size_t numX; // number of cells in X
 } SpatialGrid;

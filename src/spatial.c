@@ -3,6 +3,7 @@
 #include "raymath.h"
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -428,19 +429,19 @@ void render_spatial_grid(SpatialGrid *sGrid) {
 
       // Color based on whether the cell has entities
       Color cellColor;
-      if (idx < sGrid->entities.capacity &&
-          sGrid->entities.items[idx].count > 0) {
-        cellColor = (Color){255, 100, 100, 100}; // Red tint if occupied
-      } else {
-        cellColor = (Color){200, 200, 200, 50}; // Light gray if empty
-      }
+      // if (idx < sGrid->entities.capacity &&
+      //     sGrid->entities.items[idx].count > 0) {
+      //   cellColor = (Color){255, 100, 100, 100}; // Red tint if occupied
+      // } else {
+      //   cellColor = (Color){200, 200, 200, 50}; // Light gray if empty
+      // }
       char buf[10];
       snprintf(buf, 10, "%zu", idx);
 
       DrawText(buf, rec.x + (rec.width / 2), rec.y + (rec.height / 4), 14.0f,
                BLACK);
 
-      DrawRectangleRec(rec, cellColor);
+      DrawRectangleRec(rec, (Color){10, 10, 10, 50});
       DrawRectangleLinesEx(rec, 1.0f, (Color){150, 150, 150, 255});
     }
   }
@@ -451,35 +452,56 @@ void render_spatial_grid(SpatialGrid *sGrid) {
   for (size_t i = 0; i < sGrid->entities.capacity; i++) {
     Rectangle rec =
         (Rectangle){offset.x + i * (size + 5), offset.y, size, size};
+    size_t val = sGrid->entities.items[i];
     char buf[10];
-    snprintf(buf, 10, "%zu", i);
-    if (sGrid->entities.items[i].count != 0) {
+    snprintf(buf, 10, "%zu", val);
+    if (val != 0) {
       DrawRectangleLinesEx(rec, 2.0f, PINK);
     } else {
       DrawRectangleLinesEx(rec, 2.0f, BLACK);
     }
     DrawText(buf, rec.x + (rec.width / 2), rec.y + (rec.height / 4), 14.0f,
              BLACK);
+    memset(buf, 0, sizeof(buf));
+    snprintf(buf, 10, "%zu", i);
+    DrawText(buf, rec.x + rec.width / 2, rec.y - 14, 14.0f, BLACK);
 
-    for (size_t j = 0; j < sGrid->entities.items[i].count; j++) {
-      Rectangle rec = (Rectangle){offset.x + i * (size + 5),
-                                  offset.y + (j + 1) * (size + 5), size, size};
-      size_t val = sGrid->entities.items[i].items[j];
-      char buf2[10];
-      snprintf(buf2, 10, "%zu", val);
-      DrawText(buf2, rec.x + (rec.width / 2), rec.y + (rec.height / 4), 14.0f,
-               BLACK);
+    // for (size_t j = 0; j < sGrid->entities.items[i].count; j++) {
+    //   Rectangle rec = (Rectangle){offset.x + i * (size + 5),
+    //                               offset.y + (j + 1) * (size + 5), size,
+    //                               size};
+    //   size_t val = sGrid->entities.items[i].items[j];
+    //   char buf2[10];
+    //   snprintf(buf2, 10, "%zu", val);
+    //   DrawText(buf2, rec.x + (rec.width / 2), rec.y + (rec.height /
+    //   4), 14.0f,
+    //            BLACK);
+    //
+    //   DrawRectangleLinesEx(rec, 3.0f, RED);
+    // }
+  }
 
-      DrawRectangleLinesEx(rec, 3.0f, RED);
-    }
+  // Flatten for dense
+  for (size_t i = 0; i < sGrid->antitiesDense.capacity; i++) {
+    Rectangle rec =
+        (Rectangle){offset.x + i * (size + 5), offset.y * 2, size, size};
+    DrawRectangleLinesEx(rec, 2.0f, PINK);
+    size_t val = sGrid->antitiesDense.items[i];
+    char buf3[10];
+    snprintf(buf3, 10, "%zu", val);
+    DrawText(buf3, rec.x + (rec.width / 2), rec.y + (rec.height / 4), 14.0f,
+             BLACK);
   }
 }
 void update_spatial(SpatialContext *ctx) {
   float spacing = ctx->sGrid.spacing;
-  for (size_t i = 0; i < ctx->sGrid.entities.capacity; i++) {
-    ctx->sGrid.entities.items[i].count = 0;
-  }
 
+  // Clear arrays
+  memset(ctx->sGrid.entities.items, 0,
+         ctx->sGrid.entities.capacity * sizeof(ctx->sGrid.entities.items[0]));
+  ctx->sGrid.antitiesDense.count = 0;
+
+  // First pass: count entities per cell
   for (size_t i = 0; i < ctx->entitiesCount; i++) {
     Component_transform *cT1 = &ctx->c_transform->items[i];
 
@@ -495,11 +517,54 @@ void update_spatial(SpatialContext *ctx) {
       continue;
 
     size_t idx = xi * ctx->sGrid.numY + yi;
-
     if (idx >= ctx->sGrid.entities.capacity)
       continue;
 
-    arr_size_t *arr = &ctx->sGrid.entities.items[idx];
-    nob_da_append(arr, i);
+    // Count entities in this cell
+    ctx->sGrid.entities.items[idx]++;
   }
+
+  // Prefix sum to get start indices
+  size_t sum = 0;
+  for (size_t i = 0; i < ctx->sGrid.entities.capacity; i++) {
+    size_t count = ctx->sGrid.entities.items[i];
+    ctx->sGrid.entities.items[i] = sum; // Store start index
+    sum += count;
+  }
+
+  // // Resize dense array to fit all entities
+  // ctx->sGrid.antitiesDense.count = sum;
+
+  // // Second pass: fill dense array
+  // for (size_t i = 0; i < ctx->entitiesCount; i++) {
+  //   Component_transform *cT1 = &ctx->c_transform->items[i];
+
+  //   float xi_f = cT1->pos.x / spacing;
+  //   float yi_f = cT1->pos.y / spacing;
+  //   if (xi_f < 0 || yi_f < 0)
+  //     continue;
+
+  //   size_t xi = (size_t)floorf(xi_f);
+  //   size_t yi = (size_t)floorf(yi_f);
+
+  //   if (xi >= ctx->sGrid.numX || yi >= ctx->sGrid.numY)
+  //     continue;
+
+  //   size_t idx = xi * ctx->sGrid.numY + yi;
+  //   if (idx >= ctx->sGrid.entities.capacity)
+  //     continue;
+
+  //   // Add entity to dense array at the next available position for this cell
+  //   size_t denseIdx = ctx->sGrid.entities.items[idx];
+  //   ctx->sGrid.antitiesDense.items[denseIdx] = i;
+  //   ctx->sGrid.entities.items[idx]++; // Increment for next entity in this cell
+  // }
+
+  // // Restore start indices (optional, needed for querying)
+  // sum = 0;
+  // for (size_t i = 0; i < ctx->sGrid.entities.capacity; i++) {
+  //   size_t end = ctx->sGrid.entities.items[i];
+  //   ctx->sGrid.entities.items[i] = sum;
+  //   sum = end;
+  // }
 }

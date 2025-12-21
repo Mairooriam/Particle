@@ -46,14 +46,9 @@ int main(void) {
   ctx.sGrid.spacing = ctx.entitySize * 2; // TODO: radius as global
   ctx.sGrid.numY = ctx.y_bound / ctx.sGrid.spacing;
   ctx.sGrid.numX = ctx.x_bound / ctx.sGrid.spacing;
-  ctx.sGrid.entities = *arr_size_t_ptr_create(ctx.sGrid.numX * ctx.sGrid.numY);
-  for (size_t i = 0; i < ctx.sGrid.entities.capacity; i++) {
-    arr_size_t *arr = arr_size_t_create(10);
-    ctx.sGrid.entities.items[i] = *arr;
-  }
-
+  ctx.sGrid.entities = *arr_size_t_create(ctx.sGrid.numX * ctx.sGrid.numY + 1);
+  ctx.sGrid.antitiesDense = *arr_size_t_create(ctx.entitiesCount);
   update_spatial(&ctx);
-
   while (!WindowShouldClose()) {
     ctx.frameTime = GetFrameTime();
     accumulator += ctx.frameTime;
