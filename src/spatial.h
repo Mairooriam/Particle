@@ -172,6 +172,7 @@ void collision_elastic_separation(SpatialContext *ctx, size_t idx1,
                                   size_t idx2);
 
 void particle_update_collision(SpatialContext *ctx, size_t idx);
+void particle_update_collision_spatial(SpatialContext *ctx, size_t idx);
 
 void init(SpatialContext *ctx, size_t count);
 void init_collision_head_on(SpatialContext *ctx);

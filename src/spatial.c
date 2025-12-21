@@ -163,6 +163,52 @@ void particle_update_collision(SpatialContext *ctx, size_t idx) {
     cRp1->color = PURPLE;
   }
 }
+void particle_update_collision_spatial(SpatialContext *ctx, size_t idx) {
+  Component_transform *cTp1 = &ctx->c_transform->items[idx];
+  Component_render *cRp1 = &ctx->c_render->items[idx];
+  Component_collision *cCp1 = &ctx->c_collision->items[idx];
+
+  float bounds_min = 0.0f;
+  cTp1->pos.x = cTp1->pos.x + cTp1->v.x * ctx->frameTime;
+  cTp1->pos.y = cTp1->pos.y + cTp1->v.y * ctx->frameTime;
+
+  for (size_t i = 0; i < ctx->entitiesCount; i++) {
+    if (i == idx)
+      continue;
+
+    Component_transform *cTp2 = &ctx->c_transform->items[i];
+    Component_collision *cCp2 = &ctx->c_collision->items[i];
+    Component_render *cRp2 = &ctx->c_render->items[i];
+
+    if (CheckCollisionCircles(cTp1->pos, cCp1->radius, cTp2->pos,
+                              cCp2->radius)) {
+      // TODO: overhead since passing idx, instead of cTp1?
+      // collision_simple_reverse(ctx, idx, i);
+      collision_elastic_separation(ctx, idx, i);
+    }
+  }
+
+  // Boundary collision remains the same
+  if (cTp1->pos.x < bounds_min) {
+    cTp1->pos.x = bounds_min;
+    cTp1->v.x = cTp1->v.x * -1;
+    cRp1->color = YELLOW;
+  } else if (cTp1->pos.x > ctx->x_bound) {
+    cTp1->pos.x = ctx->x_bound;
+    cTp1->v.x = cTp1->v.x * -1;
+    cRp1->color = BLUE;
+  }
+
+  if (cTp1->pos.y < bounds_min) {
+    cTp1->pos.y = bounds_min;
+    cTp1->v.y = cTp1->v.y * -1;
+    cRp1->color = PINK;
+  } else if (cTp1->pos.y > ctx->y_bound) {
+    cTp1->pos.y = ctx->y_bound;
+    cTp1->v.y = cTp1->v.y * -1;
+    cRp1->color = PURPLE;
+  }
+}
 void init(SpatialContext *ctx, size_t count) {
   ctx->entitiesCount = count;
 
