@@ -26,7 +26,7 @@ int main(void) {
   ctx.animation.animation_playing = false;
   ctx.animation.state = ANIMATION_IDLE;
 
-  ctx.entitySize = 25.0f;
+  ctx.entitySize = 5.0f;
 
   const float UPDATE_INTERVAL = 1.0f / 60.0f; // 60 Hz
   float accumulator = 0.0f;
@@ -35,7 +35,7 @@ int main(void) {
   InitWindow(ctx.window.width, ctx.window.height, "Raylib Hello World");
   SetTargetFPS(60);
 
-  // init(&ctx, 10);
+  // init(&ctx, 5000);
   // init_collision_moving_to_not_moving(&ctx);
   // init_collision_not_moving(&ctx);
   ctx.paused = true;
@@ -54,6 +54,12 @@ int main(void) {
     accumulator += ctx.frameTime;
     handle_input(&ctx);
 
+    // velocity increasing over simulation time!?
+    Vector2 velocities;
+    sum_velocities(&ctx, &velocities);
+    float lenght = Vector2Length(velocities);
+    printf("(%f,%f) = %f\n", velocities.x, velocities.y, lenght);
+
     if (!ctx.paused || ctx.step_one_frame) {
       TIME_IT("Update", handle_update(&ctx));
       ctx.step_one_frame = false;
@@ -68,7 +74,7 @@ int main(void) {
     DrawText("Hello, World!", 190, 200, 20, LIGHTGRAY);
 
     TIME_IT("Render", render(&ctx));
-    TIME_IT("Render Spatial Grid", render_spatial_grid(&ctx.sGrid));
+    // TIME_IT("Render Spatial Grid", render_spatial_grid(&ctx.sGrid));
     EndMode2D();
 
     DrawFPS(10, 10);

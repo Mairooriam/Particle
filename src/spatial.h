@@ -182,3 +182,5 @@ void init_collision_diagonal(SpatialContext *ctx);
 void init_collision_single_particle(SpatialContext *ctx);
 
 void appLoopMain(SpatialContext *ctx);
+
+void sum_velocities(SpatialContext *ctx, Vector2 *out);

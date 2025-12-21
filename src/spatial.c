@@ -23,7 +23,7 @@ void render(SpatialContext *ctx) {
     Component_transform *cT = &ctx->c_transform->items[i];
     Component_render *cR = &ctx->c_render->items[i];
 
-    DrawCircleSector(cT->pos, cR->renderRadius, 0, 360, 16, cR->color);
+    DrawCircleSector(cT->pos, cR->renderRadius, 0, 360, 8, cR->color);
 
     // Vector2 n_vel = Vector2Normalize(cT->v);
     // DrawLine(cT->pos.x, cT->pos.y, cT->v.x, cT->v.y, BLACK);
@@ -56,6 +56,8 @@ void handle_input(SpatialContext *ctx) {
   if (IsKeyPressed(KEY_R)) {
     // init_collision_not_moving(ctx);
     init_collision_diagonal(ctx);
+    // TODO: LEAK
+    // init(ctx, 5000);
   }
 
   if (IsKeyPressed(KEY_SPACE)) {
@@ -73,7 +75,7 @@ void handle_input(SpatialContext *ctx) {
 void handle_update(SpatialContext *ctx) {
 
   for (size_t i = 0; i < ctx->entitiesCount; i++) {
-    particle_update_collision(ctx, i);
+    particle_update_collision_spatial(ctx, i);
   }
 }
 void collision_simple_reverse(SpatialContext *ctx, size_t idx1, size_t idx2) {
@@ -173,19 +175,47 @@ void particle_update_collision_spatial(SpatialContext *ctx, size_t idx) {
   cTp1->pos.x = cTp1->pos.x + cTp1->v.x * ctx->frameTime;
   cTp1->pos.y = cTp1->pos.y + cTp1->v.y * ctx->frameTime;
 
-  for (size_t i = 0; i < ctx->entitiesCount; i++) {
-    if (i == idx)
-      continue;
+  // Find which cell this entity is in
+  float spacing = ctx->sGrid.spacing;
+  int xi = (int)(cTp1->pos.x / spacing);
+  int yi = (int)(cTp1->pos.y / spacing);
 
-    Component_transform *cTp2 = &ctx->c_transform->items[i];
-    Component_collision *cCp2 = &ctx->c_collision->items[i];
-    Component_render *cRp2 = &ctx->c_render->items[i];
+  int curcellidx = xi * ctx->sGrid.numY + yi;
+  // printf("starting look around it (%i,%i):%i\n", xi, yi, curcellidx);
+  for (int dx = -1; dx <= 1; dx++) {
+    for (int dy = -1; dy <= 1; dy++) {
+      int nx = xi + dx;
+      int ny = yi + dy;
 
-    if (CheckCollisionCircles(cTp1->pos, cCp1->radius, cTp2->pos,
-                              cCp2->radius)) {
-      // TODO: overhead since passing idx, instead of cTp1?
-      // collision_simple_reverse(ctx, idx, i);
-      collision_elastic_separation(ctx, idx, i);
+      // Skip if out of bounds
+      if (nx < 0 || ny < 0 || nx >= (int)ctx->sGrid.numX ||
+          ny >= (int)ctx->sGrid.numY)
+        continue;
+
+      size_t cellIdx = nx * ctx->sGrid.numY + ny;
+
+      // Get the range of entities in this cell
+      size_t start = ctx->sGrid.entities.items[cellIdx];
+      size_t end = (cellIdx + 1 < ctx->sGrid.entities.capacity)
+                       ? ctx->sGrid.entities.items[cellIdx + 1]
+                       : ctx->sGrid.antitiesDense.count;
+
+      // Check collision with all entities in this cell
+      for (size_t i = start; i < end; i++) {
+        size_t otherIdx = ctx->sGrid.antitiesDense.items[i];
+
+        // Skip self-collision
+        if (otherIdx == idx)
+          continue;
+
+        Component_transform *cTp2 = &ctx->c_transform->items[otherIdx];
+        Component_collision *cCp2 = &ctx->c_collision->items[otherIdx];
+
+        if (CheckCollisionCircles(cTp1->pos, cCp1->radius, cTp2->pos,
+                                  cCp2->radius)) {
+          collision_elastic_separation(ctx, idx, otherIdx);
+        }
+      }
     }
   }
 
@@ -213,7 +243,13 @@ void particle_update_collision_spatial(SpatialContext *ctx, size_t idx) {
 void init(SpatialContext *ctx, size_t count) {
   ctx->entitiesCount = count;
 
-  // TODO: LEALLK
+  if (ctx->c_transform)
+    Components_transform_free(ctx->c_transform);
+  if (ctx->c_render)
+    Components_render_free(ctx->c_render);
+  if (ctx->c_collision)
+    Components_collision_free(ctx->c_collision);
+
   ctx->c_transform = Components_transform_create(count);
   ctx->c_render = Components_render_create(count);
   ctx->c_collision = Components_collision_create(count);
@@ -221,8 +257,8 @@ void init(SpatialContext *ctx, size_t count) {
   for (size_t i = 0; i < count; i++) {
     // TRANSFROM
     ctx->c_transform->items[i].pos =
-        (Vector2){.x = (float)(i % ctx->window.width) * 12,
-                  .y = (float)(i % ctx->window.height) * 12};
+        (Vector2){.x = (float)(i % ctx->window.width),
+                  .y = (float)(i % ctx->window.height)};
     ctx->c_transform->items[i].v =
         (Vector2){.x = (float)(i % 5) * 10.0f - 20.0f,
                   .y = (float)(i % 3) * 15.0f - 15.0f};
@@ -532,39 +568,47 @@ void update_spatial(SpatialContext *ctx) {
     sum += count;
   }
 
-  // // Resize dense array to fit all entities
-  // ctx->sGrid.antitiesDense.count = sum;
+  // Resize dense array to fit all entities
+  ctx->sGrid.antitiesDense.count = sum;
 
-  // // Second pass: fill dense array
-  // for (size_t i = 0; i < ctx->entitiesCount; i++) {
-  //   Component_transform *cT1 = &ctx->c_transform->items[i];
+  // Second pass: fill dense array
+  for (size_t i = 0; i < ctx->entitiesCount; i++) {
+    Component_transform *cT1 = &ctx->c_transform->items[i];
 
-  //   float xi_f = cT1->pos.x / spacing;
-  //   float yi_f = cT1->pos.y / spacing;
-  //   if (xi_f < 0 || yi_f < 0)
-  //     continue;
+    float xi_f = cT1->pos.x / spacing;
+    float yi_f = cT1->pos.y / spacing;
+    if (xi_f < 0 || yi_f < 0)
+      continue;
 
-  //   size_t xi = (size_t)floorf(xi_f);
-  //   size_t yi = (size_t)floorf(yi_f);
+    size_t xi = (size_t)floorf(xi_f);
+    size_t yi = (size_t)floorf(yi_f);
 
-  //   if (xi >= ctx->sGrid.numX || yi >= ctx->sGrid.numY)
-  //     continue;
+    if (xi >= ctx->sGrid.numX || yi >= ctx->sGrid.numY)
+      continue;
 
-  //   size_t idx = xi * ctx->sGrid.numY + yi;
-  //   if (idx >= ctx->sGrid.entities.capacity)
-  //     continue;
+    size_t idx = xi * ctx->sGrid.numY + yi;
+    if (idx >= ctx->sGrid.entities.capacity)
+      continue;
 
-  //   // Add entity to dense array at the next available position for this cell
-  //   size_t denseIdx = ctx->sGrid.entities.items[idx];
-  //   ctx->sGrid.antitiesDense.items[denseIdx] = i;
-  //   ctx->sGrid.entities.items[idx]++; // Increment for next entity in this cell
-  // }
+    // Add entity to dense array at the next available position for this cell
+    size_t denseIdx = ctx->sGrid.entities.items[idx];
+    ctx->sGrid.antitiesDense.items[denseIdx] = i;
+    ctx->sGrid.entities.items[idx]++; // Increment for next entity in this cell
+  }
 
-  // // Restore start indices (optional, needed for querying)
-  // sum = 0;
-  // for (size_t i = 0; i < ctx->sGrid.entities.capacity; i++) {
-  //   size_t end = ctx->sGrid.entities.items[i];
-  //   ctx->sGrid.entities.items[i] = sum;
-  //   sum = end;
-  // }
+  // Restore start indices (optional, needed for querying)
+  sum = 0;
+  for (size_t i = 0; i < ctx->sGrid.entities.capacity; i++) {
+    size_t end = ctx->sGrid.entities.items[i];
+    ctx->sGrid.entities.items[i] = sum;
+    sum = end;
+  }
+}
+void sum_velocities(SpatialContext *ctx, Vector2 *out) {
+  *out = (Vector2){0, 0}; // Initialize to zero
+
+  for (size_t i = 0; i < ctx->entitiesCount; i++) {
+    Component_transform *cTp1 = &ctx->c_transform->items[i];
+    *out = Vector2Add(cTp1->v, *out);
+  }
 }
