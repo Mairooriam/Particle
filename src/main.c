@@ -15,8 +15,9 @@ int main(void) {
 
   ctx.window.height = 600;
   ctx.window.width = 800;
-  ctx.y_bound = 300;
-  ctx.x_bound = 300;
+  // TODO: crashes if i change bounds
+  ctx.y_bound = 600;
+  ctx.x_bound = 800;
 
   ctx.animation.trig_target = 0.01f;
   ctx.animation.trig_time_current = 0.0f;
@@ -25,6 +26,8 @@ int main(void) {
   ctx.animation.animation_playing = false;
   ctx.animation.state = ANIMATION_IDLE;
 
+  ctx.entitySize = 25.0f;
+
   const float UPDATE_INTERVAL = 1.0f / 60.0f; // 60 Hz
   float accumulator = 0.0f;
   double updateStart, updateTime = 0;
@@ -32,10 +35,25 @@ int main(void) {
   InitWindow(ctx.window.width, ctx.window.height, "Raylib Hello World");
   SetTargetFPS(60);
 
-  // init(&ctx, 50);
-  init_collision_moving_to_not_moving(&ctx);
+  // init(&ctx, 10);
+  // init_collision_moving_to_not_moving(&ctx);
   // init_collision_not_moving(&ctx);
   ctx.paused = true;
+  init_collision_diagonal(&ctx);
+  // init_collision_single_particle(&ctx);
+  ctx.sGrid.bX = ctx.x_bound;
+  ctx.sGrid.bY = ctx.y_bound;
+  ctx.sGrid.spacing = ctx.entitySize * 2; // TODO: radius as global
+  ctx.sGrid.numY = ctx.y_bound / ctx.sGrid.spacing;
+  ctx.sGrid.numX = ctx.x_bound / ctx.sGrid.spacing;
+  ctx.sGrid.entities = *arr_size_t_ptr_create(ctx.sGrid.numX * ctx.sGrid.numY);
+  for (size_t i = 0; i < ctx.sGrid.entities.capacity; i++) {
+    arr_size_t *arr = arr_size_t_create(10);
+    ctx.sGrid.entities.items[i] = *arr;
+  }
+
+  update_spatial(&ctx);
+
   while (!WindowShouldClose()) {
     ctx.frameTime = GetFrameTime();
     accumulator += ctx.frameTime;
@@ -46,15 +64,27 @@ int main(void) {
       ctx.step_one_frame = false;
     }
 
+    TIME_IT("Update Spatial", update_spatial(&ctx));
+
     // RENDERING
     BeginDrawing();
     BeginMode2D(ctx.camera);
     ClearBackground(RAYWHITE);
     DrawText("Hello, World!", 190, 200, 20, LIGHTGRAY);
+
     TIME_IT("Render", render(&ctx));
+    TIME_IT("Render Spatial Grid", render_spatial_grid(&ctx.sGrid));
     EndMode2D();
 
     DrawFPS(10, 10);
+    // Mouse coordinates
+    Vector2 screenPos = GetMousePosition();
+    Vector2 worldPos = GetScreenToWorld2D(screenPos, ctx.camera);
+    DrawText(TextFormat("Screen: (%.0f, %.0f)", screenPos.x, screenPos.y), 10,
+             30, 20, DARKGRAY);
+    DrawText(TextFormat("World: (%.1f, %.1f)", worldPos.x, worldPos.y), 10, 50,
+             20, DARKGRAY);
+
     EndDrawing();
   }
 

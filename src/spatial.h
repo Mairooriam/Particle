@@ -1,9 +1,9 @@
 #pragma once
 
+#include "ht.h"
 #include "raylib.h"
 #include <stdint.h>
 #include <stdlib.h>
-
 #define TIME_IT(label, code)                                                   \
   do {                                                                         \
     double _start = GetTime();                                                 \
@@ -59,9 +59,36 @@ typedef struct {
   AnimationState state;
 } Animation;
 
+// |------------------------------| ->> array of pointers size_t**
+// [[0][1][2][3][4][5][6][7][8][9]]
+//   ^
+//   pointer to size_t*
+
 typedef struct {
-  int hello;
-} Grid;
+  size_t *items;
+  size_t count;
+  size_t capacity;
+} arr_size_t;
+DA_CREATE(arr_size_t)
+DA_FREE(arr_size_t)
+DA_INIT(arr_size_t)
+
+typedef struct {
+  arr_size_t *items;
+  size_t count;
+  size_t capacity;
+} arr_size_t_ptr;
+DA_CREATE(arr_size_t_ptr)
+DA_FREE(arr_size_t_ptr)
+DA_INIT(arr_size_t_ptr)
+
+typedef struct {
+  int bX, bY; // Bounds x and y
+  int spacing;
+  arr_size_t_ptr entities;
+  size_t numY; // number of cells in Y
+  size_t numX; // number of cells in X
+} SpatialGrid;
 
 typedef struct SpatialContext SpatialContext;
 typedef struct {
@@ -130,14 +157,26 @@ typedef struct SpatialContext {
   float frameTime;
   bool paused;
   bool step_one_frame;
+  SpatialGrid sGrid;
+  float entitySize;
 } SpatialContext;
 
 void render(SpatialContext *ctx);
+void render_spatial_grid(SpatialGrid *sGrid);
 void handle_input(SpatialContext *ctx);
 void handle_update(SpatialContext *ctx);
+void update_spatial(SpatialContext *ctx);
+
+void collision_simple_reverse(SpatialContext *ctx, size_t idx1, size_t idx2);
+void collision_elastic_separation(SpatialContext *ctx, size_t idx1,
+                                  size_t idx2);
+
 void particle_update_collision(SpatialContext *ctx, size_t idx);
+
 void init(SpatialContext *ctx, size_t count);
-void init_collision_moving_to_not_moving(SpatialContext *ctx);
+void init_collision_head_on(SpatialContext *ctx);
 void init_collision_not_moving(SpatialContext *ctx);
+void init_collision_diagonal(SpatialContext *ctx);
+void init_collision_single_particle(SpatialContext *ctx);
 
 void appLoopMain(SpatialContext *ctx);

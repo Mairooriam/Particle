@@ -1,6 +1,8 @@
 #include "spatial.h"
 #include "raylib.h"
 #include "raymath.h"
+#include <math.h>
+#include <stdio.h>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -11,10 +13,10 @@
 
 #define NOB_IMPLEMENTATION
 #include "nob.h"
-
+#include "rlgl.h"
 void render(SpatialContext *ctx) {
 
-  DrawRectangleLines(0, 0, ctx->y_bound, ctx->x_bound, BLACK);
+  DrawRectangleLines(0, 0, ctx->x_bound, ctx->y_bound, BLACK);
 
   for (size_t i = 0; i < ctx->entitiesCount; i++) {
     Component_transform *cT = &ctx->c_transform->items[i];
@@ -26,6 +28,9 @@ void render(SpatialContext *ctx) {
     // DrawLine(cT->pos.x, cT->pos.y, cT->v.x, cT->v.y, BLACK);
     Vector2 v_relative = Vector2Add(cT->pos, cT->v);
     DrawLine(cT->pos.x, cT->pos.y, v_relative.x, v_relative.y, BLACK);
+    char buf[10];
+    snprintf(buf, 10, "%zu", i);
+    DrawText(buf, cT->pos.x, cT->pos.y, 6.0f, BLACK);
   }
 }
 
@@ -48,7 +53,8 @@ void handle_input(SpatialContext *ctx) {
   }
 
   if (IsKeyPressed(KEY_R)) {
-    init_collision_not_moving(ctx);
+    // init_collision_not_moving(ctx);
+    init_collision_diagonal(ctx);
   }
 
   if (IsKeyPressed(KEY_SPACE)) {
@@ -176,18 +182,18 @@ void init(SpatialContext *ctx, size_t count) {
     ctx->c_transform->count++;
 
     // RENDER
-    ctx->c_render->items[i].renderRadius = 5.0f;
+    ctx->c_render->items[i].renderRadius = ctx->entitySize;
     ctx->c_render->items[i].color = (Color){255, 0, 0, 200};
     ctx->c_render->count++;
 
     // COLLISION
-    ctx->c_collision->items[i].radius = 5.0f;
+    ctx->c_collision->items[i].radius = ctx->entitySize;
     ctx->c_collision->items[i].mass = 5.0f;
     ctx->c_collision->count++;
   }
 }
 
-void init_collision_moving_to_not_moving(SpatialContext *ctx) {
+void init_collision_head_on(SpatialContext *ctx) {
   size_t count = 3;
   ctx->entitiesCount = count;
   ctx->c_transform = Components_transform_create(count);
@@ -211,12 +217,12 @@ void init_collision_moving_to_not_moving(SpatialContext *ctx) {
     ctx->c_transform->count++;
 
     // render
-    ctx->c_render->items[i].renderRadius = 5.0f;
+    ctx->c_render->items[i].renderRadius = ctx->entitySize;
     ctx->c_render->items[i].color = (Color){255, 0, 0, 200};
     ctx->c_render->count++;
 
     // collision
-    ctx->c_collision->items[i].radius = 5.0f;
+    ctx->c_collision->items[i].radius = ctx->entitySize;
     ctx->c_collision->items[i].mass = 5.0f;
     ctx->c_collision->count++;
   }
@@ -246,12 +252,12 @@ void init_collision_not_moving(SpatialContext *ctx) {
     ctx->c_transform->count++;
 
     // render
-    ctx->c_render->items[i].renderRadius = 5.0f;
+    ctx->c_render->items[i].renderRadius = ctx->entitySize;
     ctx->c_render->items[i].color = (Color){255, 0, 0, 200};
     ctx->c_render->count++;
 
     // collision
-    ctx->c_collision->items[i].radius = 5.0f;
+    ctx->c_collision->items[i].radius = ctx->entitySize;
     ctx->c_collision->items[i].mass = 5.0f;
     ctx->c_collision->count++;
   }
@@ -275,4 +281,179 @@ void appLoopMain(SpatialContext *ctx) {
 
   DrawFPS(10, 10);
   EndDrawing();
+}
+void init_collision_diagonal(SpatialContext *ctx) {
+  size_t count = 6;
+  ctx->entitiesCount = count;
+  ctx->c_transform = Components_transform_create(count);
+  ctx->c_render = Components_render_create(count);
+  ctx->c_collision = Components_collision_create(count);
+
+  for (size_t i = 0; i < count; i++) {
+    // TRANSFORM
+    if (i == 0) {
+      // Top-left particle - moving diagonally down-right (center collision
+      // group)
+      ctx->c_transform->items[i].pos = (Vector2){.x = 80, .y = 80};
+      ctx->c_transform->items[i].v =
+          (Vector2){.x = 35.36, .y = 35.36}; // 50 at 45°
+    } else if (i == 1) {
+      // Bottom-right particle - moving diagonally up-left (center collision
+      // group)
+      ctx->c_transform->items[i].pos = (Vector2){.x = 220, .y = 220};
+      ctx->c_transform->items[i].v =
+          (Vector2){.x = -35.36, .y = -35.36}; // 50 at 225°
+    } else if (i == 2) {
+      // Top-right particle - moving diagonally down-left (center collision
+      // group)
+      ctx->c_transform->items[i].pos = (Vector2){.x = 220, .y = 80};
+      ctx->c_transform->items[i].v =
+          (Vector2){.x = -35.36, .y = 35.36}; // 50 at 135°
+    } else if (i == 3) {
+      // Bottom-left particle - moving diagonally up-right (center collision
+      // group)
+      ctx->c_transform->items[i].pos = (Vector2){.x = 80, .y = 220};
+      ctx->c_transform->items[i].v =
+          (Vector2){.x = 35.36, .y = -35.36}; // 50 at 315°
+    } else if (i == 4) {
+      // Left particle - moving right along x-axis (separate collision)
+      ctx->c_transform->items[i].pos = (Vector2){.x = 300, .y = 100};
+      ctx->c_transform->items[i].v = (Vector2){.x = 65, .y = 0};
+    } else {
+      // Top-right particle - moving diagonally down-left (separate collision)
+      ctx->c_transform->items[i].pos = (Vector2){.x = 450, .y = 50};
+      ctx->c_transform->items[i].v =
+          (Vector2){.x = -35.36, .y = 35.36}; // 50 at 135°
+    }
+    ctx->c_transform->count++;
+
+    // RENDER
+    ctx->c_render->items[i].renderRadius = ctx->entitySize;
+    ctx->c_render->items[i].color = (Color){255, 0, 0, 200};
+    ctx->c_render->count++;
+
+    // COLLISION
+    ctx->c_collision->items[i].radius = ctx->entitySize;
+    ctx->c_collision->items[i].mass = 5.0f;
+    ctx->c_collision->count++;
+  }
+}
+void init_collision_single_particle(SpatialContext *ctx) {
+  size_t count = 1;
+  ctx->entitiesCount = count;
+  ctx->c_transform = Components_transform_create(count);
+  ctx->c_render = Components_render_create(count);
+  ctx->c_collision = Components_collision_create(count);
+  for (size_t i = 0; i < count; i++) {
+    // TRANSFORM
+    if (i == 0) {
+      // Top-left particle - moving diagonally down-right (center collision
+      // group)
+      ctx->c_transform->items[i].pos = (Vector2){.x = 80, .y = 80};
+      ctx->c_transform->items[i].v =
+          (Vector2){.x = 35.36, .y = 35.36}; // 50 at 45°
+
+      ctx->c_transform->count++;
+
+      // RENDER
+      ctx->c_render->items[i].renderRadius = ctx->entitySize;
+      ctx->c_render->items[i].color = (Color){255, 0, 0, 200};
+      ctx->c_render->count++;
+
+      // COLLISION
+      ctx->c_collision->items[i].radius = ctx->entitySize;
+      ctx->c_collision->items[i].mass = 5.0f;
+      ctx->c_collision->count++;
+    }
+  }
+}
+void render_spatial_grid(SpatialGrid *sGrid) {
+
+  // spatial grid - draw cells as rectangles
+  // TODO: -1 on numx etc fixes the problem but why? might cause porlbmes
+  for (size_t x = 0; x <= sGrid->numX - 1; x++) {
+    for (size_t y = 0; y <= sGrid->numY - 1; y++) {
+      float posX = x * sGrid->spacing;
+      float posY = y * sGrid->spacing;
+      Rectangle rec = (Rectangle){posX, posY, sGrid->spacing, sGrid->spacing};
+
+      // Calculate cell index
+      size_t idx = x * sGrid->numY + y;
+
+      // Color based on whether the cell has entities
+      Color cellColor;
+      if (idx < sGrid->entities.capacity &&
+          sGrid->entities.items[idx].count > 0) {
+        cellColor = (Color){255, 100, 100, 100}; // Red tint if occupied
+      } else {
+        cellColor = (Color){200, 200, 200, 50}; // Light gray if empty
+      }
+      char buf[10];
+      snprintf(buf, 10, "%zu", idx);
+
+      DrawText(buf, rec.x + (rec.width / 2), rec.y + (rec.height / 4), 14.0f,
+               BLACK);
+
+      DrawRectangleRec(rec, cellColor);
+      DrawRectangleLinesEx(rec, 1.0f, (Color){150, 150, 150, 255});
+    }
+  }
+
+  // Flatten overlay
+  Vector2 offset = {-100, -100};
+  size_t size = 25.0f;
+  for (size_t i = 0; i < sGrid->entities.capacity; i++) {
+    Rectangle rec =
+        (Rectangle){offset.x + i * (size + 5), offset.y, size, size};
+    char buf[10];
+    snprintf(buf, 10, "%zu", i);
+    if (sGrid->entities.items[i].count != 0) {
+      DrawRectangleLinesEx(rec, 2.0f, PINK);
+    } else {
+      DrawRectangleLinesEx(rec, 2.0f, BLACK);
+    }
+    DrawText(buf, rec.x + (rec.width / 2), rec.y + (rec.height / 4), 14.0f,
+             BLACK);
+
+    for (size_t j = 0; j < sGrid->entities.items[i].count; j++) {
+      Rectangle rec = (Rectangle){offset.x + i * (size + 5),
+                                  offset.y + (j + 1) * (size + 5), size, size};
+      size_t val = sGrid->entities.items[i].items[j];
+      char buf2[10];
+      snprintf(buf2, 10, "%zu", val);
+      DrawText(buf2, rec.x + (rec.width / 2), rec.y + (rec.height / 4), 14.0f,
+               BLACK);
+
+      DrawRectangleLinesEx(rec, 3.0f, RED);
+    }
+  }
+}
+void update_spatial(SpatialContext *ctx) {
+  float spacing = ctx->sGrid.spacing;
+  for (size_t i = 0; i < ctx->sGrid.entities.capacity; i++) {
+    ctx->sGrid.entities.items[i].count = 0;
+  }
+
+  for (size_t i = 0; i < ctx->entitiesCount; i++) {
+    Component_transform *cT1 = &ctx->c_transform->items[i];
+
+    float xi_f = cT1->pos.x / spacing;
+    float yi_f = cT1->pos.y / spacing;
+    if (xi_f < 0 || yi_f < 0)
+      continue;
+
+    size_t xi = (size_t)floorf(xi_f);
+    size_t yi = (size_t)floorf(yi_f);
+
+    if (xi >= ctx->sGrid.numX || yi >= ctx->sGrid.numY)
+      continue;
+
+    size_t idx = xi * ctx->sGrid.numY + yi;
+
+    if (idx >= ctx->sGrid.entities.capacity)
+      continue;
+
+    arr_size_t *arr = &ctx->sGrid.entities.items[idx];
+    nob_da_append(arr, i);
+  }
 }
