@@ -1,7 +1,6 @@
 #pragma once
 
 #include "raylib.h"
-#include <_mingw_off_t.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -101,6 +100,7 @@ DA_INIT(Components_transform)
 typedef struct {
   float radius;
   float mass;
+  size_t collisionCount;
 } Component_collision;
 typedef struct {
   Component_collision *items;
@@ -122,10 +122,14 @@ typedef struct SpatialContext {
   Components_transform *c_transform;
   Components_render *c_render;
   Components_collision *c_collision;
+
+  bool collisionHappened;
   size_t entitiesCount;
   Window window;
   int x_bound, y_bound;
   float frameTime;
+  bool paused;
+  bool step_one_frame;
 } SpatialContext;
 
 void render(SpatialContext *ctx);
@@ -133,3 +137,7 @@ void handle_input(SpatialContext *ctx);
 void handle_update(SpatialContext *ctx);
 void particle_update_collision(SpatialContext *ctx, size_t idx);
 void init(SpatialContext *ctx, size_t count);
+void init_collision_moving_to_not_moving(SpatialContext *ctx);
+void init_collision_not_moving(SpatialContext *ctx);
+
+void appLoopMain(SpatialContext *ctx);

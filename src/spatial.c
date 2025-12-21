@@ -48,7 +48,18 @@ void handle_input(SpatialContext *ctx) {
   }
 
   if (IsKeyPressed(KEY_R)) {
-    init(ctx, 50);
+    init_collision_not_moving(ctx);
+  }
+
+  if (IsKeyPressed(KEY_SPACE)) {
+    ctx->paused = !ctx->paused;
+  }
+
+  if (IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_RIGHT)) {
+    ctx->step_one_frame = true;
+  }
+  if (IsKeyPressed(KEY_RIGHT)) {
+    ctx->step_one_frame = true;
   }
 }
 
@@ -58,6 +69,48 @@ void handle_update(SpatialContext *ctx) {
     particle_update_collision(ctx, i);
   }
 }
+void collision_simple_reverse(SpatialContext *ctx, size_t idx1, size_t idx2) {
+  Component_transform *cTp1 = &ctx->c_transform->items[idx1];
+  Component_transform *cTp2 = &ctx->c_transform->items[idx2];
+  Component_render *cRp1 = &ctx->c_render->items[idx1];
+  Component_render *cRp2 = &ctx->c_render->items[idx2];
+
+  // Old implementation - just reverse
+  cTp1->v = Vector2Scale(cTp1->v, -1);
+  cTp2->v = Vector2Scale(cTp2->v, -1);
+  cRp1->color = (Color){0, 255, 0, 200};
+  cRp2->color = (Color){0, 255, 0, 200};
+}
+
+// TODO: math this out to understand it.
+void collision_elastic_separation(SpatialContext *ctx, size_t idx1,
+                                  size_t idx2) {
+  Component_transform *cTp1 = &ctx->c_transform->items[idx1];
+  Component_transform *cTp2 = &ctx->c_transform->items[idx2];
+  Component_collision *cCp1 = &ctx->c_collision->items[idx1];
+  Component_collision *cCp2 = &ctx->c_collision->items[idx2];
+  Component_render *cRp1 = &ctx->c_render->items[idx1];
+  Component_render *cRp2 = &ctx->c_render->items[idx2];
+
+  // New implementation - elastic with separation
+  Vector2 delta = Vector2Subtract(cTp1->pos, cTp2->pos);
+  float distance = Vector2Length(delta);
+  Vector2 normal = Vector2Normalize(delta);
+
+  float overlap = (cCp1->radius + cCp2->radius) - distance;
+  Vector2 separation = Vector2Scale(normal, overlap / 2.0f);
+  cTp1->pos = Vector2Add(cTp1->pos, separation);
+  cTp2->pos = Vector2Subtract(cTp2->pos, separation);
+
+  // Swap velocities (for equal masses)
+  Vector2 temp = cTp1->v;
+  cTp1->v = cTp2->v;
+  cTp2->v = temp;
+
+  cRp1->color = (Color){0, 255, 0, 200};
+  cRp2->color = (Color){0, 255, 0, 200};
+}
+
 void particle_update_collision(SpatialContext *ctx, size_t idx) {
   Component_transform *cTp1 = &ctx->c_transform->items[idx];
   Component_render *cRp1 = &ctx->c_render->items[idx];
@@ -66,6 +119,7 @@ void particle_update_collision(SpatialContext *ctx, size_t idx) {
   float bounds_min = 0.0f;
   cTp1->pos.x = cTp1->pos.x + cTp1->v.x * ctx->frameTime;
   cTp1->pos.y = cTp1->pos.y + cTp1->v.y * ctx->frameTime;
+
   for (size_t i = 0; i < ctx->entitiesCount; i++) {
     if (i == idx)
       continue;
@@ -75,15 +129,14 @@ void particle_update_collision(SpatialContext *ctx, size_t idx) {
     Component_render *cRp2 = &ctx->c_render->items[i];
 
     if (CheckCollisionCircles(cTp1->pos, cCp1->radius, cTp2->pos,
-                              cCp2->radius) == true) {
-      cTp1->v = Vector2Scale(cTp1->v, -1);
-      cTp2->v = Vector2Scale(cTp2->v, -1);
-
-      cRp1->color = (Color){0, 255, 0, 200};
-      cRp2->color = (Color){0, 255, 0, 200};
+                              cCp2->radius)) {
+      // TODO: overhead since passing idx, instead of cTp1?
+      // collision_simple_reverse(ctx, idx, i);
+      collision_elastic_separation(ctx, idx, i);
     }
   }
 
+  // Boundary collision remains the same
   if (cTp1->pos.x < bounds_min) {
     cTp1->pos.x = bounds_min;
     cTp1->v.x = cTp1->v.x * -1;
@@ -98,14 +151,12 @@ void particle_update_collision(SpatialContext *ctx, size_t idx) {
     cTp1->pos.y = bounds_min;
     cTp1->v.y = cTp1->v.y * -1;
     cRp1->color = PINK;
-
   } else if (cTp1->pos.y > ctx->y_bound) {
     cTp1->pos.y = ctx->y_bound;
     cTp1->v.y = cTp1->v.y * -1;
     cRp1->color = PURPLE;
   }
 }
-
 void init(SpatialContext *ctx, size_t count) {
   ctx->entitiesCount = count;
 
@@ -134,4 +185,94 @@ void init(SpatialContext *ctx, size_t count) {
     ctx->c_collision->items[i].mass = 5.0f;
     ctx->c_collision->count++;
   }
+}
+
+void init_collision_moving_to_not_moving(SpatialContext *ctx) {
+  size_t count = 3;
+  ctx->entitiesCount = count;
+  ctx->c_transform = Components_transform_create(count);
+  ctx->c_render = Components_render_create(count);
+  ctx->c_collision = Components_collision_create(count);
+  for (size_t i = 0; i < count; i++) {
+    // TRANSFROM
+    if (i == 0) {
+      // Left particle - moving right
+      ctx->c_transform->items[i].pos = (Vector2){.x = 0, .y = 150};
+      ctx->c_transform->items[i].v = (Vector2){.x = 50, .y = 0};
+    } else if (i == 1) {
+      // middle particle - stationary
+      ctx->c_transform->items[i].pos = (Vector2){.x = 150, .y = 150};
+      ctx->c_transform->items[i].v = (Vector2){.x = 0, .y = 0};
+    } else {
+      // right particle - moving left
+      ctx->c_transform->items[i].pos = (Vector2){.x = 200, .y = 150};
+      ctx->c_transform->items[i].v = (Vector2){.x = -50, .y = 0};
+    }
+    ctx->c_transform->count++;
+
+    // render
+    ctx->c_render->items[i].renderRadius = 5.0f;
+    ctx->c_render->items[i].color = (Color){255, 0, 0, 200};
+    ctx->c_render->count++;
+
+    // collision
+    ctx->c_collision->items[i].radius = 5.0f;
+    ctx->c_collision->items[i].mass = 5.0f;
+    ctx->c_collision->count++;
+  }
+}
+
+void init_collision_not_moving(SpatialContext *ctx) {
+  size_t count = 3;
+  ctx->entitiesCount = count;
+  ctx->c_transform = Components_transform_create(count);
+  ctx->c_render = Components_render_create(count);
+  ctx->c_collision = Components_collision_create(count);
+  for (size_t i = 0; i < count; i++) {
+    // TRANSFROM
+    if (i == 0) {
+      // Left particle - moving right
+      ctx->c_transform->items[i].pos = (Vector2){.x = 145, .y = 150};
+      ctx->c_transform->items[i].v = (Vector2){.x = 0, .y = 0};
+    } else if (i == 1) {
+      // middle particle - stationary
+      ctx->c_transform->items[i].pos = (Vector2){.x = 150, .y = 150};
+      ctx->c_transform->items[i].v = (Vector2){.x = 0, .y = 0};
+    } else {
+      // right particle - moving left
+      ctx->c_transform->items[i].pos = (Vector2){.x = 155, .y = 150};
+      ctx->c_transform->items[i].v = (Vector2){.x = 0, .y = 0};
+    }
+    ctx->c_transform->count++;
+
+    // render
+    ctx->c_render->items[i].renderRadius = 5.0f;
+    ctx->c_render->items[i].color = (Color){255, 0, 0, 200};
+    ctx->c_render->count++;
+
+    // collision
+    ctx->c_collision->items[i].radius = 5.0f;
+    ctx->c_collision->items[i].mass = 5.0f;
+    ctx->c_collision->count++;
+  }
+}
+
+void appLoopMain(SpatialContext *ctx) {
+  handle_input(ctx);
+
+  if (!ctx->paused || ctx->step_one_frame) {
+    TIME_IT("Update", handle_update(ctx));
+    ctx->step_one_frame = false;
+  }
+
+  // RENDERING
+  BeginDrawing();
+  BeginMode2D(ctx->camera);
+  ClearBackground(RAYWHITE);
+  DrawText("Hello, World!", 190, 200, 20, LIGHTGRAY);
+  TIME_IT("Render", render(ctx));
+  EndMode2D();
+
+  DrawFPS(10, 10);
+  EndDrawing();
 }
