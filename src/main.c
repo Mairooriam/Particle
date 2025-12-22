@@ -1,90 +1,87 @@
+#include "application.h"
+#include "core/components.h"
+#include "core/spatial.h"
+#include "core/utils.h"
 #include "raylib.h"
-#include "raymath.h"
 #include "rlgl.h"
-#include "spatial.h"
 #include <stdio.h>
+
+#ifdef ENABLE_TIMING
+TimingEntry g_timing_entries[32];
+int g_timing_count = 0;
+double g_timing_accumulated_time = 0.0;
+double g_timing_print_interval = 1.0;
+#endif
 
 int main(void) {
 
+  int bounds_x = 4000;
+  int bounds_y = 4000;
+
   // Context init
-  SpatialContext ctx = {0};
-  ctx.state = APP_STATE_IDLE;
-  Camera2D camera = {0};
-  camera.zoom = 1.0f;
-  ctx.camera = camera;
+  size_t entityCount = 5000;
+  Entities *entities = entities_create(entityCount);
+  SpatialGrid *sGrid =
+      SpatialGrid_create(bounds_x, bounds_y, 50.0f, entities->entitiesCount);
 
-  ctx.window.height = 600;
-  ctx.window.width = 800;
-  // TODO: crashes if i change bounds
-  ctx.y_bound = 600;
-  ctx.x_bound = 800;
+  ApplicationContext ctx = {0};
+  ctx.entities = entities;
+  ctx.sGrid = sGrid;
+  ctx.x_bound = bounds_x;
+  ctx.y_bound = bounds_y;
+  Camera2D camera2d = {0};
+  camera2d.zoom = 1.0f;
+  ctx.camera = camera2d;
+  ctx.paused = true;
 
-  ctx.animation.trig_target = 0.01f;
-  ctx.animation.trig_time_current = 0.0f;
-  ctx.animation.time_elapsed = 0.0f;
-  ctx.animation.current_step = 0;
-  ctx.animation.animation_playing = false;
-  ctx.animation.state = ANIMATION_IDLE;
+  SceneData data = {0};
+  data.is = ENTITY_INIT_DATAKIND_FULL;
+  data.get.full.count = entityCount;
+  data.get.full.entitySize = 25.0f;
+  data.get.full.boundsX = bounds_x;
+  data.get.full.boundsY = bounds_y;
 
-  ctx.entitySize = 5.0f;
+  entity_init_collision_diagonal(ctx.entities, data);
+  // init_context(&ctx, entityCount);
 
-  const float UPDATE_INTERVAL = 1.0f / 60.0f; // 60 Hz
-  float accumulator = 0.0f;
-  double updateStart, updateTime = 0;
   // Initialize the window
-  InitWindow(ctx.window.width, ctx.window.height, "Raylib Hello World");
+  InitWindow(800, 600, "Raylib Hello World");
   SetTargetFPS(60);
 
-  // init(&ctx, 5000);
-  // init_collision_moving_to_not_moving(&ctx);
-  // init_collision_not_moving(&ctx);
-  ctx.paused = true;
-  init_collision_diagonal(&ctx);
-  // init_collision_single_particle(&ctx);
-  ctx.sGrid.bX = ctx.x_bound;
-  ctx.sGrid.bY = ctx.y_bound;
-  ctx.sGrid.spacing = ctx.entitySize * 2; // TODO: radius as global
-  ctx.sGrid.numY = ctx.y_bound / ctx.sGrid.spacing;
-  ctx.sGrid.numX = ctx.x_bound / ctx.sGrid.spacing;
-  ctx.sGrid.entities = *arr_size_t_create(ctx.sGrid.numX * ctx.sGrid.numY + 1);
-  ctx.sGrid.antitiesDense = *arr_size_t_create(ctx.entitiesCount);
-  update_spatial(&ctx);
+  // scene_multiple(&ctx, data);
+  update_spatial(sGrid, entities);
+
+  TIMING_SET_INTERVAL(1.0); // Print every 1 second
+  // TIMING_SET_INTERVAL(5.0);  // Or every 5 seconds
+  // TIMING_SET_INTERVAL(10.0); // Or every 10 secon
   while (!WindowShouldClose()) {
+    TIMING_FRAME_BEGIN();
+
     ctx.frameTime = GetFrameTime();
-    accumulator += ctx.frameTime;
-    handle_input(&ctx);
 
-    // velocity increasing over simulation time!?
-    Vector2 velocities;
-    sum_velocities(&ctx, &velocities);
-    float lenght = Vector2Length(velocities);
-    printf("(%f,%f) = %f\n", velocities.x, velocities.y, lenght);
+    // LOGGING
+    // TIME_IT("Log_Velocities", log_velocities(ctx.entities));
 
+    // INPUT
+    TIME_IT("Input", handle_input(&ctx));
+
+    // UPDATE
     if (!ctx.paused || ctx.step_one_frame) {
-      TIME_IT("Update", handle_update(&ctx));
+      TIME_IT("Update total", update(&ctx));
       ctx.step_one_frame = false;
     }
 
-    TIME_IT("Update Spatial", update_spatial(&ctx));
-
     // RENDERING
     BeginDrawing();
-    BeginMode2D(ctx.camera);
     ClearBackground(RAYWHITE);
+    BeginMode2D(ctx.camera);
     DrawText("Hello, World!", 190, 200, 20, LIGHTGRAY);
-
-    TIME_IT("Render", render(&ctx));
-    // TIME_IT("Render Spatial Grid", render_spatial_grid(&ctx.sGrid));
+    TIME_IT("Render total", render(&ctx));
     EndMode2D();
 
-    DrawFPS(10, 10);
-    // Mouse coordinates
-    Vector2 screenPos = GetMousePosition();
-    Vector2 worldPos = GetScreenToWorld2D(screenPos, ctx.camera);
-    DrawText(TextFormat("Screen: (%.0f, %.0f)", screenPos.x, screenPos.y), 10,
-             30, 20, DARKGRAY);
-    DrawText(TextFormat("World: (%.1f, %.1f)", worldPos.x, worldPos.y), 10, 50,
-             20, DARKGRAY);
+    render_info(&ctx);
+
+    TIMING_FRAME_END(ctx.frameTime);
 
     EndDrawing();
   }
