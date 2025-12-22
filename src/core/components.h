@@ -6,6 +6,7 @@
 typedef struct {
   Color color;
   float renderRadius; // Visual size (can differ from collision radius)
+  Model* model; // points to global model 
 } Component_render;
 typedef struct {
   Component_render *items;

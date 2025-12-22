@@ -33,6 +33,7 @@ int main(void) {
   camera2d.zoom = 1.0f;
   ctx.camera = camera2d;
   ctx.paused = true;
+  ctx.state = APP_STATE_2D;
 
   SceneData data = {0};
   data.is = ENTITY_INIT_DATAKIND_FULL;
@@ -54,6 +55,28 @@ int main(void) {
   TIMING_SET_INTERVAL(1.0); // Print every 1 second
   // TIMING_SET_INTERVAL(5.0);  // Or every 5 seconds
   // TIMING_SET_INTERVAL(10.0); // Or every 10 secon
+  {
+    Camera camera3D = {
+        {5.0f, 5.0f, 5.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 45.0f, 0};
+    ctx.camera3D = camera3D;
+  }
+
+  Mesh mesh = mesh_generate_circle(8);
+  Model model = LoadModelFromMesh(mesh);
+  Image checked = GenImageChecked(2, 2, 1, 1, RED, GREEN);
+  Texture2D texture = LoadTextureFromImage(checked);
+  Entities *entities2 = entities_create(10);
+  UnloadImage(checked);
+
+  model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texture;
+  for (size_t i = 0; i < 10; i++) {
+    Component_render *cRp1 = &entities2->c_render->items[i];
+    cRp1->model = &model;
+    Component_transform *cTp1 = &entities2->c_transform->items[i];
+    cTp1->pos.y = i;
+    cTp1->pos.x = i * 3;
+  }
+
   while (!WindowShouldClose()) {
     TIMING_FRAME_BEGIN();
 
@@ -63,7 +86,7 @@ int main(void) {
     // TIME_IT("Log_Velocities", log_velocities(ctx.entities));
 
     // INPUT
-    TIME_IT("Input", handle_input(&ctx));
+    TIME_IT("Input", input(&ctx));
 
     // UPDATE
     if (!ctx.paused || ctx.step_one_frame) {
@@ -74,6 +97,18 @@ int main(void) {
     // RENDERING
     BeginDrawing();
     ClearBackground(RAYWHITE);
+    BeginMode3D(ctx.camera3D);
+    DrawGrid(10, 1.0);
+
+    rlDisableBackfaceCulling();
+    rlPushMatrix();
+    rlRotatef(-90, 1, 0, 0);
+    DrawModel(model, (Vector3){0, 0, 0}, 2.0f, WHITE);
+    rlPopMatrix();
+    rlEnableBackfaceCulling();
+    render_entities_3D(entities2, ctx.camera3D);
+    EndMode3D();
+
     BeginMode2D(ctx.camera);
     DrawText("Hello, World!", 190, 200, 20, LIGHTGRAY);
     TIME_IT("Render total", render(&ctx));
@@ -82,6 +117,11 @@ int main(void) {
     render_info(&ctx);
 
     TIMING_FRAME_END(ctx.frameTime);
+
+    char camInfo[128];
+    snprintf(camInfo, sizeof(camInfo), "Camera - Pos:(%.0f, %.0f) Zoom:%.2f",
+             ctx.camera.target.x, ctx.camera.target.y, ctx.camera.zoom);
+    DrawText(camInfo, 10, 150, 16, DARKGRAY);
 
     EndDrawing();
   }

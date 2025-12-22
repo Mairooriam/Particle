@@ -29,39 +29,21 @@ void init_context(ApplicationContext *ctx) {
   ctx->paused = true;
   ctx->InitFn = entity_init_collision_diagonal;
 }
-void render_entities(Entities *ctx) {
-  for (size_t i = 0; i < ctx->entitiesCount; i++) {
-    Component_transform *cT = &ctx->c_transform->items[i];
-    Component_render *cR = &ctx->c_render->items[i];
-    Component_collision *cCp1 = &ctx->c_collision->items[i]; // TODO: temp
-                                                             // debug;
 
-    DrawCircleSector(cT->pos, cR->renderRadius, 0, 360, 16, cR->color);
-
-    // Vector2 n_vel = Vector2Normalize(cT->v);
-    // DrawLine(cT->pos.x, cT->pos.y, cT->v.x, cT->v.y, BLACK);
-    Vector2 v_relative = Vector2Add(cT->pos, cT->v);
-    DrawLine(cT->pos.x, cT->pos.y, v_relative.x, v_relative.y, BLACK);
-    char buf[32];
-    snprintf(buf, 32, "%zu", i);
-    DrawText(buf, cT->pos.x, cT->pos.y, 6.0f, BLACK);
-    memset(buf, 0, 32);
-    snprintf(buf, 32, "%zu", cCp1->searchCount);
-    DrawText(buf, cT->pos.x + 10, cT->pos.y + 10, 6.0f, RED);
-    memset(buf, 0, 32);
-    snprintf(buf, 32, "%zu", cCp1->collisionCount);
-    DrawText(buf, cT->pos.x - 10, cT->pos.y + 10, 6.0f, GREEN);
+void input(ApplicationContext *ctx) {
+  input_state(ctx);
+  input_other(ctx);
+  // TODO: fix this input mess. just quick setup
+  if (ctx->state == APP_STATE_2D) {
+    input_mouse_2D(ctx);
+  } else {
+    input_mouse_3D(ctx);
   }
 }
-void render(ApplicationContext *ctx) {
-
-  DrawRectangleLines(0, 0, ctx->x_bound, ctx->y_bound, BLACK);
-
-  TIME_IT("Render Spatial Grid", render_spatial_grid(ctx->sGrid));
-  TIME_IT("Render Entities", render_entities(ctx->entities));
-}
-
-void handle_input(ApplicationContext *ctx) {
+void input_mouse_2D(ApplicationContext *ctx) {
+  if (IsCursorHidden()) {
+    EnableCursor();
+  }
   Camera2D *camera = &ctx->camera;
   if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
     Vector2 delta = GetMouseDelta();
@@ -78,7 +60,14 @@ void handle_input(ApplicationContext *ctx) {
     float scale = 0.2f * wheel;
     camera->zoom = Clamp(expf(logf(camera->zoom) + scale), 0.125f, 64.0f);
   }
-
+}
+void input_mouse_3D(ApplicationContext *ctx) {
+  UpdateCamera(&ctx->camera3D, CAMERA_FREE);
+  DisableCursor();
+  if (IsKeyPressed(KEY_Z))
+    ctx->camera3D.target = (Vector3){0.0f, 0.0f, 0.0f};
+}
+void input_other(ApplicationContext *ctx) {
   if (IsKeyPressed(KEY_R)) {
     // entity_init_collision_not_moving(ctx);
     // entity_init_collision_diagonal(ctx);
@@ -101,42 +90,39 @@ void handle_input(ApplicationContext *ctx) {
   if (IsKeyPressed(KEY_RIGHT)) {
     ctx->step_one_frame = true;
   }
+}
 
+void input_state(ApplicationContext *ctx) {
   int c = GetCharPressed();
   if (c != 0) {
-    // switch (c) {
-    // case KEY_ZERO: {
-    //
-    // } break;
-    // case KEY_ONE: {
-    //   ctx->InitFn = entity_init_multiple;
-    // } break;
-    // case KEY_TWO: {
-    //   ctx->InitFn = entity_init_collision_spatial;
-    // } break;
-    // case KEY_THREE: {
-    //   ctx->InitFn = entity_init_collision_diagonal;
-    // } break;
-    // case KEY_FOUR: {
-    //   ctx->InitFn = entity_init_collision_head_on;
-    // } break;
-    // case KEY_FIVE: {
-    //   ctx->InitFn = entity_init_collision_not_moving;
-    // } break;
-    // case KEY_SIX: {
-    //   ctx->InitFn = entity_init_collision_single_particle;
-    // } break;
-    // case KEY_SEVEN: {
-    // } break;
-    // case KEY_EIGHT: {
-    // } break;
-    // case KEY_NINE: {
-    // } break;
-    // }
+    switch (c) {
+    case KEY_ZERO: {
+      ctx->state = APP_STATE_IDLE;
+    } break;
+    case KEY_ONE: {
+      ctx->state = APP_STATE_2D;
+    } break;
+    case KEY_TWO: {
+      ctx->state = APP_STATE_3D;
+    } break;
+    case KEY_THREE: {
+    } break;
+    case KEY_FOUR: {
+    } break;
+    case KEY_FIVE: {
+    } break;
+    case KEY_SIX: {
+    } break;
+    case KEY_SEVEN: {
+    } break;
+    case KEY_EIGHT: {
+    } break;
+    case KEY_NINE: {
+    } break;
+    }
     printf("char:%c | i:%i\n", c, c);
   }
 }
-
 void update(ApplicationContext *ctx) {
   TIME_IT("Reset entity color", color_entities(ctx->entities, GREEN));
 
@@ -324,8 +310,80 @@ void particle_update_collision_spatial(Entities *ctx, size_t idx,
   }
 }
 
-void render_spatial_grid(SpatialGrid *sGrid) {
+// ---------------------------------------------
+// RENDERING
+// ---------------------------------------------
+void render(ApplicationContext *ctx) {
 
+  DrawRectangleLines(0, 0, ctx->x_bound, ctx->y_bound, BLACK);
+
+  TIME_IT("Render Spatial Grid", render_spatial_grid(ctx->sGrid, ctx->camera));
+  TIME_IT("Render Entities", render_entities(ctx->entities, ctx->camera));
+}
+
+void render_entities(Entities *ctx, Camera2D camera) {
+  for (size_t i = 0; i < ctx->entitiesCount; i++) {
+
+    Component_transform *cT = &ctx->c_transform->items[i];
+
+    Vector2 screen = GetWorldToScreen2D(cT->pos, camera);
+
+    if (screen.x > 800 || screen.x < 0) {
+      continue;
+    }
+
+    if (screen.y > 600 || screen.y < 0) {
+      continue;
+    }
+
+    Component_render *cR = &ctx->c_render->items[i];
+    Component_collision *cCp1 = &ctx->c_collision->items[i]; // TODO: temp
+                                                             // debug;
+
+    DrawCircleSector(cT->pos, cR->renderRadius, 0, 360, 16, cR->color);
+
+    // Vector2 n_vel = Vector2Normalize(cT->v);
+    // DrawLine(cT->pos.x, cT->pos.y, cT->v.x, cT->v.y, BLACK);
+    Vector2 v_relative = Vector2Add(cT->pos, cT->v);
+    DrawLine(cT->pos.x, cT->pos.y, v_relative.x, v_relative.y, BLACK);
+    char buf[32];
+    snprintf(buf, 32, "%zu", i);
+    DrawText(buf, cT->pos.x, cT->pos.y, 6.0f, BLACK);
+    memset(buf, 0, 32);
+    snprintf(buf, 32, "%zu", cCp1->searchCount);
+    DrawText(buf, cT->pos.x + 10, cT->pos.y + 10, 6.0f, RED);
+    memset(buf, 0, 32);
+    snprintf(buf, 32, "%zu", cCp1->collisionCount);
+    DrawText(buf, cT->pos.x - 10, cT->pos.y + 10, 6.0f, GREEN);
+  }
+}
+void render_entities_3D(Entities *e, Camera camera3D) {
+  for (size_t i = 0; i < e->entitiesCount; i++) {
+    Component_render *cRp1 = &e->c_render->items[i];
+    Component_transform *cTp1 = &e->c_transform->items[i];
+
+    rlDisableBackfaceCulling();
+    rlPushMatrix();
+    rlTranslatef(cTp1->pos.x, cTp1->pos.y, 0.0f);
+    rlRotatef(-90, 1, 0, 0);
+    DrawModel(*cRp1->model, (Vector3){0, 0, 0}, 2.0f, WHITE);
+    rlPopMatrix();
+    rlEnableBackfaceCulling();
+  }
+}
+
+void render_info(ApplicationContext *ctx) {
+  DrawFPS(10, 10);
+  // Mouse coordinates
+  Vector2 screenPos = GetMousePosition();
+  Vector2 worldPos = GetScreenToWorld2D(screenPos, ctx->camera);
+  DrawText(TextFormat("Screen: (%.0f, %.0f)", screenPos.x, screenPos.y), 10, 30,
+           20, DARKGRAY);
+  DrawText(TextFormat("World: (%.1f, %.1f)", worldPos.x, worldPos.y), 10, 50,
+           20, DARKGRAY);
+}
+
+void render_spatial_grid(SpatialGrid *sGrid, Camera2D camera) {
   // spatial grid - draw cells as rectangles
   // TODO: -1 on numx etc fixes the problem but why? might cause porlbmes
   for (size_t x = 0; x <= sGrid->numX - 1; x++) {
@@ -334,6 +392,14 @@ void render_spatial_grid(SpatialGrid *sGrid) {
       float posY = y * sGrid->spacing;
       Rectangle rec = (Rectangle){posX, posY, sGrid->spacing, sGrid->spacing};
 
+      Vector2 screen = GetWorldToScreen2D((Vector2){posX, posY}, camera);
+      if (screen.x > 800 || screen.x < 0) {
+        continue;
+      }
+
+      if (screen.y > 600 || screen.y < 0) {
+        continue;
+      }
       // Calculate cell index
       size_t idx = x * sGrid->numY + y;
 
@@ -363,6 +429,12 @@ void render_spatial_grid(SpatialGrid *sGrid) {
   for (size_t i = 0; i < sGrid->entities.capacity; i++) {
     Rectangle rec =
         (Rectangle){offset.x + i * (size + 5), offset.y, size, size};
+
+    Vector2 screen = GetWorldToScreen2D((Vector2){rec.x, rec.y}, camera);
+    if (screen.x > 800 || screen.x < 0 || screen.y > 600 || screen.y < 0) {
+      continue;
+    }
+
     size_t val = sGrid->entities.items[i];
     char buf[10];
     snprintf(buf, 10, "%zu", val);
@@ -396,6 +468,10 @@ void render_spatial_grid(SpatialGrid *sGrid) {
   for (size_t i = 0; i < sGrid->antitiesDense.capacity; i++) {
     Rectangle rec =
         (Rectangle){offset.x + i * (size + 5), offset.y * 2, size, size};
+    Vector2 screen = GetWorldToScreen2D((Vector2){rec.x, rec.y}, camera);
+    if (screen.x > 800 || screen.x < 0 || screen.y > 600 || screen.y < 0) {
+      continue;
+    }
     DrawRectangleLinesEx(rec, 2.0f, PINK);
     size_t val = sGrid->antitiesDense.items[i];
     char buf3[10];
@@ -404,14 +480,6 @@ void render_spatial_grid(SpatialGrid *sGrid) {
              BLACK);
   }
 }
-
-void render_info(ApplicationContext *ctx) {
-  DrawFPS(10, 10);
-  // Mouse coordinates
-  Vector2 screenPos = GetMousePosition();
-  Vector2 worldPos = GetScreenToWorld2D(screenPos, ctx->camera);
-  DrawText(TextFormat("Screen: (%.0f, %.0f)", screenPos.x, screenPos.y), 10, 30,
-           20, DARKGRAY);
-  DrawText(TextFormat("World: (%.1f, %.1f)", worldPos.x, worldPos.y), 10, 50,
-           20, DARKGRAY);
-}
+// ---------------------------------------------
+//
+// ---------------------------------------------
