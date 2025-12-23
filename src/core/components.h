@@ -6,7 +6,7 @@
 typedef struct {
   Color color;
   float renderRadius; // Visual size (can differ from collision radius)
-  Model* model; // points to global model 
+  Model *model;       // points to global model
 } Component_render;
 typedef struct {
   Component_render *items;
@@ -19,8 +19,8 @@ DA_INIT(Components_render)
 
 // TRANSFORM COMPONENT
 typedef struct {
-  Vector2 pos;
-  Vector2 v; // Velocity
+  Vector3 pos;
+  Vector3 v; // Velocity
 } Component_transform;
 typedef struct {
   Component_transform *items;
@@ -75,16 +75,14 @@ typedef struct {
   } get;
 } SceneData;
 
-
 typedef struct {
-  Vector2 pos;
-  Vector2 vel;
+  Vector3 pos;
+  Vector3 vel;
   float renderRadius;
   float collisionRadius;
   Color color;
   float mass;
 } EntitySpec;
-
 
 Entities *entities_create(size_t count);
 void entities_init(Entities *ctx, size_t count);
@@ -95,7 +93,7 @@ size_t entity_add_from_spec(Entities *ctx, EntitySpec spec);
 void entity_init_collision_diagonal(Entities *ctx, SceneData data);
 
 // Helpers
-void sum_velocities(Entities *ctx, Vector2 *out);
+void sum_velocities(Entities *ctx, Vector3 *out);
 void log_velocities(Entities *ctx);
 void color_entities(Entities *ctx, Color color);
 

@@ -1,4 +1,3 @@
-#pragma once
 #include "components.h"
 #include "raymath.h"
 #include <assert.h>
@@ -41,16 +40,18 @@ void entities_free(Entities *ctx) {
 }
 size_t entity_add_from_spec(Entities *ctx, EntitySpec spec) {
   size_t id = ctx->c_transform->count;
-  
+
   ctx->c_transform->items[id] = (Component_transform){spec.pos, spec.vel};
   ctx->c_transform->count++;
-  
-  ctx->c_render->items[id] = (Component_render){spec.color, spec.renderRadius};
+
+  ctx->c_render->items[id] =
+      (Component_render){spec.color, spec.renderRadius, NULL};
   ctx->c_render->count++;
-  
-  ctx->c_collision->items[id] = (Component_collision){spec.collisionRadius, spec.mass, 0, 0};
+
+  ctx->c_collision->items[id] =
+      (Component_collision){spec.collisionRadius, spec.mass, 0, 0};
   ctx->c_collision->count++;
-  
+
   return id;
 }
 void entity_init_collision_diagonal(Entities *ctx, SceneData data) {
@@ -87,32 +88,31 @@ void entity_init_collision_diagonal(Entities *ctx, SceneData data) {
     float speed = 35.36f + (float)(i % 3) * 5.0f;
 
     EntitySpec spec = {
-      .pos = {x_spacing * (float)(col + 1), y_spacing * (float)(row + 1)},
-      .vel = {cosf(angle) * speed, sinf(angle) * speed},
-      .renderRadius = thisEntitySize,
-      .collisionRadius = thisEntitySize * 0.9f,
-      .color = (Color){255, 0, 0, 200},
-      .mass = 5.0f
-    };
-    
+        .pos = {x_spacing * (float)(col + 1), y_spacing * (float)(row + 1), 0},
+        .vel = {cosf(angle) * speed, sinf(angle) * speed, 0},
+        .renderRadius = thisEntitySize,
+        .collisionRadius = thisEntitySize * 0.9f,
+        .color = (Color){255, 0, 0, 200},
+        .mass = 5.0f};
+
     entity_add_from_spec(ctx, spec);
   }
 }
 
-void sum_velocities(Entities *ctx, Vector2 *out) {
-  *out = (Vector2){0, 0}; // Initialize to zero
+void sum_velocities(Entities *ctx, Vector3 *out) {
+  *out = (Vector3){0, 0, 0}; // Initialize to zero
 
   for (size_t i = 0; i < ctx->entitiesCount; i++) {
     Component_transform *cTp1 = &ctx->c_transform->items[i];
-    *out = Vector2Add(cTp1->v, *out);
+    *out = Vector3Add(cTp1->v, *out);
   }
 }
 
 void log_velocities(Entities *ctx) {
   //  velocity increasing over simulation time !?
-  Vector2 velocities;
+  Vector3 velocities;
   sum_velocities(ctx, &velocities);
-  float lenght = Vector2Length(velocities);
+  float lenght = Vector3Length(velocities);
   printf("(%f,%f) = %f\n", velocities.x, velocities.y, lenght);
 }
 

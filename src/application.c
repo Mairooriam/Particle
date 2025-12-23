@@ -58,7 +58,7 @@ void input_mouse_2D(ApplicationContext *ctx) {
     camera->target = mouseWorldPos;
 
     float scale = 0.2f * wheel;
-    camera->zoom = Clamp(expf(logf(camera->zoom) + scale), 0.125f, 64.0f);
+    camera->zoom = Clamp(expf(logf(camera->zoom) + scale), 0.01f, 64.0f);
   }
 }
 void input_mouse_3D(ApplicationContext *ctx) {
@@ -138,6 +138,12 @@ void update_entities(Entities *ctx, float frameTime, float x_bound,
                                       sGrid);
   }
 }
+void update_entities_3D(Entities *ctx, float frameTime, float x_bound,
+                        float y_bound, SpatialGrid *sGrid) {
+  for (size_t i = 0; i < ctx->entitiesCount; i++) {
+    entities_update_collision(ctx, i, frameTime, x_bound, y_bound);
+  }
+}
 void collision_simple_reverse(Entities *ctx, size_t idx1, size_t idx2) {
   Component_transform *cTp1 = &ctx->c_transform->items[idx1];
   Component_transform *cTp2 = &ctx->c_transform->items[idx2];
@@ -145,8 +151,8 @@ void collision_simple_reverse(Entities *ctx, size_t idx1, size_t idx2) {
   Component_render *cRp2 = &ctx->c_render->items[idx2];
 
   // Old implementation - just reverse
-  cTp1->v = Vector2Scale(cTp1->v, -1);
-  cTp2->v = Vector2Scale(cTp2->v, -1);
+  cTp1->v = Vector3Scale(cTp1->v, -1);
+  cTp2->v = Vector3Scale(cTp2->v, -1);
   cRp1->color = (Color){0, 255, 0, 200};
   cRp2->color = (Color){0, 255, 0, 200};
 }
@@ -161,17 +167,17 @@ void collision_elastic_separation(Entities *ctx, size_t idx1, size_t idx2) {
   Component_render *cRp2 = &ctx->c_render->items[idx2];
 
   // New implementation - elastic with separation
-  Vector2 delta = Vector2Subtract(cTp1->pos, cTp2->pos);
-  float distance = Vector2Length(delta);
-  Vector2 normal = Vector2Normalize(delta);
+  Vector3 delta = Vector3Subtract(cTp1->pos, cTp2->pos);
+  float distance = Vector3Length(delta);
+  Vector3 normal = Vector3Normalize(delta);
 
   float overlap = (cCp1->radius + cCp2->radius) - distance;
-  Vector2 separation = Vector2Scale(normal, overlap / 2.0f);
-  cTp1->pos = Vector2Add(cTp1->pos, separation);
-  cTp2->pos = Vector2Subtract(cTp2->pos, separation);
+  Vector3 separation = Vector3Scale(normal, overlap / 2.0f);
+  cTp1->pos = Vector3Add(cTp1->pos, separation);
+  cTp2->pos = Vector3Subtract(cTp2->pos, separation);
 
   // Swap velocities (for equal masses)
-  Vector2 temp = cTp1->v;
+  Vector3 temp = cTp1->v;
   cTp1->v = cTp2->v;
   cTp2->v = temp;
 
@@ -179,49 +185,48 @@ void collision_elastic_separation(Entities *ctx, size_t idx1, size_t idx2) {
   cRp2->color = (Color){0, 255, 0, 200};
 }
 
-void particle_update_collision(Entities *ctx, size_t idx, float frameTime,
+void entities_update_collision(Entities *ctx, size_t idx, float frameTime,
                                float x_bound, float y_bound) {
   Component_transform *cTp1 = &ctx->c_transform->items[idx];
   Component_render *cRp1 = &ctx->c_render->items[idx];
-  Component_collision *cCp1 = &ctx->c_collision->items[idx];
+  // Component_collision *cCp1 = &ctx->c_collision->items[idx];
 
   float bounds_min = 0.0f;
-  cTp1->pos.x = cTp1->pos.x + cTp1->v.x * frameTime;
-  cTp1->pos.y = cTp1->pos.y + cTp1->v.y * frameTime;
+  Vector3 v1 = Vector3Scale(cTp1->v, frameTime);
+  cTp1->pos = Vector3Add(cTp1->pos, v1);
+  // for (size_t i = 0; i < ctx->entitiesCount; i++) {
+  //   if (i == idx)
+  //     continue;
+  //
+  // Component_transform *cTp2 = &ctx->c_transform->items[i];
+  // Component_collision *cCp2 = &ctx->c_collision->items[i];
+  // Component_render *cRp2 = &ctx->c_render->items[i];
 
-  for (size_t i = 0; i < ctx->entitiesCount; i++) {
-    if (i == idx)
-      continue;
-
-    Component_transform *cTp2 = &ctx->c_transform->items[i];
-    Component_collision *cCp2 = &ctx->c_collision->items[i];
-    //    Component_render *cRp2 = &ctx->c_render->items[i];
-
-    if (CheckCollisionCircles(cTp1->pos, cCp1->radius, cTp2->pos,
-                              cCp2->radius)) {
-      // TODO: overhead since passing idx, instead of cTp1?
-      // collision_simple_reverse(ctx, idx, i);
-      collision_elastic_separation(ctx, idx, i);
-    }
-  }
-
+  // if (CheckCollisionCircles((VectorcTp1->pos, cCp1->radius, cTp2->pos,
+  //                           cCp2->radius)) {
+  //   // TODO: overhead since passing idx, instead of cTp1?
+  //   // collision_simple_reverse(ctx, idx, i);
+  //   collision_elastic_separation(ctx, idx, i);
+  // }
+  // }
+  //
   // Boundary collision remains the same
-  if (cTp1->pos.x < bounds_min) {
-    cTp1->pos.x = bounds_min;
+  if (cTp1->pos.x < -50) {
+    cTp1->pos.x = -50;
     cTp1->v.x = cTp1->v.x * -1;
     cRp1->color = YELLOW;
-  } else if (cTp1->pos.x > x_bound) {
-    cTp1->pos.x = x_bound;
+  } else if (cTp1->pos.x > 50) {
+    cTp1->pos.x = 50;
     cTp1->v.x = cTp1->v.x * -1;
     cRp1->color = BLUE;
   }
 
-  if (cTp1->pos.y < bounds_min) {
-    cTp1->pos.y = bounds_min;
+  if (cTp1->pos.y < -50) {
+    cTp1->pos.y = -50;
     cTp1->v.y = cTp1->v.y * -1;
     cRp1->color = PINK;
-  } else if (cTp1->pos.y > y_bound) {
-    cTp1->pos.y = y_bound;
+  } else if (cTp1->pos.y > 50) {
+    cTp1->pos.y = 50;
     cTp1->v.y = cTp1->v.y * -1;
     cRp1->color = PURPLE;
   }
@@ -274,8 +279,9 @@ void particle_update_collision_spatial(Entities *ctx, size_t idx,
         Component_transform *cTp2 = &ctx->c_transform->items[otherIdx];
         Component_collision *cCp2 = &ctx->c_collision->items[otherIdx];
         Component_render *cRp2 = &ctx->c_render->items[otherIdx];
-        if (CheckCollisionCircles(cTp1->pos, cCp1->radius, cTp2->pos,
-                                  cCp2->radius)) {
+        if (CheckCollisionCircles(
+                (Vector2){cTp1->pos.x, cTp1->pos.y}, cCp1->radius,
+                (Vector2){cTp2->pos.x, cTp2->pos.y}, cCp2->radius)) {
           collision_elastic_separation(ctx, idx, otherIdx);
           cCp1->collisionCount++;
         }
@@ -317,7 +323,8 @@ void render(ApplicationContext *ctx) {
 
   DrawRectangleLines(0, 0, ctx->x_bound, ctx->y_bound, BLACK);
 
-  TIME_IT("Render Spatial Grid", render_spatial_grid(ctx->sGrid, ctx->camera));
+  // TIME_IT("Render Spatial Grid", render_spatial_grid(ctx->sGrid,
+  // ctx->camera));
   TIME_IT("Render Entities", render_entities(ctx->entities, ctx->camera));
 }
 
@@ -326,7 +333,8 @@ void render_entities(Entities *ctx, Camera2D camera) {
 
     Component_transform *cT = &ctx->c_transform->items[i];
 
-    Vector2 screen = GetWorldToScreen2D(cT->pos, camera);
+    Vector2 screen =
+        GetWorldToScreen2D((Vector2){cT->pos.x, cT->pos.y}, camera);
 
     if (screen.x > 800 || screen.x < 0) {
       continue;
@@ -340,35 +348,36 @@ void render_entities(Entities *ctx, Camera2D camera) {
     Component_collision *cCp1 = &ctx->c_collision->items[i]; // TODO: temp
                                                              // debug;
 
-    DrawCircleSector(cT->pos, cR->renderRadius, 0, 360, 16, cR->color);
+    DrawCircleSector((Vector2){cT->pos.x, cT->pos.y}, cR->renderRadius, 0, 360,
+                     16, cR->color);
 
     // Vector2 n_vel = Vector2Normalize(cT->v);
     // DrawLine(cT->pos.x, cT->pos.y, cT->v.x, cT->v.y, BLACK);
-    Vector2 v_relative = Vector2Add(cT->pos, cT->v);
-    DrawLine(cT->pos.x, cT->pos.y, v_relative.x, v_relative.y, BLACK);
-    char buf[32];
-    snprintf(buf, 32, "%zu", i);
-    DrawText(buf, cT->pos.x, cT->pos.y, 6.0f, BLACK);
-    memset(buf, 0, 32);
-    snprintf(buf, 32, "%zu", cCp1->searchCount);
-    DrawText(buf, cT->pos.x + 10, cT->pos.y + 10, 6.0f, RED);
-    memset(buf, 0, 32);
-    snprintf(buf, 32, "%zu", cCp1->collisionCount);
-    DrawText(buf, cT->pos.x - 10, cT->pos.y + 10, 6.0f, GREEN);
+    // Vector2 v_relative = Vector2Add(cT->pos, cT->v);
+    // DrawLine(cT->pos.x, cT->pos.y, v_relative.x, v_relative.y, BLACK);
+    // char buf[32];
+    // snprintf(buf, 32, "%zu", i);
+    // DrawText(buf, cT->pos.x, cT->pos.y, 6.0f, BLACK);
+    // memset(buf, 0, 32);
+    // snprintf(buf, 32, "%zu", cCp1->searchCount);
+    // DrawText(buf, cT->pos.x + 10, cT->pos.y + 10, 6.0f, RED);
+    // memset(buf, 0, 32);
+    // snprintf(buf, 32, "%zu", cCp1->collisionCount);
+    // DrawText(buf, cT->pos.x - 10, cT->pos.y + 10, 6.0f, GREEN);
   }
 }
 void render_entities_3D(Entities *e, Camera camera3D) {
   for (size_t i = 0; i < e->entitiesCount; i++) {
-    Component_render *cRp1 = &e->c_render->items[i];
+    // Component_render *cRp1 = &e->c_render->items[i];
     Component_transform *cTp1 = &e->c_transform->items[i];
 
-    rlDisableBackfaceCulling();
     rlPushMatrix();
-    rlTranslatef(cTp1->pos.x, cTp1->pos.y, 0.0f);
+
     rlRotatef(-90, 1, 0, 0);
-    DrawModel(*cRp1->model, (Vector3){0, 0, 0}, 2.0f, WHITE);
+    rlTranslatef(cTp1->pos.x, cTp1->pos.y, cTp1->pos.z);
+    // DrawModel(*cRp1->model, (Vector3){0, 0, 0}, 2.0f, WHITE);
+    DrawPoint3D(cTp1->pos, WHITE);
     rlPopMatrix();
-    rlEnableBackfaceCulling();
   }
 }
 

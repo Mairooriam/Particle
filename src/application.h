@@ -55,12 +55,14 @@ void input_other(ApplicationContext *ctx);
 void update(ApplicationContext *ctx);
 void update_entities(Entities *ctx, float frameTime, float x_bound,
                      float y_bound, SpatialGrid *sGrid);
+void update_entities_3D(Entities *ctx, float frameTime, float x_bound,
+                        float y_bound, SpatialGrid *sGrid);
 
 // COLLISION
 void collision_simple_reverse(Entities *ctx, size_t idx1, size_t idx2);
 void collision_elastic_separation(Entities *ctx, size_t idx1, size_t idx2);
 
-void particle_update_collision(Entities *ctx, size_t idx, float frameTime,
+void entities_update_collision(Entities *ctx, size_t idx, float frameTime,
                                float x_bound, float y_bound);
 void particle_update_collision_spatial(Entities *ctx, size_t idx,
                                        float frameTime, float x_bound,
