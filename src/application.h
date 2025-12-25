@@ -43,7 +43,8 @@ void render(ApplicationContext *ctx);
 void render_entities(Entities *ctx, Camera2D camera);
 void render_spatial_grid(SpatialGrid *sGrid, Camera2D camera);
 void render_info(ApplicationContext *ctx);
-void render_entities_3D(Entities *e, Camera camera3D);
+void render_entities_3D(Mesh mesh, Material material, const Matrix *transforms,
+                        size_t count);
 // INPUT
 void handle_input(ApplicationContext *ctx);
 void input(ApplicationContext *ctx);
@@ -55,18 +56,20 @@ void input_other(ApplicationContext *ctx);
 void update(ApplicationContext *ctx);
 void update_entities(Entities *ctx, float frameTime, float x_bound,
                      float y_bound, SpatialGrid *sGrid);
-void update_entities_3D(Entities *ctx, float frameTime, float x_bound,
-                        float y_bound, SpatialGrid *sGrid);
+void update_entities_3D(Entities *ctx, float frameTime, SpatialGrid *sGrid,
+                        Matrix *transforms);
 
 // COLLISION
 void collision_simple_reverse(Entities *ctx, size_t idx1, size_t idx2);
 void collision_elastic_separation(Entities *ctx, size_t idx1, size_t idx2);
+void collision_separation_meow(Entities *ctx, size_t idx1, size_t idx2);
 
-void entities_update_collision(Entities *ctx, size_t idx, float frameTime,
-                               float x_bound, float y_bound);
+void entities_update_collision_3D(Entities *ctx, size_t idx, float frameTime);
 void particle_update_collision_spatial(Entities *ctx, size_t idx,
-                                       float frameTime, float x_bound,
-                                       float y_bound, SpatialGrid *sGrid);
+                                       SpatialGrid *sGrid);
+
+void init_instanced_draw(Shader *shader, Matrix *transforms, Entities *entities,
+                         Material *material);
 
 // https://www.raylib.com/examples/models/loader.html?name=models_mesh_generation
 static Mesh mesh_generate_circle(int segments) {

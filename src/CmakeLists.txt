@@ -24,16 +24,8 @@ endif()
 option(USE_PREBUILT_DEPS "Use pre-built external dependencies" ON)
 
 if(USE_PREBUILT_DEPS)
-    set(EXTERNAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../deps/build")
-    
-    list(APPEND CMAKE_PREFIX_PATH "${EXTERNAL_DIR}")
-    include_directories("${EXTERNAL_DIR}/_deps/raylib-src/src")
-    link_directories("${EXTERNAL_DIR}/lib")
-    
-    find_library(RAYLIB_LIBRARY raylib PATHS "${EXTERNAL_DIR}/lib")
-    
-    set(RAYLIB_LIBRARIES ${RAYLIB_LIBRARY})
-    
+    include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/src")
+    link_directories("${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib")
 else()
     # Fallback to building deps inline
     add_subdirectory(../deps)
@@ -51,7 +43,11 @@ set(SOURCES
 
 add_executable(main ${SOURCES})
 target_compile_definitions(main PRIVATE LOG_USE_COLOR)
-target_link_libraries(main ${RAYLIB_LIBRARIES})
+find_library(RAYLIB_LIBRARY raylib PATHS "${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib")
+if(NOT RAYLIB_LIBRARY)
+    message(FATAL_ERROR "raylib library not found in ${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib")
+endif()
+target_link_libraries(main ${RAYLIB_LIBRARY})
 if(ENABLE_TIMING)
     target_compile_definitions(main PRIVATE ENABLE_TIMING)
 endif()

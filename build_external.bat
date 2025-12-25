@@ -8,7 +8,7 @@ REM Change to open62541 build directory
 cd deps\build
 
 REM Run CMake configure step with Release build type and Ninja generator
-cmake -G -DCMAKE_BUILD_TYPE=Debug ..
+cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Debug ..
 
 REM Build open62541 in Release mode using Ninja
 ninja

@@ -2,11 +2,12 @@
 #include "raylib.h" // just for types like Color & Vector2
 #include "utils.h"  // For DA Macros
 
+// TODO: sparse sets of my components? what does this even mean. research
+
 // RENDER COMPONENT
 typedef struct {
   Color color;
   float renderRadius; // Visual size (can differ from collision radius)
-  Model *model;       // points to global model
 } Component_render;
 typedef struct {
   Component_render *items;
@@ -21,6 +22,8 @@ DA_INIT(Components_render)
 typedef struct {
   Vector3 pos;
   Vector3 v; // Velocity
+  Vector3 a; // acceleration
+  float restitution; // 1 -> will bounce apart - 0 -> both will keep moving to same direction
 } Component_transform;
 typedef struct {
   Component_transform *items;
@@ -35,6 +38,7 @@ DA_INIT(Components_transform)
 typedef struct {
   float radius;
   float mass;
+  float inverseMass;
   size_t collisionCount;
   size_t searchCount;
 } Component_collision;
@@ -78,10 +82,13 @@ typedef struct {
 typedef struct {
   Vector3 pos;
   Vector3 vel;
+  Vector3 acceleration;
+  float restitution;
   float renderRadius;
   float collisionRadius;
   Color color;
   float mass;
+  float inverseMass;
 } EntitySpec;
 
 Entities *entities_create(size_t count);
@@ -98,3 +105,9 @@ void log_velocities(Entities *ctx);
 void color_entities(Entities *ctx, Color color);
 
 typedef void EntitiesInitFn(Entities *, SceneData);
+
+// Entity updates
+void update_entity_position(Component_transform *cTp1, float frameTime);
+void update_entity_boundaries(Entities *ctx, size_t idx, float x_bound,
+                              float x_bound_min, float y_bound,
+                              float y_bound_min);

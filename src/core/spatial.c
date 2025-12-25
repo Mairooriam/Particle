@@ -1,4 +1,3 @@
-#pragma once
 #include "spatial.h"
 #include "components.h"
 #include "stdlib.h"
