@@ -6,3 +6,6 @@ main_nob.c
 main_map.c
 /deps/raylib-master
 /notes
+/src/hotreload_testing
+/src2
+/deps/flecs-4.1.4

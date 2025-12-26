@@ -6,7 +6,7 @@
 #include <math.h>
 #include <string.h>
 SpatialGrid *SpatialGrid_create(int bounds_x, int bounds_y, int spacing,
-                                size_t entityCount) {
+                                Entities *e) {
   SpatialGrid *sGrid = malloc(sizeof(SpatialGrid));
   if (!sGrid) {
     assert(0 && "LMAO no memory");
@@ -15,7 +15,7 @@ SpatialGrid *SpatialGrid_create(int bounds_x, int bounds_y, int spacing,
   sGrid->bX = bounds_x;
   sGrid->bY = bounds_y;
   sGrid->spacing = spacing;
-  sGrid->antitiesDense = *arr_size_t_create(entityCount);
+  sGrid->antitiesDense = *arr_size_t_create(e->entitiesCount);
   sGrid->numY = bounds_y / spacing;
   sGrid->numX = bounds_x / spacing;
   sGrid->entities = *arr_size_t_create(sGrid->numX * sGrid->numY + 1);

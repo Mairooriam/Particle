@@ -3,6 +3,26 @@
 #include "utils.h"  // For DA Macros
 
 // TODO: sparse sets of my components? what does this even mean. research
+typedef struct {
+  Vector3 pos;
+  Vector3 vel;
+  Vector3 acceleration;
+  float restitution;
+  float renderRadius;
+  float collisionRadius;
+  Color color;
+  float mass;
+  float inverseMass;
+} EntitySpec;
+
+typedef struct arr_EntitySpec {
+  EntitySpec *items;
+  size_t count;
+  size_t capacity;
+} arr_EntitySpec;
+DA_CREATE(arr_EntitySpec)
+DA_FREE(arr_EntitySpec)
+DA_INIT(arr_EntitySpec)
 
 // RENDER COMPONENT
 typedef struct {
@@ -21,9 +41,10 @@ DA_INIT(Components_render)
 // TRANSFORM COMPONENT
 typedef struct {
   Vector3 pos;
-  Vector3 v; // Velocity
-  Vector3 a; // acceleration
-  float restitution; // 1 -> will bounce apart - 0 -> both will keep moving to same direction
+  Vector3 v;         // Velocity
+  Vector3 a;         // acceleration
+  float restitution; // 1 -> will bounce apart - 0 -> both will keep moving to
+                     // same direction
 } Component_transform;
 typedef struct {
   Component_transform *items;
@@ -50,6 +71,7 @@ typedef struct {
 DA_CREATE(Components_collision)
 DA_FREE(Components_collision)
 DA_INIT(Components_collision)
+
 
 typedef struct Entities {
   // Components
@@ -79,19 +101,7 @@ typedef struct {
   } get;
 } SceneData;
 
-typedef struct {
-  Vector3 pos;
-  Vector3 vel;
-  Vector3 acceleration;
-  float restitution;
-  float renderRadius;
-  float collisionRadius;
-  Color color;
-  float mass;
-  float inverseMass;
-} EntitySpec;
-
-Entities *entities_create(size_t count);
+Entities *entities_create();
 void entities_init(Entities *ctx, size_t count);
 void entities_free(Entities *ctx);
 size_t entity_add_from_spec(Entities *ctx, EntitySpec spec);
@@ -111,3 +121,7 @@ void update_entity_position(Component_transform *cTp1, float frameTime);
 void update_entity_boundaries(Entities *ctx, size_t idx, float x_bound,
                               float x_bound_min, float y_bound,
                               float y_bound_min);
+
+void entity_add_transform(Entities *e, size_t entityId,
+                          Component_transform transform);
+

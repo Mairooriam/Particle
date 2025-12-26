@@ -7,7 +7,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-option(ENABLE_TIMING "Enable performance timing" ON)
+option(ENABLE_TIMING "Enable performance timing" OFF)
 # Enable all warnings and sanitizers for GCC/Clang
 if(MSVC)
     add_compile_options(/W4)
@@ -23,38 +23,36 @@ endif()
 
 option(USE_PREBUILT_DEPS "Use pre-built external dependencies" ON)
 
-if(USE_PREBUILT_DEPS)
     include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/src")
     link_directories("${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib")
-else()
-    # Fallback to building deps inline
-    add_subdirectory(../deps)
-endif()
 
-# Source files
+    include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../deps/flecs-4.1.4/include")
+    link_directories("${CMAKE_CURRENT_SOURCE_DIR}/../deps/flecs-4.1.4/build")
+
+
+#Source files
 set(SOURCES
     main.c
     application.c
-    core/components.c
-    core/ht.c
-    core/spatial.c
+        core/components.c
+         core/ht.c
+         core/spatial.c
+        entities.c
 
-)
+ )
 
 add_executable(main ${SOURCES})
 target_compile_definitions(main PRIVATE LOG_USE_COLOR)
-find_library(RAYLIB_LIBRARY raylib PATHS "${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib")
-if(NOT RAYLIB_LIBRARY)
-    message(FATAL_ERROR "raylib library not found in ${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib")
-endif()
+
 target_link_libraries(main ${RAYLIB_LIBRARY})
+target_link_libraries(main flecs_static)
+
 if(ENABLE_TIMING)
     target_compile_definitions(main PRIVATE ENABLE_TIMING)
 endif()
 
 
 if(WIN32)
-    target_link_libraries(main winmm gdi32 opengl32)
+    target_link_libraries(main winmm gdi32 opengl32 ws2_32 dbghelp)
 endif()
-
 
