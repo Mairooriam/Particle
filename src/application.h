@@ -2,8 +2,8 @@
 
 #include "core/components.h"
 #include "core/spatial.h"
-#include "raylib.h"
 #define _USE_MATH_DEFINES
+#include "flecs.h"
 #include <math.h>
 #include <stdint.h>
 typedef enum { APP_STATE_IDLE, APP_STATE_3D, APP_STATE_2D } AppState;
@@ -26,7 +26,7 @@ typedef struct {
 typedef Camera2D Camera2D;
 typedef struct ApplicationContext {
   AppState state;
-  // EntitiesInitFn *InitFn;
+  EntitiesInitFn *InitFn;
   Entities *entities;
   SpatialGrid *sGrid;
   Camera2D camera;
@@ -35,13 +35,9 @@ typedef struct ApplicationContext {
   float frameTime;
   bool paused;
   bool step_one_frame;
-  bool spawnerInitalized;
-  Entity spawnerEntity;
-  Vector2 mouseWorldPos;
-  Vector2 mouseScreenPos;
-  Vector2 mousePos;
+  ecs_world_t *world;
 } ApplicationContext;
-void init_context(ApplicationContext *ctx);
+void init_context(ApplicationContext *ctx, int bounds_x, int bounds_y);
 
 // RENDER
 void render(ApplicationContext *ctx);
@@ -59,11 +55,10 @@ void input_mouse_3D(ApplicationContext *ctx);
 void input_other(ApplicationContext *ctx);
 // UPDATE
 void update(ApplicationContext *ctx);
-void update_entities(ApplicationContext *ctx);
+void update_entities(Entities *ctx, float frameTime, float x_bound,
+                     float y_bound, SpatialGrid *sGrid);
 void update_entities_3D(Entities *ctx, float frameTime, SpatialGrid *sGrid,
                         Matrix *transforms);
-void update_spawners(ApplicationContext *ctx, Entity *e);
-void update_spring(Entity *e, ApplicationContext *ctx);
 
 // COLLISION
 void collision_simple_reverse(Entities *ctx, size_t idx1, size_t idx2);

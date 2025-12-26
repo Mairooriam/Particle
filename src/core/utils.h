@@ -87,11 +87,11 @@ extern double g_timing_print_interval; // Print every N seconds
     da->items = malloc(sizeof(*da->items) * cap);                              \
   }
 
-#define NOB_REALLOC realloc
-#define NOB_ASSERT assert
 #ifndef NOB_DA_INIT_CAP
 #define NOB_DA_INIT_CAP 256
 #endif
+#define NOB_ASSERT assert
+#define NOB_REALLOC realloc
 
 #ifdef __cplusplus
 #define NOB_DECLTYPE_CAST(T) (decltype(T))
@@ -171,12 +171,3 @@ extern double g_timing_print_interval; // Print every N seconds
 // ```
 #define nob_da_foreach(Type, it, da)                                           \
   for (Type *it = (da)->items; it < (da)->items + (da)->count; ++it)
-
-
-#define FLAG_SET(flags, flag) ((flags) |= (flag)) // Example: FLAG_SET(entity.flags, FLAG_ACTIVE | FLAG_VISIBLE);
-#define FLAG_CLEAR(flags, flag) ((flags) &= ~(flag))// Example: FLAG_CLEAR(entity.flags, FLAG_COLLIDING);
-#define FLAG_TOGGLE(flags, flag) ((flags) ^= (flag))// Example: FLAG_TOGGLE(entity.flags, FLAG_VISIBLE);
-#define FLAG_IS_SET(flags, flag) (((flags) & (flag)) != 0)// Example: if (FLAG_IS_SET(entity.flags, FLAG_ACTIVE)) { ... }
-#define FLAG_ALL_SET(flags, mask) (((flags) & (mask)) == (mask))// Example: if (FLAG_ALL_SET(entity.flags, FLAG_ACTIVE | FLAG_VISIBLE)) { ... }
-#define FLAG_ANY_SET(flags, mask) (((flags) & (mask)) != 0)// Example: if (FLAG_ANY_SET(entity.flags, FLAG_COLLIDING | FLAG_DEAD)) { ... }
-#define FLAG_CLEAR_ALL(flags) ((flags) = FLAG_NONE)

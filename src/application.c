@@ -2,6 +2,7 @@
 #include "core/components.h"
 #include "core/spatial.h"
 #include "core/utils.h"
+#include "flecs.h"
 #include "raylib.h"
 #include "raymath.h"
 #include <assert.h>
@@ -19,7 +20,8 @@
 #define NOB_IMPLEMENTATION
 #include "core/nob.h"
 #include "rlgl.h"
-void init_context(ApplicationContext *ctx) {
+void init_context(ApplicationContext *ctx, int bounds_x, int bounds_y) {
+  ctx->world = ecs_init();
   ctx->state = APP_STATE_IDLE;
   Camera2D camera = {0};
   camera.zoom = 1.0f;
@@ -27,7 +29,22 @@ void init_context(ApplicationContext *ctx) {
   ctx->y_bound = 500;
   ctx->x_bound = 500;
   ctx->paused = true;
-  // ctx->InitFn = entity_init_collision_diagonal;
+  ctx->InitFn = entity_init_collision_diagonal;
+  Camera camera3D = {
+      {60.0f, 60.0f, 60.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 60.0f, 0};
+  ctx->camera3D = camera3D;
+  ctx->camera3D.projection = CAMERA_PERSPECTIVE;
+  Entities *entities = entities_create();
+  SpatialGrid *sGrid = SpatialGrid_create(bounds_x, bounds_y, 50, entities);
+
+  ctx->entities = entities;
+  ctx->sGrid = sGrid;
+  ctx->x_bound = bounds_x;
+  ctx->y_bound = bounds_y;
+  Camera2D camera2d = {0};
+  camera2d.zoom = 1.0f;
+  ctx->camera = camera2d;
+  ctx->state = APP_STATE_2D;
 }
 
 void input(ApplicationContext *ctx) {
@@ -44,63 +61,55 @@ void input_mouse_2D(ApplicationContext *ctx) {
   if (IsCursorHidden()) {
     EnableCursor();
   }
-
-  ctx->mousePos = GetMousePosition();
-  ctx->mouseWorldPos = GetScreenToWorld2D(ctx->mousePos, ctx->camera);
-  ctx->mouseScreenPos = GetWorldToScreen2D(ctx->mousePos, ctx->camera);
-
   Camera2D *camera = &ctx->camera;
-  if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
+  if (IsMouseButtonDown(MOUSE_RIGHT_BUTTON)) {
     Vector2 delta = GetMouseDelta();
     delta = Vector2Scale(delta, -1.0f / camera->zoom);
     camera->target = Vector2Add(camera->target, delta);
   }
   float wheel = GetMouseWheelMove();
   if (wheel != 0) {
+    Vector2 mouseWorldPos = GetScreenToWorld2D(GetMousePosition(), *camera);
 
-    camera->offset = ctx->mousePos;
-    camera->target = ctx->mouseWorldPos;
+    camera->offset = GetMousePosition();
+    camera->target = mouseWorldPos;
 
     float scale = 0.2f * wheel;
     camera->zoom = Clamp(expf(logf(camera->zoom) + scale), 0.01f, 64.0f);
   }
   static Vector2 initial = {0, 0};
-
+  Vector2 current = GetMousePosition();
   if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-    initial = ctx->mousePos;
+    initial = GetMousePosition();
   }
 
   if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
-
-    if (IsKeyDown(KEY_LEFT_SHIFT) && ctx->spawnerInitalized) {
-      entity_add(ctx->entities, ctx->spawnerEntity);
-    }
+    // Vector2 delta = Vector2Subtract(initial, current);
   }
-
   if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
-    Vector2 tmpDelta = Vector2Subtract(ctx->mousePos, initial);
-    static Vector2 delta = {0};
+    Vector2 tmpDelta = Vector2Subtract(current, initial);
+    static Vector2 delta = {0}; // Keeps its value across function calls
 
+    // Only update delta if the condition is met
     if (fabs(tmpDelta.x) > 10 && fabs(tmpDelta.y) > 10) {
-      delta = tmpDelta;
+      delta = tmpDelta; // Update delta
       printf("on release delta x:%f, y:%f\n", delta.x, delta.y);
     } else {
       printf("delta unchanged, using previous delta x:%f, y:%f\n", delta.x,
              delta.y);
     }
 
-    Vector2 worldPos = GetScreenToWorld2D(initial, ctx->camera);
-    Vector2 worldDelta = Vector2Scale(delta, 1.0f / ctx->camera.zoom);
+    EntitySpec spec = {.pos = (Vector3){initial.x, initial.y, 0},
+                       .vel = (Vector3){delta.x, delta.y, 0},
+                       .acceleration = {0, 9.81, 0},
+                       .renderRadius = 25.0f,
+                       .collisionRadius = 25.0f * 0.9f,
+                       .color = GREEN,
+                       .mass = 50.0f,
+                       .inverseMass = 1 / 50.0f,
+                       .restitution = 0.99};
 
-    Entity entity = entity_create_physics_particle(
-        (Vector3){worldPos.x, worldPos.y, 0},
-        (Vector3){worldDelta.x, worldDelta.y, 0});
-    entity.c_collision.mass = 1000.0f;
-    entity.c_collision.inverseMass = 1 / 1000.0f;
-    entity_add(ctx->entities, entity);
-    ctx->spawnerEntity = entity;
-    ctx->spawnerInitalized = true;
-
+    entity_add_from_spec(ctx->entities, spec);
     initial = (Vector2){0, 0};
   }
 }
@@ -115,11 +124,11 @@ void input_other(ApplicationContext *ctx) {
     // entity_init_collision_not_moving(ctx);
     // entity_init_collision_diagonal(ctx);
     // TODO: LEAK
-    // SceneData data = {0};
-    // data.is = ENTITY_INIT_DATAKIND_COUNT;
-    // data.get.count = ctx->entities->entitiesCount;
-    // ctx->InitFn(ctx->entities, data);
-    // ctx->paused = true;
+    SceneData data = {0};
+    data.is = ENTITY_INIT_DATAKIND_COUNT;
+    data.get.count = ctx->entities->entitiesCount;
+    ctx->InitFn(ctx->entities, data);
+    ctx->paused = true;
     // entity_init_collision_spatial(ctx);
   }
 
@@ -170,99 +179,146 @@ void input_state(ApplicationContext *ctx) {
 void update(ApplicationContext *ctx) {
   /* TIME_IT("Reset entity color", color_entities(ctx->entities, GREEN)); */
 
-  TIME_IT("Update Entities", update_entities(ctx));
+  TIME_IT("Update Entities",
+          update_entities(ctx->entities, ctx->frameTime, ctx->x_bound,
+                          ctx->y_bound, ctx->sGrid));
 
   TIME_IT("Update Spatial", update_spatial(ctx->sGrid, ctx->entities));
 }
 
-void update_entities(ApplicationContext *ctx) {
+void update_entities(Entities *ctx, float frameTime, float x_bound,
+                     float y_bound, SpatialGrid *sGrid) {
 
-  for (size_t i = 0; i < ctx->entities->count; i++) {
-    Entity *e = &ctx->entities->items[i];
-    if (FLAG_IS_SET(e->flags, ENTITY_FLAG_HAS_SPAWNER)) {
-      update_spawners(ctx, e);
-    }
-    update_entity_position(e, ctx->frameTime, ctx->mouseWorldPos);
-    update_entity_boundaries(e, ctx->x_bound, 0, ctx->y_bound, 0);
-    if (FLAG_IS_SET(e->flags, ENTITY_FLAG_HAS_COLLISION)) {
-      particle_update_collision_spatial(ctx->entities, i, ctx->sGrid);
-    }
-    if (FLAG_IS_SET(e->flags, ENTITY_FLAG_SPRING)) {
-      update_spring(e, ctx);
-    }
+  // TRANSFORMS
+  for (size_t i = 0; i < ctx->entitiesCount; i++) {
+    update_entity_position(&ctx->c_transform->items[i], frameTime);
+  }
+
+  // MAP BOUNDARIES
+  for (size_t i = 0; i < ctx->entitiesCount; i++) {
+    update_entity_boundaries(ctx, i, x_bound, 0, y_bound, 0);
+  }
+
+  // COLLISIONS
+  for (size_t i = 0; i < ctx->entitiesCount; i++) {
+    particle_update_collision_spatial(ctx, i, sGrid);
   }
 }
-void update_spawners(ApplicationContext *ctx, Entity *e) {
-  e->clock += ctx->frameTime;
-  if (e->clock > (1 / e->spawnRate)) {
-    for (size_t i = 0; i < e->spawnCount; i++) {
-      e->spawnEntity->c_transform.pos = e->c_transform.pos;
-      entity_add(ctx->entities, *e->spawnEntity);
-    }
-    e->clock = 0.0f;
-  }
-}
-void update_spring(Entity *e, ApplicationContext *ctx) {
-  Vector3 force =
 
-      Vector3Subtract(e->c_transform.pos,
-                      ctx->entities->items[e->c_spring.parent].c_transform.pos);
-  float magnitude = Vector3Length(force);
-  magnitude = fabs(magnitude - e->c_spring.restLenght);
-  magnitude *= e->c_spring.springConstat;
-
-  Vector3 nForce = Vector3Normalize(force);
-  force = Vector3Scale(nForce, -magnitude);
-  e->c_transform.v = Vector3Add(e->c_transform.a, force);
-}
 void update_entities_3D(Entities *ctx, float frameTime, SpatialGrid *sGrid,
                         Matrix *transforms) {
   (void)sGrid;
-  (void)ctx;
-  (void)frameTime;
-  (void)transforms;
-  // for (size_t i = 0; i < ctx->entitiesCount; i++) {
-  //   entities_update_collision_3D(ctx, i, frameTime);
-  // }
-  // // TODO: for now here move later
-  // for (size_t i = 0; i < ctx->entitiesCount; i++) {
-  //   Component_transform *cTp1 = &ctx->c_transform->items[i];
-  //   transforms[i] = MatrixTranslate(cTp1->pos.x, cTp1->pos.y, cTp1->pos.z);
-  // }
+  for (size_t i = 0; i < ctx->entitiesCount; i++) {
+    entities_update_collision_3D(ctx, i, frameTime);
+  }
+  // TODO: for now here move later
+  for (size_t i = 0; i < ctx->entitiesCount; i++) {
+    Component_transform *cTp1 = &ctx->c_transform->items[i];
+    transforms[i] = MatrixTranslate(cTp1->pos.x, cTp1->pos.y, cTp1->pos.z);
+  }
+}
+void collision_simple_reverse(Entities *ctx, size_t idx1, size_t idx2) {
+  Component_transform *cTp1 = &ctx->c_transform->items[idx1];
+  Component_transform *cTp2 = &ctx->c_transform->items[idx2];
+  Component_render *cRp1 = &ctx->c_render->items[idx1];
+  Component_render *cRp2 = &ctx->c_render->items[idx2];
+
+  // Old implementation - just reverse
+  cTp1->v = Vector3Scale(cTp1->v, -1);
+  cTp2->v = Vector3Scale(cTp2->v, -1);
+  cRp1->color = (Color){0, 255, 0, 200};
+  cRp2->color = (Color){0, 255, 0, 200};
+}
+
+// TODO: math this out to understand it.
+void collision_elastic_separation(Entities *ctx, size_t idx1, size_t idx2) {
+  Component_transform *cTp1 = &ctx->c_transform->items[idx1];
+  Component_transform *cTp2 = &ctx->c_transform->items[idx2];
+  Component_collision *cCp1 = &ctx->c_collision->items[idx1];
+  Component_collision *cCp2 = &ctx->c_collision->items[idx2];
+  Component_render *cRp1 = &ctx->c_render->items[idx1];
+  Component_render *cRp2 = &ctx->c_render->items[idx2];
+
+  // New implementation - elastic with separation
+  Vector3 delta = Vector3Subtract(cTp1->pos, cTp2->pos);
+  float distance = Vector3Length(delta);
+  Vector3 normal = Vector3Normalize(delta);
+
+  float overlap = (cCp1->radius + cCp2->radius) - distance;
+  Vector3 separation = Vector3Scale(normal, overlap / 2.0f);
+  cTp1->pos = Vector3Add(cTp1->pos, separation);
+  cTp2->pos = Vector3Subtract(cTp2->pos, separation);
+
+  // Swap velocities (for equal masses)
+  Vector3 temp = cTp1->v;
+  cTp1->v = cTp2->v;
+  cTp2->v = temp;
+  cTp1->v = Vector3Scale(cTp1->v, 0.9f);
+  cTp2->v = Vector3Scale(cTp2->v, 0.9f);
+  cRp1->color = (Color){0, 255, 0, 200};
+  cRp2->color = (Color){0, 255, 0, 200};
+}
+
+void collision_separation_meow(Entities *ctx, size_t idx1, size_t idx2) {
+  Component_transform *cTp1 = &ctx->c_transform->items[idx1];
+  Component_transform *cTp2 = &ctx->c_transform->items[idx2];
+  Component_collision *cCp1 = &ctx->c_collision->items[idx1];
+  Component_collision *cCp2 = &ctx->c_collision->items[idx2];
+  Component_render *cRp1 = &ctx->c_render->items[idx1];
+  Component_render *cRp2 = &ctx->c_render->items[idx2];
+
+  // New implementation - elastic with separation
+  Vector3 delta = Vector3Subtract(cTp1->pos, cTp2->pos);
+  float distance = Vector3Length(delta);
+  Vector3 normal = Vector3Normalize(delta);
+
+  float overlap = (cCp1->radius + cCp2->radius) - distance;
+  Vector3 separation = Vector3Scale(normal, overlap / 2.0f);
+  cTp1->pos = Vector3Add(cTp1->pos, separation);
+  cTp2->pos = Vector3Subtract(cTp2->pos, separation);
+
+  // Swap velocities (for equal masses)
+  // add velocity to the normals direction
+  Vector3 v1 = Vector3Multiply(cTp1->v, normal);
+  Vector3 v2a = Vector3Scale(normal, -1.0f);
+  Vector3 v2b = Vector3Multiply(v2a, cTp1->v);
+  Vector3 temp = v1;
+  cTp1->v = v2b;
+  cTp2->v = temp;
+  cTp1->v = Vector3Scale(cTp1->v, 0.9f);
+  cTp2->v = Vector3Scale(cTp2->v, 0.9f);
+  cRp1->color = (Color){0, 255, 0, 200};
+  cRp2->color = (Color){0, 255, 0, 200};
 }
 
 void entities_update_collision_3D(Entities *ctx, size_t idx, float frameTime) {
-  (void)ctx;
-  (void)idx;
-  (void)frameTime;
-  // Component_transform *cTp1 = &ctx->c_transform->items[idx];
-  //
-  // Vector3 v1 = Vector3Scale(cTp1->v, frameTime);
-  // cTp1->pos = Vector3Add(cTp1->pos, v1);
-  //
-  // if (cTp1->pos.x < -50) {
-  //   cTp1->pos.x = -50;
-  //   cTp1->v.x = cTp1->v.x * -1;
-  // } else if (cTp1->pos.x > 50) {
-  //   cTp1->pos.x = 50;
-  //   cTp1->v.x = cTp1->v.x * -1;
-  // }
-  //
-  // if (cTp1->pos.y < -50) {
-  //   cTp1->pos.y = -50;
-  //   cTp1->v.y = cTp1->v.y * -1;
-  // } else if (cTp1->pos.y > 50) {
-  //   cTp1->pos.y = 50;
-  //   cTp1->v.y = cTp1->v.y * -1;
-  // }
+  Component_transform *cTp1 = &ctx->c_transform->items[idx];
+
+  Vector3 v1 = Vector3Scale(cTp1->v, frameTime);
+  cTp1->pos = Vector3Add(cTp1->pos, v1);
+
+  if (cTp1->pos.x < -50) {
+    cTp1->pos.x = -50;
+    cTp1->v.x = cTp1->v.x * -1;
+  } else if (cTp1->pos.x > 50) {
+    cTp1->pos.x = 50;
+    cTp1->v.x = cTp1->v.x * -1;
+  }
+
+  if (cTp1->pos.y < -50) {
+    cTp1->pos.y = -50;
+    cTp1->v.y = cTp1->v.y * -1;
+  } else if (cTp1->pos.y > 50) {
+    cTp1->pos.y = 50;
+    cTp1->v.y = cTp1->v.y * -1;
+  }
 }
 void particle_update_collision_spatial(Entities *ctx, size_t idx,
                                        SpatialGrid *sGrid) {
 
-  Entity *e1 = &ctx->items[idx];
-  c_Transform *cTp1 = &e1->c_transform;
-  c_Collision *cCp1 = &e1->c_collision;
-  c_Render *cRp1 = &e1->c_render;
+  Component_transform *cTp1 = &ctx->c_transform->items[idx];
+  // Component_render *cRp1 = &ctx->c_render->items[idx];
+  Component_collision *cCp1 = &ctx->c_collision->items[idx];
   cCp1->searchCount = 0;
   cCp1->collisionCount = 0;
 
@@ -292,69 +348,61 @@ void particle_update_collision_spatial(Entities *ctx, size_t idx,
       // Check collision with all entities in this cell
       for (size_t i = start; i < end; i++) {
         size_t otherIdx = sGrid->antitiesDense.items[i];
+
+        // Skip self-collision
         if (otherIdx == idx)
           continue;
 
-        Entity *e2 = &ctx->items[otherIdx];
-        c_Transform *cTp2 = &e2->c_transform;
-        c_Collision *cCp2 = &e2->c_collision;
-        c_Render *cRp2 = &e2->c_render;
-        if (FLAG_IS_SET(e2->flags, ENTITY_FLAG_HAS_COLLISION)) {
-          if (CheckCollisionCircles(
-                  (Vector2){cTp1->pos.x, cTp1->pos.y}, cCp1->radius,
-                  (Vector2){cTp2->pos.x, cTp2->pos.y}, cCp2->radius)) {
-            Vector3 delta = Vector3Subtract(cTp1->pos, cTp2->pos);
-            float distance = Vector3Length(delta);
-            Vector3 n12 = Vector3Normalize(delta);
+        Component_transform *cTp2 = &ctx->c_transform->items[otherIdx];
+        Component_collision *cCp2 = &ctx->c_collision->items[otherIdx];
+        // Component_render *cRp2 = &ctx->c_render->items[otherIdx];
+        if (CheckCollisionCircles(
+                (Vector2){cTp1->pos.x, cTp1->pos.y}, cCp1->radius,
+                (Vector2){cTp2->pos.x, cTp2->pos.y}, cCp2->radius)) {
+          Vector3 delta = Vector3Subtract(cTp1->pos, cTp2->pos);
+          float distance = Vector3Length(delta);
+          Vector3 n12 = Vector3Normalize(delta);
 
-            float overlap = (cCp1->radius + cCp2->radius) - distance;
-            float totalInverseMass = cCp1->inverseMass + cCp2->inverseMass;
-            if (totalInverseMass <= 0)
-              break; // infinite mass impulses have no effect
-
-            if (totalInverseMass >
-                0) { // Only separate if at least one has finite mass
-              Vector3 separation1 = Vector3Scale(
-                  n12, overlap * cCp2->inverseMass / totalInverseMass);
-              Vector3 separation2 = Vector3Scale(
-                  n12, -overlap * cCp1->inverseMass / totalInverseMass);
-              cTp1->pos = Vector3Add(cTp1->pos, separation1);
-              cTp2->pos = Vector3Add(cTp2->pos, separation2);
-            } else {
-              // Both infinite mass: don't separate (or handle as static)
-            }
-            cCp1->collisionCount++;
-            Vector3 dV12 = Vector3Subtract(cTp1->v, cTp2->v);
-            float Vs = Vector3DotProduct(dV12, n12); // separation velocity
-
-            if (Vs > 0) {
-              break; // contact is either separating or stationary no impulse
-                     // needed
-            }
-            float nVs =
-                -Vs *
-                cTp1->restitution; // New separation velocity with restitution
-            float deltaV = nVs - Vs;
-
-            // TODO: not checking if no particle -> colliding with wall? etc? in
-            // example there is
-
-            float impulse = deltaV / totalInverseMass;
-
-            Vector3 impulsePerIMass = Vector3Scale(n12, impulse);
-
-            cTp1->v = Vector3Add(
-                cTp1->v, Vector3Scale(impulsePerIMass, cCp1->inverseMass));
-            cTp2->v = Vector3Subtract(
-                cTp2->v, Vector3Scale(impulsePerIMass, cCp2->inverseMass));
+          float overlap = (cCp1->radius + cCp2->radius) - distance;
+          if (overlap > 0) {
+            Vector3 separation = Vector3Scale(n12, overlap / 2.0f);
+            cTp1->pos = Vector3Add(cTp1->pos, separation);
+            cTp2->pos = Vector3Subtract(cTp2->pos, separation);
           }
-        }
+          cCp1->collisionCount++;
+          Vector3 dV12 = Vector3Subtract(cTp1->v, cTp2->v);
+          float Vs = Vector3DotProduct(dV12, n12); // separation velocity
 
-        // int r = xi * 50 % 255;
-        // int g = yi * 50 % 255;
-        // cRp1->color = (Color){r, g, 0, 255};
-        // cRp2->color = (Color){r, g, 0, 100};
-        // cCp1->searchCount++;
+          if (Vs > 0) {
+            break; // contact is either separating or stationary no impulse
+                   // needed
+          }
+          float nVs =
+              -Vs *
+              cTp1->restitution; // New separation velocity with restitution
+          float deltaV = nVs - Vs;
+
+          // TODO: not checking if no particle -> colliding with wall? etc? in
+          // example there is
+
+          float totalInverseMass = cCp1->inverseMass + cCp2->inverseMass;
+          if (totalInverseMass <= 0)
+            break; // infinite mass impulses have no effect
+
+          float impulse = deltaV / totalInverseMass;
+
+          Vector3 impulsePerIMass = Vector3Scale(n12, impulse);
+
+          cTp1->v = Vector3Add(
+              cTp1->v, Vector3Scale(impulsePerIMass, cCp1->inverseMass));
+          cTp2->v = Vector3Subtract(
+              cTp2->v, Vector3Scale(impulsePerIMass, cCp2->inverseMass));
+        }
+        /* int r = xi * 50 % 255; */
+        /* int g = yi * 50 % 255; */
+        /* cRp1->color = (Color){r, g, 0, 255}; */
+        /* cRp2->color = (Color){r, g, 0, 100}; */
+        cCp1->searchCount++;
       }
     }
   }
@@ -372,11 +420,11 @@ void render(ApplicationContext *ctx) {
   TIME_IT("Render Entities", render_entities(ctx->entities, ctx->camera));
 }
 
-void render_entities(Entities *es, Camera2D camera) {
-  for (size_t i = 0; i < es->count; i++) {
-    Entity *e = &es->items[i];
+void render_entities(Entities *ctx, Camera2D camera) {
+  for (size_t i = 0; i < ctx->entitiesCount; i++) {
 
-    c_Transform *cT = &e->c_transform;
+    Component_transform *cT = &ctx->c_transform->items[i];
+
     Vector2 screen =
         GetWorldToScreen2D((Vector2){cT->pos.x, cT->pos.y}, camera);
 
@@ -388,9 +436,9 @@ void render_entities(Entities *es, Camera2D camera) {
       continue;
     }
 
-    c_Render *cR = &e->c_render;
-    c_Collision *cCp1 = &e->c_collision; // TODO: temp
-                                         // debug;
+    Component_render *cR = &ctx->c_render->items[i];
+    Component_collision *cCp1 = &ctx->c_collision->items[i]; // TODO: temp
+                                                             // debug;
 
     DrawCircleSector((Vector2){cT->pos.x, cT->pos.y}, cR->renderRadius, 0, 360,
                      16, cR->color);
@@ -479,8 +527,8 @@ void render_spatial_grid(SpatialGrid *sGrid, Camera2D camera) {
     }
 
     size_t val = sGrid->entities.items[i];
-    char buf[64];
-    snprintf(buf, 64, "%zu", val);
+    char buf[32];
+    snprintf(buf, 32, "%zu", val);
     if (val != 0) {
       DrawRectangleLinesEx(rec, 2.0f, PINK);
     } else {
@@ -489,7 +537,7 @@ void render_spatial_grid(SpatialGrid *sGrid, Camera2D camera) {
     DrawText(buf, rec.x + (rec.width / 2), rec.y + (rec.height / 4), 14.0f,
              BLACK);
     memset(buf, 0, sizeof(buf));
-    snprintf(buf, 64, "%zu", i);
+    snprintf(buf, 32, "%zu", i);
     DrawText(buf, rec.x + rec.width / 2, rec.y - 14, 14.0f, BLACK);
 
     // for (size_t j = 0; j < sGrid->entities.items[i].count; j++) {
@@ -517,7 +565,7 @@ void render_spatial_grid(SpatialGrid *sGrid, Camera2D camera) {
     }
     DrawRectangleLinesEx(rec, 2.0f, PINK);
     size_t val = sGrid->antitiesDense.items[i];
-    char buf3[10];
+    char buf3[32];
     snprintf(buf3, 10, "%zu", val);
     DrawText(buf3, rec.x + (rec.width / 2), rec.y + (rec.height / 4), 14.0f,
              BLACK);
@@ -528,28 +576,24 @@ void render_spatial_grid(SpatialGrid *sGrid, Camera2D camera) {
 // ---------------------------------------------
 void init_instanced_draw(Shader *shader, Matrix *transforms, Entities *entities,
                          Material *material) {
-  (void)shader;
-  (void)transforms;
-  (void)entities;
-  (void)material;
-  // // UPDATE transforms according to entities positions
-  // for (size_t i = 0; i < entities->entitiesCount; i++) {
-  //   Component_transform *cTp1 = &entities->c_transform->items[i];
-  //   transforms[i] = MatrixTranslate(cTp1->pos.x, cTp1->pos.y, cTp1->pos.z);
-  // }
-  //
-  // // SHADERS
-  // shader->locs[SHADER_LOC_MATRIX_MVP] = GetShaderLocation(*shader, "mvp");
-  // shader->locs[SHADER_LOC_VECTOR_VIEW] = GetShaderLocation(*shader,
-  // "viewPos"); int ambientLoc = GetShaderLocation(*shader, "ambient");
-  // SetShaderValue(*shader, ambientLoc, (float[4]){0.2f, 0.2f, 0.2f, 1.0f},
-  //                SHADER_UNIFORM_VEC4);
-  //
-  // // MATERIALS
-  // // TODO: look for proper way to handle shaders etc. is shader meant to be
-  // // passed by value?
-  // material->shader = *shader;
-  // material->maps[MATERIAL_MAP_DIFFUSE].color = RED;
+  // UPDATE transforms according to entities positions
+  for (size_t i = 0; i < entities->entitiesCount; i++) {
+    Component_transform *cTp1 = &entities->c_transform->items[i];
+    transforms[i] = MatrixTranslate(cTp1->pos.x, cTp1->pos.y, cTp1->pos.z);
+  }
+
+  // SHADERS
+  shader->locs[SHADER_LOC_MATRIX_MVP] = GetShaderLocation(*shader, "mvp");
+  shader->locs[SHADER_LOC_VECTOR_VIEW] = GetShaderLocation(*shader, "viewPos");
+  int ambientLoc = GetShaderLocation(*shader, "ambient");
+  SetShaderValue(*shader, ambientLoc, (float[4]){0.2f, 0.2f, 0.2f, 1.0f},
+                 SHADER_UNIFORM_VEC4);
+
+  // MATERIALS
+  // TODO: look for proper way to handle shaders etc. is shader meant to be
+  // passed by value?
+  material->shader = *shader;
+  material->maps[MATERIAL_MAP_DIFFUSE].color = RED;
 }
 
 Mesh mesh_generate_circle(int segments) {
