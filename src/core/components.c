@@ -41,16 +41,15 @@ void entities_free(Entities *ctx) {
 size_t entity_add_from_spec(Entities *ctx, EntitySpec spec) {
   size_t id = ctx->c_transform->count;
 
-  ctx->c_transform->items[id] =
-      (Component_transform){spec.pos, spec.vel, spec.acceleration, spec.restitution};
+  ctx->c_transform->items[id] = (Component_transform){
+      spec.pos, spec.vel, spec.acceleration, spec.restitution};
   ctx->c_transform->count++;
 
-  ctx->c_render->items[id] =
-      (Component_render){spec.color, spec.renderRadius, NULL};
+  ctx->c_render->items[id] = (Component_render){spec.color, spec.renderRadius};
   ctx->c_render->count++;
 
-  ctx->c_collision->items[id] =
-      (Component_collision){spec.collisionRadius, spec.mass,spec.inverseMass, 0, 0};
+  ctx->c_collision->items[id] = (Component_collision){
+      spec.collisionRadius, spec.mass, spec.inverseMass, 0, 0};
   ctx->c_collision->count++;
 
   return id;
@@ -90,7 +89,7 @@ void entity_init_collision_diagonal(Entities *ctx, SceneData data) {
 
     float mass = 2.0f + ((float)rand() / RAND_MAX) * 50.0f;
     float inverseMass = (mass > 0.0f) ? 1.0f / mass : 0.0f;
-    float restitution = 0.8f; 
+    float restitution = 0.8f;
 
     unsigned char r = (unsigned char)(255 * (1.0f - (mass - 2.0f) / 50.0f));
     unsigned char b = (unsigned char)(255 * ((mass - 2.0f) / 50.0f));
@@ -105,8 +104,7 @@ void entity_init_collision_diagonal(Entities *ctx, SceneData data) {
         .color = color,
         .mass = mass,
         .inverseMass = inverseMass,
-        .restitution = restitution
-    };
+        .restitution = restitution};
 
     entity_add_from_spec(ctx, spec);
   }
@@ -139,8 +137,8 @@ void color_entities(Entities *ctx, Color color) {
 void update_entity_position(Component_transform *cTp1, float frameTime) {
   // v += a * dt
   cTp1->v = Vector3Add(cTp1->v, Vector3Scale(cTp1->a, frameTime));
-  
-  //pos += v * dt
+
+  // pos += v * dt
   cTp1->pos = Vector3Add(cTp1->pos, Vector3Scale(cTp1->v, frameTime));
 }
 void update_entity_boundaries(Entities *ctx, size_t idx, float x_bound,

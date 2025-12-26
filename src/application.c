@@ -265,7 +265,7 @@ void particle_update_collision_spatial(Entities *ctx, size_t idx,
                                        SpatialGrid *sGrid) {
 
   Component_transform *cTp1 = &ctx->c_transform->items[idx];
-  Component_render *cRp1 = &ctx->c_render->items[idx];
+  // Component_render *cRp1 = &ctx->c_render->items[idx];
   Component_collision *cCp1 = &ctx->c_collision->items[idx];
   cCp1->searchCount = 0;
   cCp1->collisionCount = 0;
@@ -303,7 +303,7 @@ void particle_update_collision_spatial(Entities *ctx, size_t idx,
 
         Component_transform *cTp2 = &ctx->c_transform->items[otherIdx];
         Component_collision *cCp2 = &ctx->c_collision->items[otherIdx];
-        Component_render *cRp2 = &ctx->c_render->items[otherIdx];
+        // Component_render *cRp2 = &ctx->c_render->items[otherIdx];
         if (CheckCollisionCircles(
                 (Vector2){cTp1->pos.x, cTp1->pos.y}, cCp1->radius,
                 (Vector2){cTp2->pos.x, cTp2->pos.y}, cCp2->radius)) {
@@ -313,32 +313,38 @@ void particle_update_collision_spatial(Entities *ctx, size_t idx,
 
           float overlap = (cCp1->radius + cCp2->radius) - distance;
           if (overlap > 0) {
-              Vector3 separation = Vector3Scale(n12, overlap / 2.0f);
-              cTp1->pos = Vector3Add(cTp1->pos, separation);
-              cTp2->pos = Vector3Subtract(cTp2->pos, separation);
+            Vector3 separation = Vector3Scale(n12, overlap / 2.0f);
+            cTp1->pos = Vector3Add(cTp1->pos, separation);
+            cTp2->pos = Vector3Subtract(cTp2->pos, separation);
           }
           cCp1->collisionCount++;
           Vector3 dV12 = Vector3Subtract(cTp1->v, cTp2->v);
-          float Vs = Vector3DotProduct(dV12, n12);// separation velocity
+          float Vs = Vector3DotProduct(dV12, n12); // separation velocity
 
           if (Vs > 0) {
-          break; // contact is either separating or stationary no impulse needed
+            break; // contact is either separating or stationary no impulse
+                   // needed
           }
-          float nVs = -Vs * cTp1->restitution; // New separation velocity with restitution
-          float deltaV = nVs-Vs; 
+          float nVs =
+              -Vs *
+              cTp1->restitution; // New separation velocity with restitution
+          float deltaV = nVs - Vs;
 
-          //TODO: not checking if no particle -> colliding with wall? etc? in example there is
-        
+          // TODO: not checking if no particle -> colliding with wall? etc? in
+          // example there is
+
           float totalInverseMass = cCp1->inverseMass + cCp2->inverseMass;
-          if (totalInverseMass <= 0) break; // infinite mass impulses have no effect
-            
+          if (totalInverseMass <= 0)
+            break; // infinite mass impulses have no effect
+
           float impulse = deltaV / totalInverseMass;
-          
+
           Vector3 impulsePerIMass = Vector3Scale(n12, impulse);
 
-          cTp1->v=Vector3Add(cTp1->v, Vector3Scale(impulsePerIMass, cCp1->inverseMass));
-          cTp2->v=Vector3Subtract(cTp2->v, Vector3Scale(impulsePerIMass, cCp2->inverseMass));
-
+          cTp1->v = Vector3Add(
+              cTp1->v, Vector3Scale(impulsePerIMass, cCp1->inverseMass));
+          cTp2->v = Vector3Subtract(
+              cTp2->v, Vector3Scale(impulsePerIMass, cCp2->inverseMass));
         }
         /* int r = xi * 50 % 255; */
         /* int g = yi * 50 % 255; */
@@ -469,8 +475,8 @@ void render_spatial_grid(SpatialGrid *sGrid, Camera2D camera) {
     }
 
     size_t val = sGrid->entities.items[i];
-    char buf[10];
-    snprintf(buf, 10, "%zu", val);
+    char buf[64];
+    snprintf(buf, 64, "%zu", val);
     if (val != 0) {
       DrawRectangleLinesEx(rec, 2.0f, PINK);
     } else {
@@ -479,7 +485,7 @@ void render_spatial_grid(SpatialGrid *sGrid, Camera2D camera) {
     DrawText(buf, rec.x + (rec.width / 2), rec.y + (rec.height / 4), 14.0f,
              BLACK);
     memset(buf, 0, sizeof(buf));
-    snprintf(buf, 10, "%zu", i);
+    snprintf(buf, 64, "%zu", i);
     DrawText(buf, rec.x + rec.width / 2, rec.y - 14, 14.0f, BLACK);
 
     // for (size_t j = 0; j < sGrid->entities.items[i].count; j++) {
@@ -536,4 +542,65 @@ void init_instanced_draw(Shader *shader, Matrix *transforms, Entities *entities,
   // passed by value?
   material->shader = *shader;
   material->maps[MATERIAL_MAP_DIFFUSE].color = RED;
+}
+
+Mesh mesh_generate_circle(int segments) {
+  Mesh mesh = {0};
+
+  // 1 center vertex + segments edge vertices
+  mesh.vertexCount = 1 + segments;
+  mesh.triangleCount = segments;
+
+  // Allocate vertex data
+  mesh.vertices = (float *)MemAlloc(mesh.vertexCount * 3 * sizeof(float));
+  mesh.texcoords = (float *)MemAlloc(mesh.vertexCount * 2 * sizeof(float));
+  mesh.normals = (float *)MemAlloc(mesh.vertexCount * 3 * sizeof(float));
+  mesh.indices = (unsigned short *)MemAlloc(mesh.triangleCount * 3 *
+                                            sizeof(unsigned short));
+
+  // Center vertex (index 0)
+  mesh.vertices[0] = 0.0f;
+  mesh.vertices[1] = 0.0f;
+  mesh.vertices[2] = 0.0f;
+  mesh.normals[0] = 0.0f;
+  mesh.normals[1] = 0.0f;
+  mesh.normals[2] = 1.0f;
+  mesh.texcoords[0] = 0.5f;
+  mesh.texcoords[1] = 0.5f;
+
+  float theta = 2.0f * M_PI / segments;
+
+  // Edge vertices
+  for (int i = 0; i < segments; ++i) {
+    float x = cos(i * theta);
+    float y = sin(i * theta);
+
+    int vertexIndex = (i + 1) * 3;
+    mesh.vertices[vertexIndex + 0] = x;
+    mesh.vertices[vertexIndex + 1] = y;
+    mesh.vertices[vertexIndex + 2] = 0.0f;
+
+    int normalIndex = (i + 1) * 3;
+    mesh.normals[normalIndex + 0] = 0.0f;
+    mesh.normals[normalIndex + 1] = 0.0f;
+    mesh.normals[normalIndex + 2] = 1.0f;
+
+    int texcoordIndex = (i + 1) * 2;
+    mesh.texcoords[texcoordIndex + 0] = (x + 1.0f) * 0.5f;
+    mesh.texcoords[texcoordIndex + 1] = (y + 1.0f) * 0.5f;
+  }
+
+  // Triangle indices (triangle fan from center)
+  for (int i = 0; i < segments; ++i) {
+    int triangleIndex = i * 3;
+    mesh.indices[triangleIndex + 0] = 0;     // Center
+    mesh.indices[triangleIndex + 1] = i + 1; // Current edge vertex
+    mesh.indices[triangleIndex + 2] =
+        ((i + 1) % segments) + 1; // Next edge vertex
+  }
+
+  // Upload mesh data to GPU
+  UploadMesh(&mesh, false);
+
+  return mesh;
 }
