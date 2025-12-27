@@ -31,8 +31,8 @@ void update_spatial(SpatialGrid *sGrid, Entities *e) {
   sGrid->antitiesDense.count = 0;
 
   // First pass: count entities per cell
-  for (size_t i = 0; i < e->entitiesCount; i++) {
-    Component_transform *cT1 = &e->c_transform->items[i];
+  for (size_t i = 0; i < e->count; i++) {  
+    c_Transform *cT1 = &e->items[i].c_transform;  
 
     float xi_f = cT1->pos.x / spacing;
     float yi_f = cT1->pos.y / spacing;
@@ -65,8 +65,8 @@ void update_spatial(SpatialGrid *sGrid, Entities *e) {
   // sGrid->antitiesDense.count = sum;
 
   // Second pass: fill dense array
-  for (size_t i = 0; i < e->entitiesCount; i++) {
-    Component_transform *cT1 = &e->c_transform->items[i];
+  for (size_t i = 0; i < e->count; i++) {  
+    c_Transform *cT1 = &e->items[i].c_transform;  
 
     float xi_f = cT1->pos.x / spacing;
     float yi_f = cT1->pos.y / spacing;

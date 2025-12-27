@@ -1,38 +1,51 @@
 #pragma once
 #include "raylib.h" // just for types like Color & Vector2
 #include "utils.h"  // For DA Macros
+#include <stdint.h>
 
-// TODO: sparse sets of my components? what does this even mean. research
+// ================================
+// ENTITY FLAGS (up to 64, using uint64_t)
+// ================================
+
+// Flag constants (bit positions 0-63)
+#define ENTITY_FLAG_NONE 0ULL             // No flags set
+#define ENTITY_FLAG_ACTIVE (1ULL << 0)    // Entity updates (e.g., physics)
+#define ENTITY_FLAG_VISIBLE (1ULL << 1)   // Entity renders
+#define ENTITY_FLAG_COLLIDING (1ULL << 2) // Entity participates in collisions
+#define ENTITY_FLAG_DEAD (1ULL << 3)      // Entity is marked for removal
+
+// Component flags (control if components are used)
+#define ENTITY_FLAG_HAS_TRANSFORM                                              \
+  (1ULL << 4) // Use c_transform (position/velocity)
+#define ENTITY_FLAG_HAS_RENDER (1ULL << 5)    // Use c_render (visuals)
+#define ENTITY_FLAG_HAS_COLLISION (1ULL << 6) // Use c_collision (physics)
+#define ENTITY_FLAG_HAS_SPAWNER                                                \
+  (1ULL << 7) // Use spawner fields (spawnRate, clock)
+
+// Entity type flags (combine with core/component flags for functionality)
+#define ENTITY_FLAG_PLAYER (1ULL << 8)      // Player-controlled
+#define ENTITY_FLAG_ENEMY (1ULL << 9)       // AI enemy
+#define ENTITY_FLAG_PROJECTILE (1ULL << 10) // Fast-moving projectile
+#define ENTITY_FLAG_PARTICLE (1ULL << 11)   // Short-lived effect
+#define ENTITY_FLAG_STATIC (1ULL << 12)     // Immovable object
+// ================================
+// END ENTITY FLAGS
+// ================================
 
 // RENDER COMPONENT
 typedef struct {
   Color color;
   float renderRadius; // Visual size (can differ from collision radius)
-} Component_render;
-typedef struct {
-  Component_render *items;
-  size_t count;
-  size_t capacity;
-} Components_render;
-DA_CREATE(Components_render)
-DA_FREE(Components_render)
-DA_INIT(Components_render)
+} c_Render;
 
 // TRANSFORM COMPONENT
 typedef struct {
   Vector3 pos;
-  Vector3 v; // Velocity
-  Vector3 a; // acceleration
-  float restitution; // 1 -> will bounce apart - 0 -> both will keep moving to same direction
-} Component_transform;
-typedef struct {
-  Component_transform *items;
-  size_t count;
-  size_t capacity;
-} Components_transform;
-DA_CREATE(Components_transform)
-DA_FREE(Components_transform)
-DA_INIT(Components_transform)
+  Vector3 v;         // Velocity
+  Vector3 a;         // acceleration
+  float restitution; // 1 -> will bounce apart - 0 -> both will keep moving to
+                     // same direction
+} c_Transform;
 
 // COLLISION COMPONENT
 typedef struct {
@@ -41,73 +54,32 @@ typedef struct {
   float inverseMass;
   size_t collisionCount;
   size_t searchCount;
-} Component_collision;
-typedef struct {
-  Component_collision *items;
+} c_Collision;
+typedef struct Entity Entity;
+typedef struct Entity {
+  size_t id;
+  uint64_t flags;
+  c_Transform c_transform;
+  c_Render c_render;
+  c_Collision c_collision;
+  Entity *spawnEntity;
+  float spawnCount;
+  float spawnRate;
+  float clock;
+  bool followMouse;
+} Entity;
+typedef struct Entities {
+  Entity *items;
   size_t count;
   size_t capacity;
-} Components_collision;
-DA_CREATE(Components_collision)
-DA_FREE(Components_collision)
-DA_INIT(Components_collision)
-
-typedef struct Entities {
-  // Components
-  size_t entitiesCount;
-  Components_transform *c_transform;
-  Components_render *c_render;
-  Components_collision *c_collision;
-} Entities; // is this even ecs? lazy ecs? each component arrau is same size as
-            // entities count. not good
-
-typedef enum {
-  ENTITY_INIT_DATAKIND_NONE,
-  ENTITY_INIT_DATAKIND_COUNT,
-  ENTITY_INIT_DATAKIND_FULL,
-} EntityInitDataKind;
-
-typedef struct {
-  EntityInitDataKind is;
-  union Data {
-    size_t count;
-    struct {
-      size_t count;
-      float entitySize;
-      float boundsX;
-      float boundsY;
-    } full;
-  } get;
-} SceneData;
-
-typedef struct {
-  Vector3 pos;
-  Vector3 vel;
-  Vector3 acceleration;
-  float restitution;
-  float renderRadius;
-  float collisionRadius;
-  Color color;
-  float mass;
-  float inverseMass;
-} EntitySpec;
-
-Entities *entities_create(size_t count);
-void entities_init(Entities *ctx, size_t count);
-void entities_free(Entities *ctx);
-size_t entity_add_from_spec(Entities *ctx, EntitySpec spec);
-
-// init stuff
-void entity_init_collision_diagonal(Entities *ctx, SceneData data);
-
-// Helpers
-void sum_velocities(Entities *ctx, Vector3 *out);
-void log_velocities(Entities *ctx);
-void color_entities(Entities *ctx, Color color);
-
-typedef void EntitiesInitFn(Entities *, SceneData);
-
-// Entity updates
-void update_entity_position(Component_transform *cTp1, float frameTime);
-void update_entity_boundaries(Entities *ctx, size_t idx, float x_bound,
-                              float x_bound_min, float y_bound,
-                              float y_bound_min);
+} Entities;
+DA_CREATE(Entities)
+DA_FREE(Entities)
+DA_INIT(Entities)
+void entity_add(Entities *entities, Entity entity);
+void update_entity_position(Entity *e, float frameTime,
+                            Vector2 mouseWorldPosition);
+void update_entity_boundaries(Entity *e, float x_bound, float x_bound_min,
+                              float y_bound, float y_bound_min);
+Entity entity_create_physics_particle(Vector3 pos, Vector3 velocity);
+Entity entity_create_spawner_entity();
