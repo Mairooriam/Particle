@@ -3,8 +3,10 @@
 #include "fix_win32_compatibility.h"
 #include "log.h"
 #include "raylib.h"
+#include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <winbase.h>
 typedef struct {
   HMODULE gameCodeDLL;
@@ -46,18 +48,34 @@ static void unloadGameCode(GameCode *gameCode) {
   gameCode->update = game_update_stub;
 }
 
+typedef struct {
+  Position pos;
+} GameState;
+GameState *init_gameState() {
+  GameState *result = malloc(sizeof(GameState));
+  if (!result) {
+    assert(0 && "LMAO failed");
+  }
+
+  result->pos.x = 0;
+  result->pos.y = 0;
+
+  return result;
+}
+
 int main() {
   GameCode code = loadGameCode();
 
+  GameState *game = init_gameState();
+
   InitWindow(800, 600, "Hot-reload Example");
   SetTargetFPS(60);
-  Position pos = {0, 0};
   while (!WindowShouldClose()) {
     flush_logs();
 
     // float dt = GetFrameTime();
-    printf("x:%f,y:%f\n", pos.x, pos.y);
-    code.update(&pos);
+    printf("x:%f,y:%f\n", game->pos.x, game->pos.y);
+    code.update(&game->pos);
 
     BeginDrawing();
     ClearBackground(RAYWHITE);
