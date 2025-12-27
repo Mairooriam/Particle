@@ -214,7 +214,6 @@ void update_spring(Entity *e, ApplicationContext *ctx) {
   Vector3 nForce = Vector3Normalize(force);
   force = Vector3Scale(nForce, -magnitude);
   e->c_transform.v = Vector3Add(e->c_transform.a, force);
-
 }
 void update_entities_3D(Entities *ctx, float frameTime, SpatialGrid *sGrid,
                         Matrix *transforms) {

@@ -88,8 +88,7 @@
 
 void update_entity_position(Entity *e, float frameTime, Vector2 mouseWorldPos) {
   c_Transform *cTp1 = &e->c_transform;
-  cTp1->a = (Vector3){0, 9.81f, 0};
-  
+
   if (e->followMouse) {
     float lerpFactor = 0.1f;
     cTp1->pos.x = Lerp(cTp1->pos.x, mouseWorldPos.x, lerpFactor);
@@ -140,7 +139,7 @@ Entity entity_create_physics_particle(Vector3 pos, Vector3 velocity) {
             ENTITY_FLAG_HAS_COLLISION;
   e.c_transform = (c_Transform){.pos = {.x = pos.x, .y = pos.y, .z = 0},
                                 .v = {.x = velocity.x, .y = velocity.y, .z = 0},
-                                .a = {.x = 0, .y = 9.81f, .z = 0},
+                                .a = {.x = 0, .y = 0, .z = 0},
                                 .restitution = 0.90f};
 
   e.c_collision = (c_Collision){.radius = 25.0f,
@@ -165,14 +164,15 @@ Entity entity_create_spawner_entity() {
   // e.followMouse = true;
   e.c_render = (c_Render){.renderRadius = 24.0f,
                           .color = {.r = 0, .b = 255, .g = 0, .a = 200}};
-  e.spawnCount = 1;
-  e.c_transform = (c_Transform){.pos = {.x = 100, .y = 100, .z = 0},
-                                .v = {.x = 200, .y = 200, .z = 0},
+  e.spawnCount = 5;
+  e.c_transform = (c_Transform){.pos = {.x = 8000, .y = 8000, .z = 0},
+                                .v = {.x = -200, .y = -200, .z = 0},
                                 .a = {.x = 0, .y = 0, .z = 0},
                                 .restitution = 0.90f};
   e.spawnEntity = malloc(sizeof(Entity));
+
   *e.spawnEntity =
       entity_create_physics_particle((Vector3){0, 0, 0}, (Vector3){0, 0, 0});
-
+  e.spawnEntity->c_transform.a = (Vector3){0, 9.81, 0};
   return e;
 }

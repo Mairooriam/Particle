@@ -59,22 +59,30 @@ int main(void) {
 
   TIMING_SET_INTERVAL(1.0); // Print every 1 second
   // Entity e = {0};
-  // entity_add(ctx.entities, entity_create_spawner_entity());
-  Entity e =
-      entity_create_physics_particle((Vector3){100, 50, 0}, (Vector3){0, 0, 0});
-  Entity e2 = entity_create_physics_particle((Vector3){100, 100, 0},
-                                             (Vector3){0, 0, 0});
 
-  c_Spring cSp1 = {0};
-  cSp1.springConstat = 1.0f;
-  cSp1.restLenght = 2.0f;
-  cSp1.parent = 1;
-  e.c_spring = cSp1;
-  FLAG_SET(e.flags, ENTITY_FLAG_SPRING);
+  int num_particles = 10;
+  float spacing = 50.0f;
+  for (int i = 0; i < num_particles; i++) {
+    Vector3 pos = {500.0f, 500.0f + i * spacing, 0.0f};
+    Entity e = entity_create_physics_particle(pos, (Vector3){0, 0, 0});
+    e.c_render.color = PINK; // Optional: set color for all
 
-  entity_add(ctx.entities, e);
-  entity_add(ctx.entities, e2);
+    if (i == num_particles - 1) {
+      e.c_render.color = GREEN;
+    }
 
+    if (i < num_particles - 1) {
+      c_Spring cs = {0};
+      cs.springConstat = 1.0f;
+      cs.restLenght = spacing;
+      cs.parent = i + 1; // Connect to the next particle
+      e.c_spring = cs;
+      FLAG_SET(e.flags, ENTITY_FLAG_SPRING);
+    }
+
+    entity_add(ctx.entities, e);
+  }
+  entity_add(ctx.entities, entity_create_spawner_entity());
   while (!WindowShouldClose()) {
     TIMING_FRAME_BEGIN();
     UpdateCamera(&ctx.camera3D, CAMERA_ORBITAL);
