@@ -1,58 +1,26 @@
 cmake_minimum_required(VERSION 3.10)
-project(Clua C)
+project(hotreload_testing C)
 
-# Set C standard to C11
-set(CMAKE_C_STANDARD 23)
-set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_C_EXTENSIONS OFF)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
-option(ENABLE_TIMING "Enable performance timing" OFF)
-# Enable all warnings and sanitizers for GCC/Clang
-if(MSVC)
-    add_compile_options(/W4)
-else()
-    add_compile_options(
-        -Wall
-        -Wextra
-        -Wpedantic
-        -fdiagnostics-color=always
-        -Wno-newline-eof
-    )
-endif()
+# Raylib paths
+set(RAYLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib")
+set(RAYLIB_INCLUDE_DIR "${RAYLIB_DIR}/include")
+set(RAYLIB_LIB_DIR "${RAYLIB_DIR}")
 
-option(USE_PREBUILT_DEPS "Use pre-built external dependencies" ON)
-
-    include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/src")
-    link_directories("${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib")
-
-    include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../deps/flecs-4.1.4/include")
-    link_directories("${CMAKE_CURRENT_SOURCE_DIR}/../deps/flecs-4.1.4/build")
+# Engine executable
+add_executable(engine main.c)
+target_include_directories(engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${RAYLIB_INCLUDE_DIR})
+target_link_directories(engine PRIVATE ${RAYLIB_LIB_DIR})
+target_link_libraries(engine PRIVATE raylib winmm)
 
 
-#Source files
-set(SOURCES
-    main.c
-    application.c
-        core/components.c
-         core/ht.c
-         core/spatial.c
-        entities.c
+# Application DLL
+add_library(application SHARED application.c)
 
- )
+# Shared interface
+target_include_directories(engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(application PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_executable(main ${SOURCES})
-target_compile_definitions(main PRIVATE LOG_USE_COLOR)
-
-target_link_libraries(main ${RAYLIB_LIBRARY})
-target_link_libraries(main flecs_static)
-
-if(ENABLE_TIMING)
-    target_compile_definitions(main PRIVATE ENABLE_TIMING)
-endif()
-
-
-if(WIN32)
-    target_link_libraries(main winmm gdi32 opengl32 ws2_32 dbghelp)
-endif()
-
+# Set output name for DLL to match LoadLibraryA("application.dll")
+set_target_properties(application PROPERTIES OUTPUT_NAME "application")
