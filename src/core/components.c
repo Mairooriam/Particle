@@ -88,7 +88,8 @@
 
 void update_entity_position(Entity *e, float frameTime, Vector2 mouseWorldPos) {
   c_Transform *cTp1 = &e->c_transform;
-
+  cTp1->a = (Vector3){0, 9.81f, 0};
+  
   if (e->followMouse) {
     float lerpFactor = 0.1f;
     cTp1->pos.x = Lerp(cTp1->pos.x, mouseWorldPos.x, lerpFactor);
@@ -151,7 +152,7 @@ Entity entity_create_physics_particle(Vector3 pos, Vector3 velocity) {
   e.c_render = (c_Render){.renderRadius = 24.0f,
                           .color = {.r = 255, .b = 0, .g = 0, .a = 200}};
 
-  e.followMouse = true;
+  // e.followMouse = true;
   return e;
 }
 
@@ -159,9 +160,9 @@ Entity entity_create_spawner_entity() {
   Entity e = {0};
   e.flags = ENTITY_FLAG_HAS_SPAWNER;
 
-  e.spawnRate = 10.0f;
+  e.spawnRate = 20.0f;
   e.clock = 0;
-  e.followMouse = true;
+  // e.followMouse = true;
   e.c_render = (c_Render){.renderRadius = 24.0f,
                           .color = {.r = 0, .b = 255, .g = 0, .a = 200}};
   e.spawnCount = 1;

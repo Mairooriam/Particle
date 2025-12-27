@@ -63,6 +63,7 @@ void update_entities(ApplicationContext *ctx);
 void update_entities_3D(Entities *ctx, float frameTime, SpatialGrid *sGrid,
                         Matrix *transforms);
 void update_spawners(ApplicationContext *ctx, Entity *e);
+void update_spring(Entity *e, ApplicationContext *ctx);
 
 // COLLISION
 void collision_simple_reverse(Entities *ctx, size_t idx1, size_t idx2);

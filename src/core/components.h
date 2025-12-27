@@ -28,6 +28,7 @@
 #define ENTITY_FLAG_PROJECTILE (1ULL << 10) // Fast-moving projectile
 #define ENTITY_FLAG_PARTICLE (1ULL << 11)   // Short-lived effect
 #define ENTITY_FLAG_STATIC (1ULL << 12)     // Immovable object
+#define ENTITY_FLAG_SPRING (1ULL << 13)
 // ================================
 // END ENTITY FLAGS
 // ================================
@@ -47,6 +48,12 @@ typedef struct {
                      // same direction
 } c_Transform;
 
+typedef struct {
+  float springConstat;
+  float restLenght;
+  size_t parent;
+} c_Spring;
+
 // COLLISION COMPONENT
 typedef struct {
   float radius;
@@ -54,6 +61,7 @@ typedef struct {
   float inverseMass;
   size_t collisionCount;
   size_t searchCount;
+  Vector3 forceAccum;
 } c_Collision;
 typedef struct Entity Entity;
 typedef struct Entity {
@@ -67,6 +75,7 @@ typedef struct Entity {
   float spawnRate;
   float clock;
   bool followMouse;
+  c_Spring c_spring;
 } Entity;
 typedef struct Entities {
   Entity *items;

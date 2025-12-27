@@ -95,6 +95,8 @@ void input_mouse_2D(ApplicationContext *ctx) {
     Entity entity = entity_create_physics_particle(
         (Vector3){worldPos.x, worldPos.y, 0},
         (Vector3){worldDelta.x, worldDelta.y, 0});
+    entity.c_collision.mass = 1000.0f;
+    entity.c_collision.inverseMass = 1 / 1000.0f;
     entity_add(ctx->entities, entity);
     ctx->spawnerEntity = entity;
     ctx->spawnerInitalized = true;
@@ -185,6 +187,9 @@ void update_entities(ApplicationContext *ctx) {
     if (FLAG_IS_SET(e->flags, ENTITY_FLAG_HAS_COLLISION)) {
       particle_update_collision_spatial(ctx->entities, i, ctx->sGrid);
     }
+    if (FLAG_IS_SET(e->flags, ENTITY_FLAG_SPRING)) {
+      update_spring(e, ctx);
+    }
   }
 }
 void update_spawners(ApplicationContext *ctx, Entity *e) {
@@ -196,6 +201,20 @@ void update_spawners(ApplicationContext *ctx, Entity *e) {
     }
     e->clock = 0.0f;
   }
+}
+void update_spring(Entity *e, ApplicationContext *ctx) {
+  Vector3 force =
+
+      Vector3Subtract(e->c_transform.pos,
+                      ctx->entities->items[e->c_spring.parent].c_transform.pos);
+  float magnitude = Vector3Length(force);
+  magnitude = fabs(magnitude - e->c_spring.restLenght);
+  magnitude *= e->c_spring.springConstat;
+
+  Vector3 nForce = Vector3Normalize(force);
+  force = Vector3Scale(nForce, -magnitude);
+  e->c_transform.v = Vector3Add(e->c_transform.a, force);
+
 }
 void update_entities_3D(Entities *ctx, float frameTime, SpatialGrid *sGrid,
                         Matrix *transforms) {
@@ -244,6 +263,7 @@ void particle_update_collision_spatial(Entities *ctx, size_t idx,
   Entity *e1 = &ctx->items[idx];
   c_Transform *cTp1 = &e1->c_transform;
   c_Collision *cCp1 = &e1->c_collision;
+  c_Render *cRp1 = &e1->c_render;
   cCp1->searchCount = 0;
   cCp1->collisionCount = 0;
 
@@ -279,8 +299,8 @@ void particle_update_collision_spatial(Entities *ctx, size_t idx,
         Entity *e2 = &ctx->items[otherIdx];
         c_Transform *cTp2 = &e2->c_transform;
         c_Collision *cCp2 = &e2->c_collision;
-        if (FLAG_IS_SET(e2->flags, ENTITY_FLAG_HAS_COLLISION))
-        {
+        c_Render *cRp2 = &e2->c_render;
+        if (FLAG_IS_SET(e2->flags, ENTITY_FLAG_HAS_COLLISION)) {
           if (CheckCollisionCircles(
                   (Vector2){cTp1->pos.x, cTp1->pos.y}, cCp1->radius,
                   (Vector2){cTp2->pos.x, cTp2->pos.y}, cCp2->radius)) {
@@ -310,7 +330,7 @@ void particle_update_collision_spatial(Entities *ctx, size_t idx,
 
             if (Vs > 0) {
               break; // contact is either separating or stationary no impulse
-                    // needed
+                     // needed
             }
             float nVs =
                 -Vs *
@@ -330,13 +350,12 @@ void particle_update_collision_spatial(Entities *ctx, size_t idx,
                 cTp2->v, Vector3Scale(impulsePerIMass, cCp2->inverseMass));
           }
         }
-        
 
-        /* int r = xi * 50 % 255; */
-        /* int g = yi * 50 % 255; */
-        /* cRp1->color = (Color){r, g, 0, 255}; */
-        /* cRp2->color = (Color){r, g, 0, 100}; */
-        cCp1->searchCount++;
+        // int r = xi * 50 % 255;
+        // int g = yi * 50 % 255;
+        // cRp1->color = (Color){r, g, 0, 255};
+        // cRp2->color = (Color){r, g, 0, 100};
+        // cCp1->searchCount++;
       }
     }
   }

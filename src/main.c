@@ -26,7 +26,7 @@ int main(void) {
 
   ApplicationContext ctx = {0};
   {
-    size_t entityCount = 10000;
+    size_t entityCount = 1000000;
 
     Entities entities;
     Entities_init(&entities, entityCount);
@@ -58,9 +58,23 @@ int main(void) {
   update_spatial(ctx.sGrid, ctx.entities);
 
   TIMING_SET_INTERVAL(1.0); // Print every 1 second
-
   // Entity e = {0};
-  entity_add(ctx.entities, entity_create_spawner_entity());
+  // entity_add(ctx.entities, entity_create_spawner_entity());
+  Entity e =
+      entity_create_physics_particle((Vector3){100, 50, 0}, (Vector3){0, 0, 0});
+  Entity e2 = entity_create_physics_particle((Vector3){100, 100, 0},
+                                             (Vector3){0, 0, 0});
+
+  c_Spring cSp1 = {0};
+  cSp1.springConstat = 1.0f;
+  cSp1.restLenght = 2.0f;
+  cSp1.parent = 1;
+  e.c_spring = cSp1;
+  FLAG_SET(e.flags, ENTITY_FLAG_SPRING);
+
+  entity_add(ctx.entities, e);
+  entity_add(ctx.entities, e2);
+
   while (!WindowShouldClose()) {
     TIMING_FRAME_BEGIN();
     UpdateCamera(&ctx.camera3D, CAMERA_ORBITAL);
