@@ -16,12 +16,12 @@ double g_timing_accumulated_time = 0.0;
 double g_timing_print_interval = 1.0;
 #endif
 #define MAX_INSTANCES 100
-ECS_COMPONENT_DECLARE(c_Camera2D);
 void RenderSystem(ecs_iter_t *it) {
   c_Transform *t = ecs_field(it, c_Transform, 0);
   c_Render *r = ecs_field(it, c_Render, 1);
 
   for (int i = 0; i < it->count; i++) {
+    t[i].pos = Vector3Add(t[i].pos, (Vector3){10, 10, 0});
     DrawCircle(t[i].pos.x, t[i].pos.y, r[i].renderRadius, r[i].color);
   }
 }
@@ -29,39 +29,49 @@ void render_entities_ecs(ecs_iter_t *it) {
   c_Transform *_cT = ecs_field(it, c_Transform, 0);
   c_Render *_cR = ecs_field(it, c_Render, 1);
   const c_Camera2D *cC = ecs_singleton_get(it->world, c_Camera2D);
-  Camera2D cC2 = {
-      .target = {0, 0}, .offset = {400, 300}, .rotation = 0, .zoom = 1};
+
   for (int i = 0; i < it->count; i++) {
     c_Transform *cT = &_cT[i];
     c_Render *cR = &_cR[i];
 
-    Vector2 screen =
-        GetWorldToScreen2D((Vector2){cT->pos.x, cT->pos.y}, cC->camera);
+    cT->vel = Vector3Add(cT->vel, Vector3Scale(cT->acceleration, it->delta_time));
+    cT->pos = Vector3Add(cT->pos, Vector3Scale(cT->vel, it->delta_time));
 
-    if (screen.x > 800 || screen.x < 0) {
+    if (cT->pos.x > 800) {
+      cT->pos.x = 800;
+      cT->vel.x = -cT->vel.x; 
+    } else if (cT->pos.x < 0) {
+      cT->pos.x = 0;
+      cT->vel.x = -cT->vel.x; 
+    }
+    if (cT->pos.y > 600) {
+      cT->pos.y = 600;
+      cT->vel.y = -cT->vel.y; 
+    } else if (cT->pos.y < 0) {
+      cT->pos.y = 0;
+      cT->vel.y = -cT->vel.y; 
+    }
+    Vector2 screen = GetWorldToScreen2D((Vector2){cT->pos.x, cT->pos.y}, cC->camera);
+    if (screen.x > 800 || screen.x < 0 || screen.y > 600 || screen.y < 0) {
       continue;
     }
 
-    if (screen.y > 600 || screen.y < 0) {
-      continue;
-    }
-    DrawCircleSector((Vector2){cT->pos.x, cT->pos.y}, cR->renderRadius, 0, 360,
-                     16, cR->color);
-
-    // Vector3 n_vel = Vector3Normalize(cT->v);
-    // DrawLine(cT->pos.x, cT->pos.y, cT->v.x, cT->v.y, BLACK);
     Vector3 v_relative =
         Vector3Add((Vector3){cT->pos.x, cT->pos.y, 0}, cT->vel);
     DrawLine(cT->pos.x, cT->pos.y, v_relative.x, v_relative.y, BLACK);
+
     char buf[32];
     snprintf(buf, 32, "%i", i);
     DrawText(buf, cT->pos.x, cT->pos.y, 6.0f, BLACK);
+
     memset(buf, 0, 32);
-    // snprintf(buf, 32, "%zu", cCp1->searchCount);
-    // DrawText(buf, cT->pos.x + 10, cT->pos.y + 10, 6.0f, RED);
-    // memset(buf, 0, 32);
-    // snprintf(buf, 32, "%zu", cCp1->collisionCount);
-    // DrawText(buf, cT->pos.x - 10, cT->pos.y + 10, 6.0f, GREEN);
+    float speed = Vector3Length(cT->vel); // Speed = length of velocity vector
+    snprintf(buf, 32, "%.2f", speed);     // Format to 2 decimal places
+    DrawText(buf, cT->pos.x + 10, cT->pos.y + 10, 6.0f,
+             BLUE); // Position offset, blue color
+
+    DrawCircleSector((Vector2){cT->pos.x, cT->pos.y}, cR->renderRadius, 0, 360,
+                     16, cR->color);
   }
 }
 
@@ -82,19 +92,18 @@ int main(void) {
   init_context(&ctx, bounds_x, bounds_y);
   TIMING_SET_INTERVAL(1.0); // Print every 1 second
 
-  c_Transform t = {.pos = {0.0f, 10.0f, 1.0f},
-                   .vel = {0.0f, 0.0f, 0.0f},
+  c_Transform t = {.pos = {100.0f, 100.0f, 0.0f},
+                   .vel = {-50.0f, -50.0f, 0.0f},
                    .acceleration = {0.0f, 0.0f, 0.0f},
                    .restitution = 0.5f};
   c_Render r = {
       .renderRadius = 5.0f,
       .color = RED // or {255, 0, 0, 255}
   };
-  c_Collision c = {.radius = 1.0f, .mass = 2.0f, .inverseMass = 3.0f};
+  c_Collision c = {.radius = 5.0f, .mass = 2.0f, .inverseMass = 3.0f};
 
   // Create an entity
   register_components(ctx.world);
-  ECS_COMPONENT(ctx.world, c_Camera2D);
   ecs_entity_t entity = create_entity(ctx.world, t, c, r);
   printf("Created entity: %llu\n", entity);
   ECS_SYSTEM(ctx.world, render_entities_ecs, EcsOnUpdate, c_Transform,
@@ -127,6 +136,7 @@ int main(void) {
     EndMode3D();
 
     BeginMode2D(ctx.camera);
+    DrawRectangle(0, 0, 800, 600, PINK);
     ecs_progress(ctx.world, ctx.frameTime);
 
     DrawText("Hello, World!", 190, 200, 20, LIGHTGRAY);
