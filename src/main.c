@@ -12,6 +12,7 @@ typedef struct {
   bool isvalid;
 } GameCode;
 
+// source: https://guide.handmadehero.org/code/day021/
 static GameCode loadGameCode() {
   set_log_prefix("[loadGameCode] ");
   GameCode result = {0};
