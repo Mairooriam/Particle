@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.10)
 project(hotreload_testing C)
 
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic")
+
 
 # Raylib paths
 set(RAYLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib")

@@ -1,30 +1,62 @@
-#define WIN32_LEAN_AND_MEAN
-#define NOGDI
-#define NOMINMAX
 
+#include "application.h"
+#include "fix_win32_compatibility.h"
+#include "log.h"
 #include "raylib.h"
 #include <stdbool.h>
 #include <stdio.h>
-#include <time.h>
+#include <winbase.h>
 typedef struct {
-  void *(*create_context)(void);
-  void (*destroy_context)(void *ctx);
-  void (*init)(void *ctx);
-  void (*shutdown)(void *ctx);
-  void (*update)(float dt, void *ctx);
-  void (*render)(void *ctx);
-} AppAPI;
+  HMODULE gameCodeDLL;
+  GameUpdate *update;
+  bool isvalid;
+} GameCode;
+
+static GameCode loadGameCode() {
+  set_log_prefix("[loadGameCode] ");
+  GameCode result = {0};
+  CopyFile("libapplication.dll", "gameCodeDLL_Temp.dll", FALSE);
+  result.gameCodeDLL = LoadLibraryA("gameCodeDLL_Temp.dll");
+  LOG("Trying to load .dlls");
+  if (result.gameCodeDLL) {
+    result.update =
+        (GameUpdate *)GetProcAddress(result.gameCodeDLL, "game_update");
+    if (result.update) {
+      result.isvalid = true;
+      LOG("Loading .dlls was succesfull");
+    }
+  }
+
+  if (!result.isvalid) {
+    result.update = game_update_stub;
+    LOG("Loading .dlls wasn't succesfull. Resetting to stub functions");
+  }
+
+  return result;
+}
+
+static void unloadGameCode(GameCode *gameCode) {
+  set_log_prefix("[unloadGameCode]");
+  if (gameCode->gameCodeDLL) {
+    FreeLibrary(gameCode->gameCodeDLL);
+    LOG("Freed .dlls");
+  }
+  gameCode->isvalid = false;
+  gameCode->update = game_update_stub;
+}
+
 int main() {
-  AppAPI api = {0};
-  void *app_ctx = NULL;
+  GameCode code = loadGameCode();
 
   InitWindow(800, 600, "Hot-reload Example");
   SetTargetFPS(60);
-
+  Position pos = {0, 0};
   while (!WindowShouldClose()) {
-    float dt = GetFrameTime();
+    flush_logs();
 
-    // api.update(dt, app_ctx);
+    // float dt = GetFrameTime();
+    printf("x:%f,y:%f\n", pos.x, pos.y);
+    code.update(&pos);
 
     BeginDrawing();
     ClearBackground(RAYWHITE);
@@ -32,7 +64,8 @@ int main() {
     EndDrawing();
 
     if (IsKeyPressed(KEY_F5)) {
-      printf("Hot-reloading DLL...\n");
+      unloadGameCode(&code);
+      code = loadGameCode();
     }
   }
   CloseWindow();
