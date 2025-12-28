@@ -12,8 +12,8 @@ GAME_UPDATE(game_update) {
     gameState->pos.y = 0.0f;
     gameMemory->isInitialized = true;
   }
-  gameState->pos.y = 200.0f;
-  gameState->pos.x += 100.0f;
+  gameState->pos.y = 1.0f;
+  gameState->pos.x -= 2.0f;
 
   // printf("x:%f,y:%f\n", gameState->pos.x, gameState->pos.y);
 
