@@ -11,7 +11,7 @@
 #define KiloBytes(value) ((value) * 1024)
 #define MegaBytes(value) ((KiloBytes(value)) * 1024)
 #define GigaBytes(value) ((MegaBytes(value)) * 1024)
-
+#define TeraBytes(value) ((GigaBytes(value)) * 1024)
 typedef struct {
   float x, y;
 } Position;
@@ -189,12 +189,13 @@ typedef struct {
   int count;
 } RenderQueue;
 typedef struct {
-  Vector2 mousePos;  
+  Vector2 mousePos;
   // Example expansions:
   // bool mouseButtons[3];  // Left, middle, right
   // bool keys[256];        // Keyboard state
 } Input;
-#define GAME_UPDATE(name) void name(GameMemory *gameMemory, Input* input, float frameTime)
+#define GAME_UPDATE(name)                                                      \
+  void name(GameMemory *gameMemory, Input *input, float frameTime)
 typedef GAME_UPDATE(GameUpdate);
 GAME_UPDATE(game_update_stub) {
   (void)gameMemory;
@@ -208,11 +209,10 @@ typedef struct {
   Entities entities;
 } GameState;
 
-static inline void Entities_init_with_buffer(Entities *da, size_t cap, Entity *buffer) {
+static inline void Entities_init_with_buffer(Entities *da, size_t cap,
+                                             Entity *buffer) {
   da->count = 0;
   da->capacity = cap;
   da->items = buffer;
 }
-void update_spawners(float frameTime, Entity *e, Entities* entities);
-
-
+void update_spawners(float frameTime, Entity *e, Entities *entities);
