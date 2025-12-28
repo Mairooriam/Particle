@@ -91,7 +91,6 @@ static void ConcatStrings(size_t sourceACount, char *sourceAstr,
 }
 
 int main() {
-
   char EXEDirPath[MAX_PATH];
   DWORD SizeOfFilename = GetModuleFileNameA(0, EXEDirPath, sizeof(EXEDirPath));
   (void)SizeOfFilename;
