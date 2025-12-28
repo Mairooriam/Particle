@@ -37,14 +37,18 @@ static GameCode loadGameCode(char *sourceDLLfilepath, char *tempDLLfilepath) {
   set_log_prefix("[loadGameCode] ");
   GameCode result = {0};
   result.currentDLLtimestamp = getFileLastWriteTime(sourceDLLfilepath);
-  HANDLE file = CreateFileA(sourceDLLfilepath, GENERIC_READ | GENERIC_WRITE, 0,
-                            NULL, OPEN_EXISTING, 0, NULL);
+  HANDLE file = CreateFileA("mir.lock", GENERIC_READ | GENERIC_WRITE, 0, NULL,
+                            OPEN_EXISTING, 0, NULL);
 
   if (file == INVALID_HANDLE_VALUE) {
-    printf("ERRRO IN CREATING FILE\n");
+    // if no file there is no new dll to load yet. ( not written fully to file
+    // by compiler )
+    printf("if no file there is no new dll to load yet. ( not written fully to "
+           "file by compiler \n");
     result.isvalid = false;
   } else {
     CloseHandle(file);
+    DeleteFile("mir.lock");
 
     CopyFile(sourceDLLfilepath, tempDLLfilepath, FALSE);
     // shaw idea wait until tempDLL is the size of sourceDLL -> then load dll.
@@ -52,7 +56,8 @@ static GameCode loadGameCode(char *sourceDLLfilepath, char *tempDLLfilepath) {
     // ```
     // [build process]
     // 1. make dll using compiler
-    // 2. write lock file
+    // 2. write lock file -> as part of build system only after a succesfull
+    // build. part of the build not in program.
     //
     //
     //[build process]
@@ -168,7 +173,7 @@ int main() {
   }
 
   SetTargetFPS(60);
-  float frameTime = 0.0f;
+  float frameTime = 1.0f;
   while (!WindowShouldClose()) {
     frameTime = GetFrameTime();
     if (code.reloadDLLRequested) {

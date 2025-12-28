@@ -16,5 +16,8 @@ cmake -G "Ninja" ^
 REM Build the project in Debug mode using Ninja
 ninja
 
+REM Move this to cmake if works
+copy NUL mir.lock
+
 REM Go back to src directory
 cd ..
