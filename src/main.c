@@ -88,6 +88,8 @@ static void ConcatStrings(size_t sourceACount, char *sourceAstr,
 }
 
 int main() {
+  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX |
+               SEM_NOOPENFILEERRORBOX);
   char EXEDirPath[MAX_PATH];
   DWORD SizeOfFilename = GetModuleFileNameA(0, EXEDirPath, sizeof(EXEDirPath));
   (void)SizeOfFilename;
@@ -142,7 +144,7 @@ int main() {
     if (code.reloadDLLRequested) {
       code.clock += frameTime;
     }
-    flush_logs();
+
     if (code.reloadDLLRequested && (code.clock >= code.reloadDLLDelay)) {
       LOG("Reloading DLLs.");
       unloadGameCode(&code);
@@ -161,6 +163,7 @@ int main() {
     BeginDrawing();
     ClearBackground(RAYWHITE);
     EndDrawing();
+    flush_logs();
   }
   CloseWindow();
 
