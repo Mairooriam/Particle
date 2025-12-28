@@ -25,4 +25,10 @@ target_include_directories(engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(application PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Set output name for DLL to match LoadLibraryA("application.dll")
-set_target_properties(application PROPERTIES OUTPUT_NAME "application")
+set_target_properties(application PROPERTIES OUTPUT_NAME "application_being_written")
+
+add_custom_command(TARGET application POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy libapplication_being_written.dll application.dll
+    COMMAND ${CMAKE_COMMAND} -E remove libapplication_being_written.dll
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)

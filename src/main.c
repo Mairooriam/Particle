@@ -4,8 +4,6 @@
 #include "log.h"
 #include "raylib.h"
 #include <assert.h>
-#include <fileapi.h>
-#include <handleapi.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -22,7 +20,7 @@ typedef struct {
 } GameCode;
 
 static FILETIME getFileLastWriteTime(const char *filename) {
-  FILETIME result;
+  FILETIME result = {0};
   WIN32_FILE_ATTRIBUTE_DATA fileInfo;
   if (GetFileAttributesExA(filename, GetFileExInfoStandard, &fileInfo)) {
     result = fileInfo.ftLastWriteTime;
@@ -37,58 +35,25 @@ static GameCode loadGameCode(char *sourceDLLfilepath, char *tempDLLfilepath) {
   set_log_prefix("[loadGameCode] ");
   GameCode result = {0};
   result.currentDLLtimestamp = getFileLastWriteTime(sourceDLLfilepath);
-  HANDLE file = CreateFileA("mir.lock", GENERIC_READ | GENERIC_WRITE, 0, NULL,
-                            OPEN_EXISTING, 0, NULL);
+  CopyFile(sourceDLLfilepath, tempDLLfilepath, FALSE);
+  result.gameCodeDLL = LoadLibraryA(tempDLLfilepath);
+  if (!result.gameCodeDLL) {
+    DWORD error = GetLastError();
+    LOG("Failed to load DLL %s, error: %lu", tempDLLfilepath, error);
+  }
 
-  if (file == INVALID_HANDLE_VALUE) {
-    // if no file there is no new dll to load yet. ( not written fully to file
-    // by compiler )
-    printf("if no file there is no new dll to load yet. ( not written fully to "
-           "file by compiler \n");
-    result.isvalid = false;
-  } else {
-    CloseHandle(file);
-    DeleteFile("mir.lock");
-
-    CopyFile(sourceDLLfilepath, tempDLLfilepath, FALSE);
-    // shaw idea wait until tempDLL is the size of sourceDLL -> then load dll.
-    // [load process]
-    // ```
-    // [build process]
-    // 1. make dll using compiler
-    // 2. write lock file -> as part of build system only after a succesfull
-    // build. part of the build not in program.
-    //
-    //
-    //[build process]
-    // ```
-    // [load process]
-    // 1. if lock file is newer than the DLL
-    // 2. load the dll
-    // 3. delete the lock file
-    // ```
-    //
-    // B/c you always write the lock file *after* a compile, it being before the
-    // DLL means that the you are some time before the end of `step 2` in the
-    // build process
-    result.gameCodeDLL = LoadLibraryA(tempDLLfilepath);
-    if (!result.gameCodeDLL) {
-      DWORD error = GetLastError();
-      LOG("Failed to load DLL %s, error: %lu", tempDLLfilepath, error);
-    }
-
-    LOG("Trying to load .dlls");
-    if (result.gameCodeDLL) {
-      result.update =
-          (GameUpdate *)GetProcAddress(result.gameCodeDLL, "game_update");
-      if (result.update) {
-        result.isvalid = true;
-        LOG("Loading .dlls was succesfull");
-      } else {
-        LOG("Failed to get function address for game_update");
-      }
+  LOG("Trying to load .dlls");
+  if (result.gameCodeDLL) {
+    result.update =
+        (GameUpdate *)GetProcAddress(result.gameCodeDLL, "game_update");
+    if (result.update) {
+      result.isvalid = true;
+      LOG("Loading .dlls was succesfull");
+    } else {
+      LOG("Failed to get function address for game_update");
     }
   }
+
   if (!result.isvalid) {
     result.update = game_update_stub;
     LOG("Loading .dlls wasn't succesfull. Resetting to stub functions. "
@@ -123,13 +88,11 @@ static void ConcatStrings(size_t sourceACount, char *sourceAstr,
 }
 
 int main() {
-  // SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX |
-  //              SEM_NOOPENFILEERRORBOX);
   char EXEDirPath[MAX_PATH];
   DWORD SizeOfFilename = GetModuleFileNameA(0, EXEDirPath, sizeof(EXEDirPath));
   (void)SizeOfFilename;
 
-  char sourceDLLfilename[] = "libapplication.dll";
+  char sourceDLLfilename[] = "application.dll";
   char sourceDLLfilepath[MAX_PATH];
   char tempDLLfilepath[MAX_PATH];
   char tempDLLfilename[] = "libapplication_temp.dll";
@@ -153,7 +116,7 @@ int main() {
   //   buildFullPath(tempDLLfilepath, MAX_PATH, exeDir, tempDLLfilepath);
   GameCode code = loadGameCode(sourceDLLfilepath, tempDLLfilepath);
   code.reloadDLLRequested = false;
-  code.reloadDLLDelay = 0.2f;
+  code.reloadDLLDelay = 0.0f;
 
   InitWindow(800, 600, "Hot-reload Example");
   GameMemory gameMemory = {0};
@@ -173,7 +136,7 @@ int main() {
   }
 
   SetTargetFPS(60);
-  float frameTime = 1.0f;
+  float frameTime = 0.0f;
   while (!WindowShouldClose()) {
     frameTime = GetFrameTime();
     if (code.reloadDLLRequested) {
@@ -197,25 +160,6 @@ int main() {
 
     BeginDrawing();
     ClearBackground(RAYWHITE);
-    RenderQueue *renderQueue = (RenderQueue *)gameMemory.transientMemory;
-    for (int i = 0; i < renderQueue->count; i++) {
-      RenderCommand cmd = renderQueue->commands[i];
-      switch (cmd.type) {
-      case RENDER_RECTANGLE: {
-
-        Color color = (Color){cmd.rectangle.color.r, cmd.rectangle.color.g,
-                              cmd.rectangle.color.b, cmd.rectangle.color.a};
-        DrawRectangle(cmd.rectangle.x, cmd.rectangle.y, cmd.rectangle.width,
-                      cmd.rectangle.height, color);
-      } break;
-      case RENDER_CIRCLE: {
-        Color color = (Color){cmd.circle.color.r, cmd.circle.color.g,
-                              cmd.circle.color.b, cmd.circle.color.a};
-        DrawCircle(cmd.circle.centerX, cmd.circle.centerY, cmd.circle.radius,
-                   color);
-      } break;
-      }
-    }
     EndDrawing();
     flush_logs();
   }

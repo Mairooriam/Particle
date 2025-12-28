@@ -4,5 +4,6 @@ if not exist build (
 )
 cd build
 cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Debug ../src
-ninja
+ninja clean
+ninja application
 cd ..
