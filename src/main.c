@@ -4,6 +4,8 @@
 #include "log.h"
 #include "raylib.h"
 #include <assert.h>
+#include <fileapi.h>
+#include <handleapi.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -20,7 +22,7 @@ typedef struct {
 } GameCode;
 
 static FILETIME getFileLastWriteTime(const char *filename) {
-  FILETIME result = {0};
+  FILETIME result;
   WIN32_FILE_ATTRIBUTE_DATA fileInfo;
   if (GetFileAttributesExA(filename, GetFileExInfoStandard, &fileInfo)) {
     result = fileInfo.ftLastWriteTime;
@@ -36,6 +38,7 @@ static GameCode loadGameCode(char *sourceDLLfilepath, char *tempDLLfilepath) {
   GameCode result = {0};
   result.currentDLLtimestamp = getFileLastWriteTime(sourceDLLfilepath);
   CopyFile(sourceDLLfilepath, tempDLLfilepath, FALSE);
+
   result.gameCodeDLL = LoadLibraryA(tempDLLfilepath);
   if (!result.gameCodeDLL) {
     DWORD error = GetLastError();
@@ -88,6 +91,7 @@ static void ConcatStrings(size_t sourceACount, char *sourceAstr,
 }
 
 int main() {
+
   char EXEDirPath[MAX_PATH];
   DWORD SizeOfFilename = GetModuleFileNameA(0, EXEDirPath, sizeof(EXEDirPath));
   (void)SizeOfFilename;
@@ -136,7 +140,7 @@ int main() {
   }
 
   SetTargetFPS(60);
-  float frameTime = 0.0f;
+  float frameTime = 1.0f;
   while (!WindowShouldClose()) {
     frameTime = GetFrameTime();
     if (code.reloadDLLRequested) {
@@ -160,6 +164,25 @@ int main() {
 
     BeginDrawing();
     ClearBackground(RAYWHITE);
+    RenderQueue *renderQueue = (RenderQueue *)gameMemory.transientMemory;
+    for (int i = 0; i < renderQueue->count; i++) {
+      RenderCommand cmd = renderQueue->commands[i];
+      switch (cmd.type) {
+      case RENDER_RECTANGLE: {
+
+        Color color = (Color){cmd.rectangle.color.r, cmd.rectangle.color.g,
+                              cmd.rectangle.color.b, cmd.rectangle.color.a};
+        DrawRectangle(cmd.rectangle.x, cmd.rectangle.y, cmd.rectangle.width,
+                      cmd.rectangle.height, color);
+      } break;
+      case RENDER_CIRCLE: {
+        Color color = (Color){cmd.circle.color.r, cmd.circle.color.g,
+                              cmd.circle.color.b, cmd.circle.color.a};
+        DrawCircle(cmd.circle.centerX, cmd.circle.centerY, cmd.circle.radius,
+                   color);
+      } break;
+      }
+    }
     EndDrawing();
     flush_logs();
   }
