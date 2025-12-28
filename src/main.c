@@ -88,13 +88,11 @@ static void ConcatStrings(size_t sourceACount, char *sourceAstr,
 }
 
 int main() {
-  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX |
-               SEM_NOOPENFILEERRORBOX);
   char EXEDirPath[MAX_PATH];
   DWORD SizeOfFilename = GetModuleFileNameA(0, EXEDirPath, sizeof(EXEDirPath));
   (void)SizeOfFilename;
 
-  char sourceDLLfilename[] = "libapplication.dll";
+  char sourceDLLfilename[] = "application.dll";
   char sourceDLLfilepath[MAX_PATH];
   char tempDLLfilepath[MAX_PATH];
   char tempDLLfilename[] = "libapplication_temp.dll";
@@ -118,7 +116,7 @@ int main() {
   //   buildFullPath(tempDLLfilepath, MAX_PATH, exeDir, tempDLLfilepath);
   GameCode code = loadGameCode(sourceDLLfilepath, tempDLLfilepath);
   code.reloadDLLRequested = false;
-  code.reloadDLLDelay = 0.2f;
+  code.reloadDLLDelay = 0.0f;
 
   InitWindow(800, 600, "Hot-reload Example");
   GameMemory gameMemory = {0};
