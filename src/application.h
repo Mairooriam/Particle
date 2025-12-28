@@ -4,12 +4,12 @@
 
 // application.c
 #define Assert(Expression)                                                     \
-  if (!Expression) {                                                           \
+  if (!(Expression)) {                                                         \
     *(int *)0 = 0;                                                             \
   }
 #define KiloBytes(value) ((value) * 1024)
-#define MegaBytes(value) (KiloBytes(value) * 1024)
-#define GigaBytes(value) (MegaBytes(value) * 1024)
+#define MegaBytes(value) ((KiloBytes(value)) * 1024)
+#define GigaBytes(value) ((MegaBytes(value)) * 1024)
 
 typedef struct {
   float x, y;
@@ -39,11 +39,9 @@ typedef struct {
   size_t transientMemorySize;
 } GameMemory;
 
-#define GAME_UPDATE(name)                                                      \
-  void name(GameMemory *gameMemory, GameState *gameState, float frameTime)
+#define GAME_UPDATE(name) void name(GameMemory *gameMemory, float frameTime)
 typedef GAME_UPDATE(GameUpdate);
 GAME_UPDATE(game_update_stub) {
   (void)gameMemory;
-  (void)gameState;
   (void)frameTime;
 }

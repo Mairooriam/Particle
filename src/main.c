@@ -117,8 +117,6 @@ int main() {
   GameCode code = loadGameCode(sourceDLLfilepath, tempDLLfilepath);
   code.reloadDLLRequested = false;
   code.reloadDLLDelay = 0.2f;
-  // TODO: mvoe from stack
-  GameState gameState = {0};
 
   InitWindow(800, 600, "Hot-reload Example");
   GameMemory gameMemory = {0};
@@ -126,10 +124,16 @@ int main() {
   gameMemory.permamentMemory =
       VirtualAlloc(0, gameMemory.permanentMemorySize, MEM_RESERVE | MEM_COMMIT,
                    PAGE_READWRITE);
-  gameMemory.permanentMemorySize = GigaBytes((uint64_t)4);
-  gameMemory.permamentMemory =
+  if (!gameMemory.permamentMemory) {
+    LOG("FAILED TO ALLOC PERMANENT MEMORY");
+  }
+  gameMemory.transientMemorySize = GigaBytes((uint64_t)4);
+  gameMemory.transientMemory =
       VirtualAlloc(0, gameMemory.transientMemorySize, MEM_RESERVE | MEM_COMMIT,
                    PAGE_READWRITE);
+  if (!gameMemory.transientMemory) {
+    LOG("FAILED TO ALLOC TRANSIENT MEMORY");
+  }
 
   SetTargetFPS(60);
   float frameTime = 0.0f;
@@ -152,8 +156,7 @@ int main() {
       code.reloadDLLRequested = true;
     }
 
-    printf("x:%f,y:%f\n", gameState.pos.x, gameState.pos.y);
-    code.update(&gameMemory, &gameState, frameTime);
+    code.update(&gameMemory, frameTime);
 
     BeginDrawing();
     ClearBackground(RAYWHITE);
