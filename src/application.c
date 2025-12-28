@@ -8,36 +8,165 @@ GAME_UPDATE(game_update) {
 
   GameState *gameState = (GameState *)gameMemory->permamentMemory;
   if (!gameMemory->isInitialized) {
-    gameState->pos.x = 0.0f;
-    gameState->pos.y = 0.0f;
+    gameState->pos.x = 400.0f;
+    gameState->pos.y = 150.0f;
+    size_t gameStateSize = sizeof(GameState);
+    Entity *entitiesBuffer =
+        (Entity *)((char *)gameMemory->permamentMemory + gameStateSize);
+    size_t maxEntities =
+        (gameMemory->permanentMemorySize - gameStateSize) / sizeof(Entity);
+    Entities_init_with_buffer(&gameState->entities, maxEntities,
+                              entitiesBuffer);
+    // Add entities
+    Entity player = entity_create_physics_particle((Vector3){400, 300, 0},
+                                                   (Vector3){0, 0, 0});
+    player.followMouse = false;
+    entity_add(&gameState->entities, player);
+    Entity spawner = entity_create_spawner_entity();
+    entity_add(&gameState->entities, spawner);
     gameMemory->isInitialized = true;
   }
-  gameState->pos.y = 1.0f;
-  gameState->pos.x -= 2.0f;
 
-  // printf("x:%f,y:%f\n", gameState->pos.x, gameState->pos.y);
+  Entities *entities = &gameState->entities;
 
+  // Update entities
+
+  for (size_t i = 0; i < entities->count; i++) {
+    Entity *e = &entities->items[i];
+    if (e->flags & ENTITY_FLAG_ACTIVE) {
+      if (e->flags & ENTITY_FLAG_HAS_TRANSFORM) {
+        update_entity_position(e, frameTime, input->mousePos);
+        update_entity_boundaries(e, 800, 0, 600, 0);
+      }
+      if (e->flags & ENTITY_FLAG_HAS_SPAWNER) {
+
+        update_spawners(frameTime, e, entities);
+      }
+    }
+  }
+
+  // Render entities
   RenderQueue *renderQueue = (RenderQueue *)gameMemory->transientMemory;
   renderQueue->count = 0;
-
-  RenderCommand rectCmd = {RENDER_RECTANGLE,
-                           .rectangle = {gameState->pos.x,
-                                         gameState->pos.y,
-                                         50,
-                                         50,
-                                         {.r = 255, .b = 0, .g = 0, .a = 200}}};
-  push_render_command(renderQueue, rectCmd);
-
-  RenderCommand circleCmd = {RENDER_CIRCLE,
-                             .circle = {gameState->pos.x,
-                                        gameState->pos.y,
-                                        25,
-                                        {.r = 0, .b = 255, .g = 0, .a = 200}}};
-  push_render_command(renderQueue, circleCmd);
+  for (size_t i = 0; i < entities->count; i++) {
+    Entity *e = &entities->items[i];
+    if ((e->flags & ENTITY_FLAG_VISIBLE) &&
+        (e->flags & ENTITY_FLAG_HAS_RENDER)) {
+      RenderCommand cmd = {
+          RENDER_CIRCLE,
+          .circle = {e->c_transform.pos.x,
+                     e->c_transform.pos.y,
+                     e->c_render.renderRadius,
+                     {(float)e->c_render.color.r, (float)e->c_render.color.g,
+                      (float)e->c_render.color.b, (float)e->c_render.color.a}}};
+      push_render_command(renderQueue, cmd);
+    }
+  }
 }
-
+void update_spawners(float frameTime, Entity *e, Entities *entities) {
+  e->clock += frameTime;
+  if (e->clock > (1 / e->spawnRate)) {
+    for (size_t i = 0; i < e->spawnCount; i++) {
+      e->spawnEntity->c_transform.pos = e->c_transform.pos;
+      entity_add(entities, *e->spawnEntity);
+    }
+    e->clock = 0.0f;
+  }
+}
 void push_render_command(RenderQueue *queue, RenderCommand cmd) {
   if (queue->count < MAX_RENDER_COMMANDS) {
     queue->commands[queue->count++] = cmd;
   }
+}
+
+void update_entity_position(Entity *e, float frameTime, Vector2 mouseWorldPos) {
+  c_Transform *cTp1 = &e->c_transform;
+
+  if (e->followMouse) {
+    float lerpFactor = 1.0f;
+    cTp1->pos.x = Lerp(cTp1->pos.x + 5, mouseWorldPos.x, lerpFactor);
+    cTp1->pos.y = Lerp(cTp1->pos.y + 5, mouseWorldPos.y, lerpFactor);
+    cTp1->pos.z = 0.0f;
+
+    // TODO: disable physics while following to avoid interference maybe?!?
+    cTp1->v = (Vector3){0, 0, 0};
+    cTp1->a = (Vector3){0, 0, 0};
+  } else {
+    // Normal physics update
+    cTp1->v = Vector3Add(cTp1->v, Vector3Scale(cTp1->a, frameTime));
+    cTp1->pos = Vector3Add(cTp1->pos, Vector3Scale(cTp1->v, frameTime));
+  }
+}
+void update_entity_boundaries(Entity *e, float x_bound, float x_bound_min,
+                              float y_bound, float y_bound_min) {
+  c_Transform *cTp1 = &e->c_transform;
+
+  if (cTp1->pos.x < x_bound_min) {
+    cTp1->pos.x = x_bound_min;
+    cTp1->v.x = cTp1->v.x * -1;
+  } else if (cTp1->pos.x > x_bound) {
+    cTp1->pos.x = x_bound;
+    cTp1->v.x = cTp1->v.x * -1;
+  }
+
+  if (cTp1->pos.y < y_bound_min) {
+    cTp1->pos.y = y_bound_min;
+    cTp1->v.y = cTp1->v.y * -1;
+  } else if (cTp1->pos.y > y_bound) {
+    cTp1->pos.y = y_bound;
+    cTp1->v.y = cTp1->v.y * -1;
+  }
+}
+void entity_add(Entities *entities, Entity entity) {
+  if (!entities) {
+    fprintf(stderr, "Entities pointer is NULL\n");
+    return;
+  }
+  entity.id = entities->count;
+  nob_da_append(entities, entity);
+}
+Entity entity_create_physics_particle(Vector3 pos, Vector3 velocity) {
+  Entity e = {0};
+  e.flags = ENTITY_FLAG_ACTIVE | ENTITY_FLAG_VISIBLE | ENTITY_FLAG_COLLIDING |
+            ENTITY_FLAG_HAS_TRANSFORM | ENTITY_FLAG_HAS_RENDER |
+            ENTITY_FLAG_HAS_COLLISION;
+  e.c_transform = (c_Transform){.pos = {.x = pos.x, .y = pos.y, .z = 0},
+                                .v = {.x = velocity.x, .y = velocity.y, .z = 0},
+                                .a = {.x = 0, .y = 0, .z = 0},
+                                .restitution = 0.90f};
+
+  e.c_collision = (c_Collision){.radius = 25.0f,
+                                .mass = 1.0f,
+                                .inverseMass = 1.0f,
+                                .collisionCount = 0,
+                                .searchCount = 0};
+
+  e.c_render = (c_Render){.renderRadius = 24.0f,
+                          .color = {.r = 255, .b = 0, .g = 0, .a = 200}};
+
+  // e.followMouse = true;
+  return e;
+}
+
+Entity entity_create_spawner_entity() {
+  Entity e = {0};
+  e.flags =
+      ENTITY_FLAG_HAS_SPAWNER | ENTITY_FLAG_ACTIVE | ENTITY_FLAG_HAS_TRANSFORM;
+
+  e.spawnRate = 20.0f;
+  e.clock = 0;
+  // e.followMouse = true;
+  e.c_render = (c_Render){.renderRadius = 24.0f,
+                          .color = {.r = 0, .b = 255, .g = 0, .a = 200}};
+  e.spawnCount = 5;
+  e.c_transform = (c_Transform){.pos = {.x = 8000, .y = 8000, .z = 0},
+                                .v = {.x = -200, .y = -200, .z = 0},
+                                .a = {.x = 0, .y = 0, .z = 0},
+                                .restitution = 0.90f};
+  e.spawnEntity = malloc(sizeof(Entity));
+
+  *e.spawnEntity = entity_create_physics_particle((Vector3){0, 0, 0},
+                                                  (Vector3){100, 100, 0});
+  e.spawnEntity->c_transform.a = (Vector3){0, 9.81, 0};
+  return e;
 }

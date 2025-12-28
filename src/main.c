@@ -1,11 +1,10 @@
 
+#include "raylib.h"
 #include "application.h"
 #include "fix_win32_compatibility.h"
 #include "log.h"
-#include "raylib.h"
+
 #include <assert.h>
-#include <fileapi.h>
-#include <handleapi.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -137,11 +136,12 @@ int main() {
   if (!gameMemory.transientMemory) {
     LOG("FAILED TO ALLOC TRANSIENT MEMORY");
   }
-
+  Input input = {0};
   SetTargetFPS(60);
   float frameTime = 1.0f;
   while (!WindowShouldClose()) {
     frameTime = GetFrameTime();
+    input.mousePos = GetMousePosition();
     if (code.reloadDLLRequested) {
       code.clock += frameTime;
     }
@@ -159,9 +159,10 @@ int main() {
       code.reloadDLLRequested = true;
     }
 
-    code.update(&gameMemory, frameTime);
+    code.update(&gameMemory,&input, frameTime);
 
     BeginDrawing();
+    DrawFPS(10, 10);
     ClearBackground(RAYWHITE);
     RenderQueue *renderQueue = (RenderQueue *)gameMemory.transientMemory;
     for (int i = 0; i < renderQueue->count; i++) {
