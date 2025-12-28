@@ -37,58 +37,26 @@ static GameCode loadGameCode(char *sourceDLLfilepath, char *tempDLLfilepath) {
   set_log_prefix("[loadGameCode] ");
   GameCode result = {0};
   result.currentDLLtimestamp = getFileLastWriteTime(sourceDLLfilepath);
-  HANDLE file = CreateFileA("mir.lock", GENERIC_READ | GENERIC_WRITE, 0, NULL,
-                            OPEN_EXISTING, 0, NULL);
+  CopyFile(sourceDLLfilepath, tempDLLfilepath, FALSE);
 
-  if (file == INVALID_HANDLE_VALUE) {
-    // if no file there is no new dll to load yet. ( not written fully to file
-    // by compiler )
-    printf("if no file there is no new dll to load yet. ( not written fully to "
-           "file by compiler \n");
-    result.isvalid = false;
-  } else {
-    CloseHandle(file);
-    DeleteFile("mir.lock");
+  result.gameCodeDLL = LoadLibraryA(tempDLLfilepath);
+  if (!result.gameCodeDLL) {
+    DWORD error = GetLastError();
+    LOG("Failed to load DLL %s, error: %lu", tempDLLfilepath, error);
+  }
 
-    CopyFile(sourceDLLfilepath, tempDLLfilepath, FALSE);
-    // shaw idea wait until tempDLL is the size of sourceDLL -> then load dll.
-    // [load process]
-    // ```
-    // [build process]
-    // 1. make dll using compiler
-    // 2. write lock file -> as part of build system only after a succesfull
-    // build. part of the build not in program.
-    //
-    //
-    //[build process]
-    // ```
-    // [load process]
-    // 1. if lock file is newer than the DLL
-    // 2. load the dll
-    // 3. delete the lock file
-    // ```
-    //
-    // B/c you always write the lock file *after* a compile, it being before the
-    // DLL means that the you are some time before the end of `step 2` in the
-    // build process
-    result.gameCodeDLL = LoadLibraryA(tempDLLfilepath);
-    if (!result.gameCodeDLL) {
-      DWORD error = GetLastError();
-      LOG("Failed to load DLL %s, error: %lu", tempDLLfilepath, error);
-    }
-
-    LOG("Trying to load .dlls");
-    if (result.gameCodeDLL) {
-      result.update =
-          (GameUpdate *)GetProcAddress(result.gameCodeDLL, "game_update");
-      if (result.update) {
-        result.isvalid = true;
-        LOG("Loading .dlls was succesfull");
-      } else {
-        LOG("Failed to get function address for game_update");
-      }
+  LOG("Trying to load .dlls");
+  if (result.gameCodeDLL) {
+    result.update =
+        (GameUpdate *)GetProcAddress(result.gameCodeDLL, "game_update");
+    if (result.update) {
+      result.isvalid = true;
+      LOG("Loading .dlls was succesfull");
+    } else {
+      LOG("Failed to get function address for game_update");
     }
   }
+
   if (!result.isvalid) {
     result.update = game_update_stub;
     LOG("Loading .dlls wasn't succesfull. Resetting to stub functions. "
@@ -123,11 +91,7 @@ static void ConcatStrings(size_t sourceACount, char *sourceAstr,
 }
 
 int main() {
-<<<<<<< HEAD
-  // SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX |
-  //              SEM_NOOPENFILEERRORBOX);
-=======
->>>>>>> hotreload2
+
   char EXEDirPath[MAX_PATH];
   DWORD SizeOfFilename = GetModuleFileNameA(0, EXEDirPath, sizeof(EXEDirPath));
   (void)SizeOfFilename;
