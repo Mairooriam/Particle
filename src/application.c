@@ -33,13 +33,18 @@ GAME_UPDATE(game_update) {
 
   for (size_t i = 0; i < entities->count; i++) {
     Entity *e = &entities->items[i];
-    if (e->flags & ENTITY_FLAG_ACTIVE) {
-      if (e->flags & ENTITY_FLAG_HAS_TRANSFORM) {
+    if (e->flags & ENTITY_FLAG_HAS_TRANSFORM) {
+      if (e->flags & ENTITY_FLAG_ACTIVE) {
         update_entity_position(e, frameTime, input->mousePos);
         update_entity_boundaries(e, 800, 0, 600, 0);
       }
-      if (e->flags & ENTITY_FLAG_HAS_SPAWNER) {
-
+    }
+    if (e->flags & ENTITY_FLAG_HAS_SPAWNER) {
+      e->flags = ENTITY_FLAG_HAS_SPAWNER | ENTITY_FLAG_HAS_TRANSFORM |
+                 ENTITY_FLAG_ACTIVE;
+      e->followMouse = true;
+      e->spawnEntity->c_render.color = (Color){0, 255, 0, 200};
+      if (e->flags & ENTITY_FLAG_ACTIVE) {
         update_spawners(frameTime, e, entities);
       }
     }
@@ -83,9 +88,9 @@ void update_entity_position(Entity *e, float frameTime, Vector2 mouseWorldPos) {
   c_Transform *cTp1 = &e->c_transform;
 
   if (e->followMouse) {
-    float lerpFactor = 1.0f;
-    cTp1->pos.x = Lerp(cTp1->pos.x + 5, mouseWorldPos.x, lerpFactor);
-    cTp1->pos.y = Lerp(cTp1->pos.y + 5, mouseWorldPos.y, lerpFactor);
+    float lerpFactor = 0.1f;
+    cTp1->pos.x = Lerp(cTp1->pos.x, mouseWorldPos.x, lerpFactor);
+    cTp1->pos.y = Lerp(cTp1->pos.y, mouseWorldPos.y, lerpFactor);
     cTp1->pos.z = 0.0f;
 
     // TODO: disable physics while following to avoid interference maybe?!?

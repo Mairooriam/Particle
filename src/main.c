@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <winnt.h>
 
 typedef struct {
   HMODULE gameCodeDLL;
@@ -121,18 +122,27 @@ int main() {
   code.reloadDLLDelay = 0.0f;
 
   InitWindow(800, 600, "Hot-reload Example");
+
+#if INTERNAL_BUILD
+  LPVOID baseAddress = (LPVOID)TeraBytes((uint64_t)2);
+#else
+  LPVOID baseAddress = 0;
+#endif
+
   GameMemory gameMemory = {0};
   gameMemory.permanentMemorySize = MegaBytes(64);
-  gameMemory.permamentMemory =
-      VirtualAlloc(0, gameMemory.permanentMemorySize, MEM_RESERVE | MEM_COMMIT,
-                   PAGE_READWRITE);
+  gameMemory.transientMemorySize = GigaBytes((uint64_t)4);
+
+  uint64_t totalSize =
+      gameMemory.permanentMemorySize + gameMemory.transientMemorySize;
+  gameMemory.permamentMemory = VirtualAlloc(
+      baseAddress, totalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
   if (!gameMemory.permamentMemory) {
     LOG("FAILED TO ALLOC PERMANENT MEMORY");
   }
-  gameMemory.transientMemorySize = GigaBytes((uint64_t)4);
   gameMemory.transientMemory =
-      VirtualAlloc(0, gameMemory.transientMemorySize, MEM_RESERVE | MEM_COMMIT,
-                   PAGE_READWRITE);
+      ((uint8_t *)gameMemory.permamentMemory + gameMemory.permanentMemorySize);
+
   if (!gameMemory.transientMemory) {
     LOG("FAILED TO ALLOC TRANSIENT MEMORY");
   }
@@ -159,7 +169,7 @@ int main() {
       code.reloadDLLRequested = true;
     }
 
-    code.update(&gameMemory,&input, frameTime);
+    code.update(&gameMemory, &input, frameTime);
 
     BeginDrawing();
     DrawFPS(10, 10);
