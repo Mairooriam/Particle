@@ -39,9 +39,40 @@ typedef struct {
   size_t transientMemorySize;
 } GameMemory;
 
+typedef enum {
+  RENDER_RECTANGLE,
+  RENDER_CIRCLE,
+} RenderCommandType;
+
+typedef struct {
+  float r, g, b, a;
+} AppColor;  
+
+typedef struct {
+  RenderCommandType type;
+  union {
+    struct {
+      float x, y, width, height;
+      AppColor color;  // Updated
+    } rectangle;
+    struct {
+      float centerX, centerY, radius;
+      AppColor color;  // Updated
+    } circle;
+  };
+} RenderCommand;
+
+#define MAX_RENDER_COMMANDS 1024
+typedef struct {
+  RenderCommand commands[MAX_RENDER_COMMANDS];
+  int count;
+} RenderQueue;
+
 #define GAME_UPDATE(name) void name(GameMemory *gameMemory, float frameTime)
 typedef GAME_UPDATE(GameUpdate);
 GAME_UPDATE(game_update_stub) {
   (void)gameMemory;
   (void)frameTime;
 }
+
+void push_render_command(RenderQueue *queue, RenderCommand cmd);
