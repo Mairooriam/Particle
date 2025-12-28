@@ -5,21 +5,43 @@
 #include "raylib.h"
 #include <assert.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <winbase.h>
+
 typedef struct {
   HMODULE gameCodeDLL;
+  FILETIME currentDLLtimestamp;
+  bool reloadDLLRequested;
+  float reloadDLLDelay;
+  float clock;
   GameUpdate *update;
   bool isvalid;
 } GameCode;
 
+static FILETIME getFileLastWriteTime(const char *filename) {
+  FILETIME result = {0};
+  WIN32_FILE_ATTRIBUTE_DATA fileInfo;
+  if (GetFileAttributesExA(filename, GetFileExInfoStandard, &fileInfo)) {
+    result = fileInfo.ftLastWriteTime;
+  } else {
+    result = (FILETIME){0};
+  }
+  return result;
+}
+
 // source: https://guide.handmadehero.org/code/day021/
-static GameCode loadGameCode() {
+static GameCode loadGameCode(char *sourceDLLfilepath, char *tempDLLfilepath) {
   set_log_prefix("[loadGameCode] ");
   GameCode result = {0};
-  CopyFile("libapplication.dll", "gameCodeDLL_Temp.dll", FALSE);
-  result.gameCodeDLL = LoadLibraryA("gameCodeDLL_Temp.dll");
+  result.currentDLLtimestamp = getFileLastWriteTime(sourceDLLfilepath);
+  CopyFile(sourceDLLfilepath, tempDLLfilepath, FALSE);
+  result.gameCodeDLL = LoadLibraryA(tempDLLfilepath);
+  if (!result.gameCodeDLL) {
+    DWORD error = GetLastError();
+    LOG("Failed to load DLL %s, error: %lu", tempDLLfilepath, error);
+  }
+
   LOG("Trying to load .dlls");
   if (result.gameCodeDLL) {
     result.update =
@@ -27,17 +49,20 @@ static GameCode loadGameCode() {
     if (result.update) {
       result.isvalid = true;
       LOG("Loading .dlls was succesfull");
+    } else {
+      LOG("Failed to get function address for game_update");
     }
   }
 
   if (!result.isvalid) {
     result.update = game_update_stub;
-    LOG("Loading .dlls wasn't succesfull. Resetting to stub functions");
+    LOG("Loading .dlls wasn't succesfull. Resetting to stub functions. "
+        "DLL_SOURCE: %s , DLL_TEMP: %s",
+        sourceDLLfilepath, tempDLLfilepath);
   }
 
   return result;
 }
-
 static void unloadGameCode(GameCode *gameCode) {
   set_log_prefix("[unloadGameCode]");
   if (gameCode->gameCodeDLL) {
@@ -48,44 +73,91 @@ static void unloadGameCode(GameCode *gameCode) {
   gameCode->update = game_update_stub;
 }
 
-typedef struct {
-  Position pos;
-} GameState;
-GameState *init_gameState() {
-  GameState *result = malloc(sizeof(GameState));
-  if (!result) {
-    assert(0 && "LMAO failed");
+static void ConcatStrings(size_t sourceACount, char *sourceAstr,
+                          size_t sourceBCount, char *sourceBstr,
+                          size_t destCount, char *destStr) {
+  (void)destCount;
+  // TOOO: overflowing stuff
+  for (size_t i = 0; i < sourceACount; i++) {
+    *destStr++ = *sourceAstr++;
   }
-
-  result->pos.x = 0;
-  result->pos.y = 0;
-
-  return result;
+  for (size_t i = 0; i < sourceBCount; i++) {
+    *destStr++ = *sourceBstr++;
+  }
+  *destStr++ = 0;
 }
 
 int main() {
-  GameCode code = loadGameCode();
+  char EXEDirPath[MAX_PATH];
+  DWORD SizeOfFilename = GetModuleFileNameA(0, EXEDirPath, sizeof(EXEDirPath));
+  (void)SizeOfFilename;
 
-  GameState *game = init_gameState();
+  char sourceDLLfilename[] = "libapplication.dll";
+  char sourceDLLfilepath[MAX_PATH];
+  char tempDLLfilepath[MAX_PATH];
+  char tempDLLfilename[] = "libapplication_temp.dll";
+
+  char *onePastLastSlash = EXEDirPath;
+  for (char *scan = EXEDirPath; *scan; ++scan) {
+    if (*scan == '\\') {
+      onePastLastSlash = scan + 1;
+    }
+  }
+
+  ConcatStrings(onePastLastSlash - EXEDirPath, EXEDirPath,
+                sizeof(sourceDLLfilename) - 1, sourceDLLfilename,
+                sizeof(sourceDLLfilepath), sourceDLLfilepath);
+
+  ConcatStrings(onePastLastSlash - EXEDirPath, EXEDirPath,
+                sizeof(tempDLLfilename) - 1, tempDLLfilename,
+                sizeof(tempDLLfilepath), tempDLLfilepath);
+
+  //   buildFullPath(sourceDLLfilepath, MAX_PATH, exeDir, sourceDLLfilename);
+  //   buildFullPath(tempDLLfilepath, MAX_PATH, exeDir, tempDLLfilepath);
+  GameCode code = loadGameCode(sourceDLLfilepath, tempDLLfilepath);
+  code.reloadDLLRequested = false;
+  code.reloadDLLDelay = 0.2f;
+  // TODO: mvoe from stack
+  GameState gameState = {0};
 
   InitWindow(800, 600, "Hot-reload Example");
-  SetTargetFPS(60);
-  while (!WindowShouldClose()) {
-    flush_logs();
+  GameMemory gameMemory = {0};
+  gameMemory.permanentMemorySize = MegaBytes(64);
+  gameMemory.permamentMemory =
+      VirtualAlloc(0, gameMemory.permanentMemorySize, MEM_RESERVE | MEM_COMMIT,
+                   PAGE_READWRITE);
+  gameMemory.permanentMemorySize = GigaBytes((uint64_t)4);
+  gameMemory.permamentMemory =
+      VirtualAlloc(0, gameMemory.transientMemorySize, MEM_RESERVE | MEM_COMMIT,
+                   PAGE_READWRITE);
 
-    // float dt = GetFrameTime();
-    printf("x:%f,y:%f\n", game->pos.x, game->pos.y);
-    code.update(&game->pos);
+  SetTargetFPS(60);
+  float frameTime = 0.0f;
+  while (!WindowShouldClose()) {
+    frameTime = GetFrameTime();
+    if (code.reloadDLLRequested) {
+      code.clock += frameTime;
+    }
+    flush_logs();
+    if (code.reloadDLLRequested && (code.clock >= code.reloadDLLDelay)) {
+      LOG("Reloading DLLs.");
+      unloadGameCode(&code);
+      code = loadGameCode(sourceDLLfilepath, tempDLLfilepath);
+      code.reloadDLLRequested = false;
+      code.clock = 0;
+    }
+
+    FILETIME time = getFileLastWriteTime(sourceDLLfilepath);
+    if (CompareFileTime(&time, &code.currentDLLtimestamp) != 0) {
+      code.reloadDLLRequested = true;
+    }
+
+    printf("x:%f,y:%f\n", gameState.pos.x, gameState.pos.y);
+    code.update(&gameMemory, &gameState, frameTime);
 
     BeginDrawing();
     ClearBackground(RAYWHITE);
-    // api.render(app_ctx);
     EndDrawing();
-
-    if (IsKeyPressed(KEY_F5)) {
-      unloadGameCode(&code);
-      code = loadGameCode();
-    }
   }
   CloseWindow();
 
