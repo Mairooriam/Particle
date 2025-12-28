@@ -23,7 +23,7 @@ add_library(application SHARED application.c)
 # Shared interface
 target_include_directories(engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(application PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-
+target_include_directories(application PRIVATE ${CMAKE_SOURCE_DIR}/deps/raylib-master/build/raylib/include)
 # Set output name for DLL to match LoadLibraryA("application.dll")
 set_target_properties(application PROPERTIES OUTPUT_NAME "application_being_written")
 
