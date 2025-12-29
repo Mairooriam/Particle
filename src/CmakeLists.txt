@@ -1,37 +1,13 @@
 cmake_minimum_required(VERSION 3.10)
-project(hotreload_testing C)
+project(playground C)
 
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic")
-
+set(CMAKE_COLOR_DIAGNOSTICS ON)
 # Raylib paths
 set(RAYLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib")
 set(RAYLIB_INCLUDE_DIR "${RAYLIB_DIR}/include")
 set(RAYLIB_LIB_DIR "${RAYLIB_DIR}")
 
-# Engine executable
-add_executable(engine raylib_platform.c)
-target_include_directories(engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${RAYLIB_INCLUDE_DIR})
-target_link_directories(engine PRIVATE ${RAYLIB_LIB_DIR})
-target_link_libraries(engine PRIVATE raylib winmm)
+add_executable(alloc alloc.c)
 
-
-# Application DLL
-add_library(application SHARED application.c)
-
-# Shared interface
-target_include_directories(engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(application PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(application PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib/include)
-# Set output name for DLL to match LoadLibraryA("application.dll")
-set_target_properties(application PROPERTIES OUTPUT_NAME "application_being_written")
-
-
-target_compile_definitions(application PRIVATE INTERNAL_BUILD)
-target_compile_definitions(engine PRIVATE INTERNAL_BUILD)
-
-add_custom_command(TARGET application POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy libapplication_being_written.dll application.dll
-    COMMAND ${CMAKE_COMMAND} -E remove libapplication_being_written.dll
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-)

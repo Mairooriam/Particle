@@ -7,7 +7,7 @@ GAME_UPDATE(game_update) {
   Assert(sizeof(GameState) <= gameMemory->permanentMemorySize);
   // float lerpFactor = 0.5f;
   // static float posZ = 1;
-  // if (posZ > 10) { ch
+  // if (posZ > 10) {
   //   posZ = 1;
   // } else {
   //   posZ += 10;

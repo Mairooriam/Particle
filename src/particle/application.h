@@ -79,7 +79,7 @@ static inline void Entities_init_with_buffer(Entities *da, size_t cap,
 void update_spawners(float frameTime, Entity *e, Entities *entities);
 
 typedef struct {
-  char *base;
+  void *base;
   size_t size;
   size_t used;
 } memory_arena;
