@@ -1,5 +1,6 @@
-
 #include "raylib.h"
+#include "rlgl.h"
+#include "raymath.h"
 #include "application.h"
 #include "fix_win32_compatibility.h"
 #include "log.h"
@@ -115,8 +116,6 @@ int main() {
                 sizeof(tempDLLfilename) - 1, tempDLLfilename,
                 sizeof(tempDLLfilepath), tempDLLfilepath);
 
-  //   buildFullPath(sourceDLLfilepath, MAX_PATH, exeDir, sourceDLLfilename);
-  //   buildFullPath(tempDLLfilepath, MAX_PATH, exeDir, tempDLLfilepath);
   GameCode code = loadGameCode(sourceDLLfilepath, tempDLLfilepath);
   code.reloadDLLRequested = false;
   code.reloadDLLDelay = 0.0f;
@@ -149,6 +148,26 @@ int main() {
   Input input = {0};
   SetTargetFPS(60);
   float frameTime = 1.0f;
+
+  // TODO: 3D CODE move out of here in future
+  Camera3D camera = {.position = (Vector3){500, 500, 100},
+                     .target = (Vector3){0, 0, 0},
+                     .up = (Vector3){0, 1, 0},
+                     .fovy = 45,
+                     .projection = CAMERA_PERSPECTIVE};
+  input.camera = camera;
+  Mesh mesh = GenMeshCube(1.0f, 1.0f, 1.0f);
+  Shader shader = LoadShader("lighting_instancing.vs", "lighting.fs");
+  Material matinstances = LoadMaterialDefault();
+  shader.locs[SHADER_LOC_MATRIX_MVP] = GetShaderLocation(shader, "mvp");
+  shader.locs[SHADER_LOC_VECTOR_VIEW] = GetShaderLocation(shader, "viewPos");
+  int ambientLoc = GetShaderLocation(shader, "ambient");
+  SetShaderValue(shader, ambientLoc, (float[4]){0.2f, 0.2f, 0.2f, 1.0f},
+                 SHADER_UNIFORM_VEC4);
+  matinstances.shader = shader;
+  matinstances.maps[MATERIAL_MAP_DIFFUSE].color = RED;
+  // END OF 3D SHIT
+
   while (!WindowShouldClose()) {
     frameTime = GetFrameTime();
     input.mousePos = GetMousePosition();
@@ -172,8 +191,9 @@ int main() {
     code.update(&gameMemory, &input, frameTime);
 
     BeginDrawing();
-    DrawFPS(10, 10);
+
     ClearBackground(RAYWHITE);
+    BeginMode3D(input.camera);
     RenderQueue *renderQueue = (RenderQueue *)gameMemory.transientMemory;
     for (int i = 0; i < renderQueue->count; i++) {
       RenderCommand cmd = renderQueue->commands[i];
@@ -188,11 +208,21 @@ int main() {
       case RENDER_CIRCLE: {
         Color color = (Color){cmd.circle.color.r, cmd.circle.color.g,
                               cmd.circle.color.b, cmd.circle.color.a};
-        DrawCircle(cmd.circle.centerX, cmd.circle.centerY, cmd.circle.radius,
-                   color);
+        DrawSphere((Vector3){cmd.circle.centerX, cmd.circle.centerY, 0},
+                   cmd.circle.radius, color);
+      } break;
+      case RENDER_INSTANCED: {
+        // TODO: FOR FUTURE
+        //  DrawMeshInstanced(*cmd.instance.mesh, *cmd.instance.material,
+        //                    cmd.instance.transforms, cmd.instance.count);
+        DrawMeshInstanced(mesh, matinstances, cmd.instance.transforms,
+                          cmd.instance.count);
+
       } break;
       }
     }
+    EndMode3D();
+    DrawFPS(10, 10);
     EndDrawing();
     flush_logs();
   }
