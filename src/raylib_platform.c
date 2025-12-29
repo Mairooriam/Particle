@@ -1,5 +1,5 @@
 
-#include <raylib.h>  
+#include <raylib.h>
 #include "rlgl.h"
 #include "raymath.h"
 #include "raylib_platfrom.h"
@@ -11,9 +11,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-
-
 
 static FILETIME getFileLastWriteTime(const char *filename) {
   FILETIME result;
@@ -83,7 +80,7 @@ static void ConcatStrings(size_t sourceACount, char *sourceAstr,
   }
   *destStr++ = 0;
 }
-//TODO: use something other than raylib?
+// TODO: use something other than raylib?
 static void collect_input(Input *input) {
   input->mousePos = GetMousePosition();
   for (int i = 0; i < 3; i++) {
@@ -158,7 +155,6 @@ int main() {
                      .fovy = 45,
                      .projection = CAMERA_PERSPECTIVE};
   input.camera = camera;
-  Mesh mesh = GenMeshCube(1.0f, 1.0f, 1.0f);
   Shader shader = LoadShader("lighting_instancing.vs", "lighting.fs");
   Material matinstances = LoadMaterialDefault();
   shader.locs[SHADER_LOC_MATRIX_MVP] = GetShaderLocation(shader, "mvp");
@@ -169,12 +165,24 @@ int main() {
   matinstances.shader = shader;
   matinstances.maps[MATERIAL_MAP_DIFFUSE].color = RED;
   // END OF 3D SHIT
-
+  bool isCursorDisabled = true;
+  DisableCursor();
   while (!WindowShouldClose()) {
+    UpdateCamera(&input.camera, CAMERA_FIRST_PERSON);
     frameTime = GetFrameTime();
     collect_input(&input);
+
     if (code.reloadDLLRequested) {
       code.clock += frameTime;
+    }
+
+    if (IsKeyPressed(KEY_F1)) {
+      if (isCursorDisabled) {
+        EnableCursor();
+      } else {
+        DisableCursor();
+      }
+      isCursorDisabled = !isCursorDisabled;
     }
 
     if (code.reloadDLLRequested && (code.clock >= code.reloadDLLDelay)) {
@@ -193,10 +201,13 @@ int main() {
     code.update(&gameMemory, &input, frameTime);
 
     BeginDrawing();
-
     ClearBackground(RAYWHITE);
     BeginMode3D(input.camera);
     RenderQueue *renderQueue = (RenderQueue *)gameMemory.transientMemory;
+    if (renderQueue->isMeshReloadRequired) {
+      UploadMesh(&renderQueue->instanceMesh, false);
+      renderQueue->isMeshReloadRequired = false;
+    }
     for (int i = 0; i < renderQueue->count; i++) {
       RenderCommand cmd = renderQueue->commands[i];
       switch (cmd.type) {
@@ -217,8 +228,8 @@ int main() {
         // TODO: FOR FUTURE
         //  DrawMeshInstanced(*cmd.instance.mesh, *cmd.instance.material,
         //                    cmd.instance.transforms, cmd.instance.count);
-        DrawMeshInstanced(mesh, matinstances, cmd.instance.transforms,
-                          cmd.instance.count);
+        DrawMeshInstanced(*cmd.instance.mesh, matinstances,
+                          cmd.instance.transforms, cmd.instance.count);
 
       } break;
       }
