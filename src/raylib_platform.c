@@ -1,8 +1,9 @@
-#include "raylib.h"
+
+#include <raylib.h>  
 #include "rlgl.h"
 #include "raymath.h"
-#include "application.h"
-#include "fix_win32_compatibility.h"
+#include "raylib_platfrom.h"
+
 #include "log.h"
 
 #include <assert.h>
@@ -10,17 +11,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <winnt.h>
 
-typedef struct {
-  HMODULE gameCodeDLL;
-  FILETIME currentDLLtimestamp;
-  bool reloadDLLRequested;
-  float reloadDLLDelay;
-  float clock;
-  GameUpdate *update;
-  bool isvalid;
-} GameCode;
+
+
 
 static FILETIME getFileLastWriteTime(const char *filename) {
   FILETIME result;
@@ -90,7 +83,16 @@ static void ConcatStrings(size_t sourceACount, char *sourceAstr,
   }
   *destStr++ = 0;
 }
-
+//TODO: use something other than raylib?
+static void collect_input(Input *input) {
+  input->mousePos = GetMousePosition();
+  for (int i = 0; i < 3; i++) {
+    input->mouseButtons[i] = IsMouseButtonDown(i);
+  }
+  for (int i = 0; i < 256; i++) {
+    input->keys[i] = IsKeyDown(i);
+  }
+}
 int main() {
   char EXEDirPath[MAX_PATH];
   DWORD SizeOfFilename = GetModuleFileNameA(0, EXEDirPath, sizeof(EXEDirPath));
@@ -170,7 +172,7 @@ int main() {
 
   while (!WindowShouldClose()) {
     frameTime = GetFrameTime();
-    input.mousePos = GetMousePosition();
+    collect_input(&input);
     if (code.reloadDLLRequested) {
       code.clock += frameTime;
     }

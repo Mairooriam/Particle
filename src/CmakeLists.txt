@@ -10,7 +10,7 @@ set(RAYLIB_INCLUDE_DIR "${RAYLIB_DIR}/include")
 set(RAYLIB_LIB_DIR "${RAYLIB_DIR}")
 
 # Engine executable
-add_executable(engine main.c)
+add_executable(engine raylib_platform.c)
 target_include_directories(engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${RAYLIB_INCLUDE_DIR})
 target_link_directories(engine PRIVATE ${RAYLIB_LIB_DIR})
 target_link_libraries(engine PRIVATE raylib winmm)
@@ -22,7 +22,7 @@ add_library(application SHARED application.c)
 # Shared interface
 target_include_directories(engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(application PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(application PRIVATE ${CMAKE_SOURCE_DIR}/deps/raylib-master/build/raylib/include)
+target_include_directories(application PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib/include)
 # Set output name for DLL to match LoadLibraryA("application.dll")
 set_target_properties(application PROPERTIES OUTPUT_NAME "application_being_written")
 

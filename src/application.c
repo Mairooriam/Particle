@@ -21,8 +21,6 @@ GAME_UPDATE(game_update) {
 
   GameState *gameState = (GameState *)gameMemory->permamentMemory;
   if (!gameMemory->isInitialized) {
-    gameState->pos.x = 400.0f;
-    gameState->pos.y = 150.0f;
     size_t gameStateSize = sizeof(GameState);
     Entity *entitiesBuffer =
         (Entity *)((char *)gameMemory->permamentMemory + gameStateSize);
@@ -30,10 +28,24 @@ GAME_UPDATE(game_update) {
         (gameMemory->permanentMemorySize - gameStateSize) / sizeof(Entity);
     Entities_init_with_buffer(&gameState->entities, maxEntities,
                               entitiesBuffer);
-    // Add entities
-    Entity player = entity_create_physics_particle(
-        (Vector3){400, 300, 200},
-        (Vector3){0, 9.81, 0}); // Moved to visible position
+    // Initialize arenas
+    size_t permanentArenaOffset = gameStateSize + maxEntities * sizeof(Entity);
+    void *permanentArenaBase =
+        (char *)gameMemory->permamentMemory + permanentArenaOffset;
+    size_t permanentArenaSize =
+        gameMemory->permanentMemorySize - permanentArenaOffset;
+    Assert(permanentArenaSize > 0); // Ensure space left
+
+    // TODO: Learn arenas in this context ins different project this is copied
+    // code. probably crazy shittty. all memory going for entitites
+    gameState->permanentArena =
+        initialize_arena(permanentArenaBase, permanentArenaSize);
+
+    gameState->transientArena = initialize_arena(
+        gameMemory->transientMemory, gameMemory->transientMemorySize);
+
+    Entity player = entity_create_physics_particle((Vector3){400, 300, 200},
+                                                   (Vector3){0, 9.81, 0});
     player.followMouse = true;
     entity_add(&gameState->entities, player);
     Entity spawner = entity_create_spawner_entity();
@@ -160,8 +172,12 @@ void entity_add(Entities *entities, Entity entity) {
     fprintf(stderr, "Entities pointer is NULL\n");
     return;
   }
+  if (entities->count >= entities->capacity) {
+    fprintf(stderr, "Entities buffer is full, cannot add more entities\n");
+    return;
+  }
   entity.id = entities->count;
-  nob_da_append(entities, entity);
+  entities->items[entities->count++] = entity;
 }
 Entity entity_create_physics_particle(Vector3 pos, Vector3 velocity) {
   Entity e = {0};
