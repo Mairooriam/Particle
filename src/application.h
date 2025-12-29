@@ -89,6 +89,75 @@ typedef struct {
   float m3, m7, m11, m15;
 } Matrix;
 
+// Mesh, vertex data and vao/vbo
+typedef struct Mesh {
+  int vertexCount;   // Number of vertices stored in arrays
+  int triangleCount; // Number of triangles stored (indexed or not)
+
+  // Vertex attributes data
+  float *vertices;  // Vertex position (XYZ - 3 components per vertex)
+                    // (shader-location = 0)
+  float *texcoords; // Vertex texture coordinates (UV - 2 components per vertex)
+                    // (shader-location = 1)
+  float *texcoords2; // Vertex texture second coordinates (UV - 2 components per
+                     // vertex) (shader-location = 5)
+  float *normals;    // Vertex normals (XYZ - 3 components per vertex)
+                     // (shader-location = 2)
+  float *tangents;   // Vertex tangents (XYZW - 4 components per vertex)
+                     // (shader-location = 4)
+  unsigned char *colors;   // Vertex colors (RGBA - 4 components per vertex)
+                           // (shader-location = 3)
+  unsigned short *indices; // Vertex indices (in case vertex data comes indexed)
+
+  // Animation vertex data
+  float
+      *animVertices;  // Animated vertex positions (after bones transformations)
+  float *animNormals; // Animated normals (after bones transformations)
+  unsigned char
+      *boneIds; // Vertex bone ids, max 255 bone ids, up to 4 bones influence by
+                // vertex (skinning) (shader-location = 6)
+  float *boneWeights;   // Vertex bone weight, up to 4 bones influence by vertex
+                        // (skinning) (shader-location = 7)
+  Matrix *boneMatrices; // Bones animated transformation matrices
+  int boneCount;        // Number of bones
+
+  // OpenGL identifiers
+  unsigned int vaoId;  // OpenGL Vertex Array Object id
+  unsigned int *vboId; // OpenGL Vertex Buffer Objects id (default vertex data)
+} Mesh;
+
+// Shader
+typedef struct Shader {
+  unsigned int id; // Shader program id
+  int *locs;       // Shader locations array (RL_MAX_SHADER_LOCATIONS)
+} Shader;
+
+// Texture, tex data stored in GPU memory (VRAM)
+typedef struct Texture {
+  unsigned int id; // OpenGL texture id
+  int width;       // Texture base width
+  int height;      // Texture base height
+  int mipmaps;     // Mipmap levels, 1 by default
+  int format;      // Data format (PixelFormat type)
+} Texture;
+
+// Texture2D, same as Texture
+typedef Texture Texture2D;
+
+// MaterialMap
+typedef struct MaterialMap {
+  Texture2D texture; // Material map texture
+  Color color;       // Material map color
+  float value;       // Material map value
+} MaterialMap;
+
+// Material, includes shader and maps
+typedef struct Material {
+  Shader shader;     // Material shader
+  MaterialMap *maps; // Material maps array (MAX_MATERIAL_MAPS)
+  float params[4];   // Material generic parameters (if required)
+} Material;
+
 typedef Vector4 Quaternion;
 
 static inline Vector3 Vector3Add(Vector3 v1, Vector3 v2) {
@@ -102,6 +171,23 @@ static inline Vector3 Vector3Scale(Vector3 v, float scale) {
 static inline float Lerp(float start, float end, float amount) {
   return start + amount * (end - start);
 }
+static Matrix MatrixTranslate(float x, float y, float z) {
+  Matrix result = {1.0f, 0.0f, 0.0f, x, 0.0f, 1.0f, 0.0f, y,
+                   0.0f, 0.0f, 1.0f, z, 0.0f, 0.0f, 0.0f, 1.0f};
+
+  return result;
+}
+// Camera, defines position/orientation in 3d space
+typedef struct Camera3D {
+  Vector3 position; // Camera position
+  Vector3 target;   // Camera target it looks-at
+  Vector3 up;       // Camera up vector (rotation over its axis)
+  float fovy; // Camera field-of-view aperture in Y (degrees) in perspective,
+              // used as near plane height in world units in orthographic
+  int projection; // Camera projection: CAMERA_PERSPECTIVE or
+                  // CAMERA_ORTHOGRAPHIC
+} Camera3D;
+
 #endif
 
 // RENDER COMPONENT
@@ -160,13 +246,15 @@ void entity_add(Entities *entities, Entity entity);
 void update_entity_position(Entity *e, float frameTime,
                             Vector2 mouseWorldPosition);
 void update_entity_boundaries(Entity *e, float x_bound, float x_bound_min,
-                              float y_bound, float y_bound_min);
+                              float y_bound, float y_bound_min, float z_bound,
+                              float z_bound_min);
 Entity entity_create_physics_particle(Vector3 pos, Vector3 velocity);
 Entity entity_create_spawner_entity();
 
 typedef enum {
   RENDER_RECTANGLE,
   RENDER_CIRCLE,
+  RENDER_INSTANCED
 } RenderCommandType;
 
 typedef struct {
@@ -180,6 +268,12 @@ typedef struct {
       float centerX, centerY, radius;
       Color color; // Updated
     } circle;
+    struct {
+      Mesh *mesh;
+      Matrix *transforms;
+      Material *material;
+      size_t count;
+    } instance;
   };
 } RenderCommand;
 
@@ -190,6 +284,7 @@ typedef struct {
 } RenderQueue;
 typedef struct {
   Vector2 mousePos;
+  Camera3D camera;
   // Example expansions:
   // bool mouseButtons[3];  // Left, middle, right
   // bool keys[256];        // Keyboard state
