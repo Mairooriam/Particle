@@ -1,41 +1,30 @@
 #pragma once
 #include "utils.h"
+#include "application_types.h"
 #include <stdbool.h>
 #include <stdint.h>
-
+#include <string.h>
+#include <stdlib.h>
 // application.c
-#define Assert(Expression)                                                     \
-  if (!(Expression)) {                                                         \
-    *(int *)0 = 0;                                                             \
-  }
-#define KiloBytes(value) ((value) * 1024)
-#define MegaBytes(value) ((KiloBytes(value)) * 1024)
-#define GigaBytes(value) ((MegaBytes(value)) * 1024)
-#define TeraBytes(value) ((GigaBytes(value)) * 1024)
-typedef struct {
-  float x, y;
-} Position;
 
-// GameState *init_gameState() {
-//   GameState *result = malloc(sizeof(GameState));
-//   if (!result) {
-//     assert(0 && "LMAO failed");
-//   }
-//
-//   result->pos.x = 0;
-//   result->pos.y = 0;
-//
-//   return result;
-// }
 
-typedef struct {
-  bool isInitialized;
-  void *permamentMemory;
-  size_t permanentMemorySize;
-  void *transientMemory;
-  size_t transientMemorySize;
-} GameMemory;
+static inline Vector3 Vector3Add(Vector3 v1, Vector3 v2) {
+  return (Vector3){v1.x + v2.x, v1.y + v2.y, v1.z + v2.z};
+}
 
+static inline Vector3 Vector3Scale(Vector3 v, float scale) {
+  return (Vector3){v.x * scale, v.y * scale, v.z * scale};
+}
+
+static inline float Lerp(float start, float end, float amount) {
+  return start + amount * (end - start);
+}
+static Matrix MatrixTranslate(float x, float y, float z) {
+  Matrix result = {1.0f, 0.0f, 0.0f, x, 0.0f, 1.0f, 0.0f, y,
+                   0.0f, 0.0f, 1.0f, z, 0.0f, 0.0f, 0.0f, 1.0f};
+
+  return result;
+}
 // ================================
 // ENTITY FLAGS (up to 64, using uint64_t)
 // ================================
@@ -65,183 +54,8 @@ typedef struct {
 // ================================
 // END ENTITY FLAGS
 // ================================
-#ifndef RAYLIB_H
-typedef struct {
-  unsigned char r, g, b, a;
-} Color;
 
-typedef struct {
-  float x, y;
-} Vector2;
 
-typedef struct {
-  float x, y, z;
-} Vector3;
-
-typedef struct {
-  float x, y, z, w;
-} Vector4;
-
-typedef struct {
-  float m0, m4, m8, m12;
-  float m1, m5, m9, m13;
-  float m2, m6, m10, m14;
-  float m3, m7, m11, m15;
-} Matrix;
-
-// Mesh, vertex data and vao/vbo
-typedef struct Mesh {
-  int vertexCount;   // Number of vertices stored in arrays
-  int triangleCount; // Number of triangles stored (indexed or not)
-
-  // Vertex attributes data
-  float *vertices;  // Vertex position (XYZ - 3 components per vertex)
-                    // (shader-location = 0)
-  float *texcoords; // Vertex texture coordinates (UV - 2 components per vertex)
-                    // (shader-location = 1)
-  float *texcoords2; // Vertex texture second coordinates (UV - 2 components per
-                     // vertex) (shader-location = 5)
-  float *normals;    // Vertex normals (XYZ - 3 components per vertex)
-                     // (shader-location = 2)
-  float *tangents;   // Vertex tangents (XYZW - 4 components per vertex)
-                     // (shader-location = 4)
-  unsigned char *colors;   // Vertex colors (RGBA - 4 components per vertex)
-                           // (shader-location = 3)
-  unsigned short *indices; // Vertex indices (in case vertex data comes indexed)
-
-  // Animation vertex data
-  float
-      *animVertices;  // Animated vertex positions (after bones transformations)
-  float *animNormals; // Animated normals (after bones transformations)
-  unsigned char
-      *boneIds; // Vertex bone ids, max 255 bone ids, up to 4 bones influence by
-                // vertex (skinning) (shader-location = 6)
-  float *boneWeights;   // Vertex bone weight, up to 4 bones influence by vertex
-                        // (skinning) (shader-location = 7)
-  Matrix *boneMatrices; // Bones animated transformation matrices
-  int boneCount;        // Number of bones
-
-  // OpenGL identifiers
-  unsigned int vaoId;  // OpenGL Vertex Array Object id
-  unsigned int *vboId; // OpenGL Vertex Buffer Objects id (default vertex data)
-} Mesh;
-
-// Shader
-typedef struct Shader {
-  unsigned int id; // Shader program id
-  int *locs;       // Shader locations array (RL_MAX_SHADER_LOCATIONS)
-} Shader;
-
-// Texture, tex data stored in GPU memory (VRAM)
-typedef struct Texture {
-  unsigned int id; // OpenGL texture id
-  int width;       // Texture base width
-  int height;      // Texture base height
-  int mipmaps;     // Mipmap levels, 1 by default
-  int format;      // Data format (PixelFormat type)
-} Texture;
-
-// Texture2D, same as Texture
-typedef Texture Texture2D;
-
-// MaterialMap
-typedef struct MaterialMap {
-  Texture2D texture; // Material map texture
-  Color color;       // Material map color
-  float value;       // Material map value
-} MaterialMap;
-
-// Material, includes shader and maps
-typedef struct Material {
-  Shader shader;     // Material shader
-  MaterialMap *maps; // Material maps array (MAX_MATERIAL_MAPS)
-  float params[4];   // Material generic parameters (if required)
-} Material;
-
-typedef Vector4 Quaternion;
-
-static inline Vector3 Vector3Add(Vector3 v1, Vector3 v2) {
-  return (Vector3){v1.x + v2.x, v1.y + v2.y, v1.z + v2.z};
-}
-
-static inline Vector3 Vector3Scale(Vector3 v, float scale) {
-  return (Vector3){v.x * scale, v.y * scale, v.z * scale};
-}
-
-static inline float Lerp(float start, float end, float amount) {
-  return start + amount * (end - start);
-}
-static Matrix MatrixTranslate(float x, float y, float z) {
-  Matrix result = {1.0f, 0.0f, 0.0f, x, 0.0f, 1.0f, 0.0f, y,
-                   0.0f, 0.0f, 1.0f, z, 0.0f, 0.0f, 0.0f, 1.0f};
-
-  return result;
-}
-// Camera, defines position/orientation in 3d space
-typedef struct Camera3D {
-  Vector3 position; // Camera position
-  Vector3 target;   // Camera target it looks-at
-  Vector3 up;       // Camera up vector (rotation over its axis)
-  float fovy; // Camera field-of-view aperture in Y (degrees) in perspective,
-              // used as near plane height in world units in orthographic
-  int projection; // Camera projection: CAMERA_PERSPECTIVE or
-                  // CAMERA_ORTHOGRAPHIC
-} Camera3D;
-
-#endif
-
-// RENDER COMPONENT
-typedef struct {
-  Color color;
-  float renderRadius; // Visual size (can differ from collision radius)
-} c_Render;
-
-// TRANSFORM COMPONENT
-typedef struct {
-  Vector3 pos;
-  Vector3 v;         // Velocity
-  Vector3 a;         // acceleration
-  float restitution; // 1 -> will bounce apart - 0 -> both will keep moving to
-                     // same direction
-} c_Transform;
-
-typedef struct {
-  float springConstat;
-  float restLenght;
-  size_t parent;
-} c_Spring;
-
-// COLLISION COMPONENT
-typedef struct {
-  float radius;
-  float mass;
-  float inverseMass;
-  size_t collisionCount;
-  size_t searchCount;
-  Vector3 forceAccum;
-} c_Collision;
-typedef struct Entity Entity;
-typedef struct Entity {
-  size_t id;
-  uint64_t flags;
-  c_Transform c_transform;
-  c_Render c_render;
-  c_Collision c_collision;
-  Entity *spawnEntity;
-  float spawnCount;
-  float spawnRate;
-  float clock;
-  bool followMouse;
-  c_Spring c_spring;
-} Entity;
-typedef struct Entities {
-  Entity *items;
-  size_t count;
-  size_t capacity;
-} Entities;
-DA_CREATE(Entities)
-DA_FREE(Entities)
-DA_INIT(Entities)
 void entity_add(Entities *entities, Entity entity);
 void update_entity_position(Entity *e, float frameTime,
                             Vector2 mouseWorldPosition);
@@ -251,58 +65,10 @@ void update_entity_boundaries(Entity *e, float x_bound, float x_bound_min,
 Entity entity_create_physics_particle(Vector3 pos, Vector3 velocity);
 Entity entity_create_spawner_entity();
 
-typedef enum {
-  RENDER_RECTANGLE,
-  RENDER_CIRCLE,
-  RENDER_INSTANCED
-} RenderCommandType;
 
-typedef struct {
-  RenderCommandType type;
-  union {
-    struct {
-      float x, y, width, height;
-      Color color; // Updated
-    } rectangle;
-    struct {
-      float centerX, centerY, radius;
-      Color color; // Updated
-    } circle;
-    struct {
-      Mesh *mesh;
-      Matrix *transforms;
-      Material *material;
-      size_t count;
-    } instance;
-  };
-} RenderCommand;
 
-#define MAX_RENDER_COMMANDS 1000000
-typedef struct {
-  RenderCommand commands[MAX_RENDER_COMMANDS];
-  int count;
-} RenderQueue;
-typedef struct {
-  Vector2 mousePos;
-  Camera3D camera;
-  // Example expansions:
-  // bool mouseButtons[3];  // Left, middle, right
-  // bool keys[256];        // Keyboard state
-} Input;
-#define GAME_UPDATE(name)                                                      \
-  void name(GameMemory *gameMemory, Input *input, float frameTime)
-typedef GAME_UPDATE(GameUpdate);
-GAME_UPDATE(game_update_stub) {
-  (void)gameMemory;
-  (void)frameTime;
-}
 
 void push_render_command(RenderQueue *queue, RenderCommand cmd);
-
-typedef struct {
-  Position pos;
-  Entities entities;
-} GameState;
 
 static inline void Entities_init_with_buffer(Entities *da, size_t cap,
                                              Entity *buffer) {
@@ -311,3 +77,40 @@ static inline void Entities_init_with_buffer(Entities *da, size_t cap,
   da->items = buffer;
 }
 void update_spawners(float frameTime, Entity *e, Entities *entities);
+
+typedef struct {
+  char *base;
+  size_t size;
+  size_t used;
+} memory_arena;
+
+memory_arena initialize_arena(void *buffer, size_t arena_size) {
+  memory_arena arena = {0};
+  arena.base = (char *)buffer;
+  arena.size = arena_size;
+  arena.used = 0;
+  return arena;
+}
+
+void *arena_alloc(memory_arena *arena, size_t size) {
+  size_t mask = 7; // aligned to 8-1 for mask
+  size_t aligned_used = (arena->used + mask) & ~mask;
+
+  if (aligned_used + size > arena->size) {
+    return NULL;
+  }
+  void *ptr = arena->base + aligned_used;
+  arena->used = aligned_used + size;
+  return ptr;
+}
+
+int arena_free(memory_arena *arena) {
+  arena->used = 0;
+  memset(arena->base, 0, arena->size);
+  return 0;
+}
+typedef struct {
+  Entities entities;
+  memory_arena permanentArena;
+  memory_arena transientArena;
+} GameState;
