@@ -1,4 +1,5 @@
 #pragma once
+#include "shared.h"
 #include "utils.h"
 #include "application_types.h"
 #include <stdbool.h>
@@ -7,9 +8,12 @@
 #include <stdlib.h>
 // application.c
 
-
 static inline Vector3 Vector3Add(Vector3 v1, Vector3 v2) {
   return (Vector3){v1.x + v2.x, v1.y + v2.y, v1.z + v2.z};
+}
+
+static inline Vector2 Vector2Subtract(Vector2 v1, Vector2 v2) {
+  return (Vector2){v1.x - v2.x, v1.y - v2.y};
 }
 
 static inline Vector3 Vector3Scale(Vector3 v, float scale) {
@@ -55,7 +59,6 @@ static Matrix MatrixTranslate(float x, float y, float z) {
 // END ENTITY FLAGS
 // ================================
 
-
 void entity_add(Entities *entities, Entity entity);
 void update_entity_position(Entity *e, float frameTime,
                             Vector2 mouseWorldPosition);
@@ -64,9 +67,6 @@ void update_entity_boundaries(Entity *e, float x_bound, float x_bound_min,
                               float z_bound_min);
 Entity entity_create_physics_particle(Vector3 pos, Vector3 velocity);
 Entity entity_create_spawner_entity();
-
-
-
 
 void push_render_command(RenderQueue *queue, RenderCommand cmd);
 
@@ -95,7 +95,7 @@ memory_arena initialize_arena(void *buffer, size_t arena_size) {
 void *arena_alloc(memory_arena *arena, size_t size) {
   size_t mask = 7; // aligned to 8-1 for mask
   size_t aligned_used = (arena->used + mask) & ~mask;
-
+  Assert(aligned_used + size <= arena->size);
   if (aligned_used + size > arena->size) {
     return NULL;
   }
@@ -110,7 +110,105 @@ int arena_free(memory_arena *arena) {
   return 0;
 }
 typedef struct {
+  Input lastFrameInput;
+  Vector2 mouseDelta;
   Entities entities;
+  Mesh instancedMesh;
+  Input inputLastFrame;
+  bool instancedMeshUpdated;
   memory_arena permanentArena;
   memory_arena transientArena;
 } GameState;
+static Mesh GenMeshCube(memory_arena *arena, float width, float height,
+                        float length) {
+  Mesh mesh = {0};
+
+  float vertices[] = {
+      -width / 2,  -height / 2, length / 2,  width / 2,   -height / 2,
+      length / 2,  width / 2,   height / 2,  length / 2,  -width / 2,
+      height / 2,  length / 2,  -width / 2,  -height / 2, -length / 2,
+      -width / 2,  height / 2,  -length / 2, width / 2,   height / 2,
+      -length / 2, width / 2,   -height / 2, -length / 2, -width / 2,
+      height / 2,  -length / 2, -width / 2,  height / 2,  length / 2,
+      width / 2,   height / 2,  length / 2,  width / 2,   height / 2,
+      -length / 2, -width / 2,  -height / 2, -length / 2, width / 2,
+      -height / 2, -length / 2, width / 2,   -height / 2, length / 2,
+      -width / 2,  -height / 2, length / 2,  width / 2,   -height / 2,
+      -length / 2, width / 2,   height / 2,  -length / 2, width / 2,
+      height / 2,  length / 2,  width / 2,   -height / 2, length / 2,
+      -width / 2,  -height / 2, -length / 2, -width / 2,  -height / 2,
+      length / 2,  -width / 2,  height / 2,  length / 2,  -width / 2,
+      height / 2,  -length / 2};
+
+  float texcoords[] = {
+      0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
+      0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f,
+      1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f,
+      0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
+
+  float normals[] = {0.0f,  0.0f,  1.0f,  0.0f,  0.0f,  1.0f,  0.0f,  0.0f,
+                     1.0f,  0.0f,  0.0f,  1.0f,  0.0f,  0.0f,  -1.0f, 0.0f,
+                     0.0f,  -1.0f, 0.0f,  0.0f,  -1.0f, 0.0f,  0.0f,  -1.0f,
+                     0.0f,  1.0f,  0.0f,  0.0f,  1.0f,  0.0f,  0.0f,  1.0f,
+                     0.0f,  0.0f,  1.0f,  0.0f,  0.0f,  -1.0f, 0.0f,  0.0f,
+                     -1.0f, 0.0f,  0.0f,  -1.0f, 0.0f,  0.0f,  -1.0f, 0.0f,
+                     1.0f,  0.0f,  0.0f,  1.0f,  0.0f,  0.0f,  1.0f,  0.0f,
+                     0.0f,  1.0f,  0.0f,  0.0f,  -1.0f, 0.0f,  0.0f,  -1.0f,
+                     0.0f,  0.0f,  -1.0f, 0.0f,  0.0f,  -1.0f, 0.0f,  0.0f};
+
+  unsigned short indices[36];
+  int k = 0;
+  for (int i = 0; i < 36; i += 6) {
+    indices[i] = 4 * k;
+    indices[i + 1] = 4 * k + 1;
+    indices[i + 2] = 4 * k + 2;
+    indices[i + 3] = 4 * k;
+    indices[i + 4] = 4 * k + 2;
+    indices[i + 5] = 4 * k + 3;
+    k++;
+  }
+
+  mesh.vertices = (float *)arena_alloc(arena, 24 * 3 * sizeof(float));
+  if (!mesh.vertices)
+    return mesh; // Allocation failed
+  memcpy(mesh.vertices, vertices, 24 * 3 * sizeof(float));
+
+  mesh.texcoords = (float *)arena_alloc(arena, 24 * 2 * sizeof(float));
+  if (!mesh.texcoords)
+    return mesh;
+  memcpy(mesh.texcoords, texcoords, 24 * 2 * sizeof(float));
+
+  mesh.normals = (float *)arena_alloc(arena, 24 * 3 * sizeof(float));
+  if (!mesh.normals)
+    return mesh;
+  memcpy(mesh.normals, normals, 24 * 3 * sizeof(float));
+
+  mesh.indices =
+      (unsigned short *)arena_alloc(arena, 36 * sizeof(unsigned short));
+  if (!mesh.indices)
+    return mesh;
+  memcpy(mesh.indices, indices, 36 * sizeof(unsigned short));
+
+  mesh.vertexCount = 24;
+  mesh.triangleCount = 12;
+
+  return mesh;
+}
+static inline bool is_key_pressed(Input *current, Input *last, int key) {
+  return current->keys[key] && !last->keys[key];
+}
+
+static inline bool is_key_released(Input *current, Input *last, int key) {
+  return !current->keys[key] && last->keys[key];
+}
+
+static inline bool is_key_down(Input *current, int key) {
+  return current->keys[key];
+}
+
+static inline bool is_key_up(Input *current, int key) {
+  return !current->keys[key];
+}
+
+#define KEY_SPACE 32
+#define KEY_ENTER 257

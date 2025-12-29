@@ -5,52 +5,75 @@
 // extern "C" GAME_UPDATE(game_update) { pos->y++; }
 GAME_UPDATE(game_update) {
   Assert(sizeof(GameState) <= gameMemory->permanentMemorySize);
-  float lerpFactor = 0.5f;
-  static float posZ = 1;
-  if (posZ > 1000) {
-    posZ = 1;
-  } else {
-    posZ += 1;
-  }
-  input->camera.position.z = Lerp(1, posZ, lerpFactor);
-  // cTp1->pos.y = Lerp(cTp1->pos.y, mouseWorldPos.y, lerpFactor);
-  // cTp1->pos.z = 0.0f;
-  // input->camera.position.z = 200;
-  input->camera.target.x = 400;
-  input->camera.target.y = 200;
+  // float lerpFactor = 0.5f;
+  // static float posZ = 1;
+  // if (posZ > 10) {
+  //   posZ = 1;
+  // } else {
+  //   posZ += 10;
+  // }
+  // input->camera.position.z = Lerp(1, posZ, lerpFactor);
+  // // cTp1->pos.y = Lerp(cTp1->pos.y, mouseWorldPos.y, lerpFactor);
+  // // cTp1->pos.z = 0.0f;
+  // // input->camera.position.z = 200;
+  // input->camera.target.x = 400;
+  // input->camera.target.y = 200;
 
   GameState *gameState = (GameState *)gameMemory->permamentMemory;
   if (!gameMemory->isInitialized) {
     size_t gameStateSize = sizeof(GameState);
+    size_t permanentArenaSize = 32 * 1024 * 1024;
+
+    // Reserve space for arena, then calculate maxEntities from remaining
+    size_t availableForEntities =
+        gameMemory->permanentMemorySize - gameStateSize - permanentArenaSize;
+    size_t maxEntities = availableForEntities / sizeof(Entity);
+
     Entity *entitiesBuffer =
         (Entity *)((char *)gameMemory->permamentMemory + gameStateSize);
-    size_t maxEntities =
-        (gameMemory->permanentMemorySize - gameStateSize) / sizeof(Entity);
     Entities_init_with_buffer(&gameState->entities, maxEntities,
                               entitiesBuffer);
+
     // Initialize arenas
     size_t permanentArenaOffset = gameStateSize + maxEntities * sizeof(Entity);
     void *permanentArenaBase =
         (char *)gameMemory->permamentMemory + permanentArenaOffset;
-    size_t permanentArenaSize =
-        gameMemory->permanentMemorySize - permanentArenaOffset;
-    Assert(permanentArenaSize > 0); // Ensure space left
+    Assert(permanentArenaSize > 0);
 
-    // TODO: Learn arenas in this context ins different project this is copied
-    // code. probably crazy shittty. all memory going for entitites
     gameState->permanentArena =
         initialize_arena(permanentArenaBase, permanentArenaSize);
-
     gameState->transientArena = initialize_arena(
         gameMemory->transientMemory, gameMemory->transientMemorySize);
+
+    // Mesh generation
+    gameState->instancedMesh =
+        GenMeshCube(&gameState->permanentArena, 1.0f, 1.0f, 1.0f);
+    gameState->instancedMeshUpdated = true;
 
     Entity player = entity_create_physics_particle((Vector3){400, 300, 200},
                                                    (Vector3){0, 9.81, 0});
     player.followMouse = true;
     entity_add(&gameState->entities, player);
+
     Entity spawner = entity_create_spawner_entity();
     entity_add(&gameState->entities, spawner);
+
     gameMemory->isInitialized = true;
+  }
+
+  gameState->mouseDelta =
+      Vector2Subtract(input->mousePos, gameState->lastFrameInput.mousePos);
+
+  if (is_key_pressed(input, &gameState->lastFrameInput, KEY_SPACE)) {
+    printf("Space pressed!\n");
+  }
+
+  if (is_key_released(input, &gameState->lastFrameInput, KEY_SPACE)) {
+    printf("Space released!\n");
+  }
+
+  if (is_key_down(input, KEY_SPACE)) {
+    printf("Space is down!\n");
   }
 
   Entities *entities = &gameState->entities;
@@ -94,10 +117,18 @@ GAME_UPDATE(game_update) {
 
   // Push instanced render command
   if (sphereCount > 0) {
-    RenderCommand cmd = {RENDER_INSTANCED, .instance = {NULL, sphereTransforms,
-                                                        NULL, sphereCount}};
+    if (gameState->instancedMeshUpdated) {
+      renderQueue->isMeshReloadRequired = true;
+      renderQueue->instanceMesh = gameState->instancedMesh;
+      gameState->instancedMeshUpdated = false;
+    }
+    RenderCommand cmd = {RENDER_INSTANCED,
+                         .instance = {&renderQueue->instanceMesh,
+                                      sphereTransforms, NULL, sphereCount}};
     push_render_command(renderQueue, cmd);
   }
+
+  gameState->lastFrameInput = *input;
 }
 
 void update_spawners(float frameTime, Entity *e, Entities *entities) {

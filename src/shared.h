@@ -1,5 +1,6 @@
 #pragma once
 #include <stdbool.h>
+#include <stdint.h>
 #define Assert(Expression)                                                     \
   if (!(Expression)) {                                                         \
     *(int *)0 = 0;                                                             \
@@ -141,7 +142,6 @@ GAME_UPDATE(game_update_stub) {
   (void)input;
 }
 
-
 typedef enum {
   RENDER_RECTANGLE,
   RENDER_CIRCLE,
@@ -157,10 +157,10 @@ typedef struct {
     } rectangle;
     struct {
       float centerX, centerY, radius;
-      Color color; 
+      Color color;
     } circle;
     struct {
-      Mesh *mesh;
+      Mesh *mesh; // For now all use same mesh
       Matrix *transforms;
       Material *material;
       size_t count;
@@ -170,6 +170,8 @@ typedef struct {
 
 #define MAX_RENDER_COMMANDS 1000000
 typedef struct {
+  bool isMeshReloadRequired;
+  Mesh instanceMesh;
   RenderCommand commands[MAX_RENDER_COMMANDS];
   int count;
 } RenderQueue;
