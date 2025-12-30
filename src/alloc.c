@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <assert.h>
+
 #define Assert(Expression)                                                     \
   if (!(Expression)) {                                                         \
     *(int *)0 = 0;                                                             \
@@ -62,7 +63,6 @@ typedef struct Entity {
   bool followMouse;
   c_Spring c_spring;
   Entity *next;
-  bool active;
 } Entity;
 typedef struct Entities {
   Entity *items;
@@ -107,31 +107,50 @@ static void *_PushSizeZero(memory_arena *arena, size_t size) {
 }
 
 // Initialize the entity pool
-EntityPool EntityPoolInit(memory_arena *arena, size_t capacity) {
-  EntityPool pool = {0};
-  pool.entities_sparse =
+EntityPool *EntityPoolInitInArena(memory_arena *arena, size_t capacity) {
+  EntityPool *pool = (EntityPool *)_PushSizeZero(arena, sizeof(EntityPool));
+  pool->entities_sparse =
       (size_t *)_PushSizeZero(arena, sizeof(size_t) * capacity);
-  pool.entities_dense =
+  pool->entities_dense =
       (Entity *)_PushSizeZero(arena, sizeof(Entity) * capacity);
-  pool.capacity = capacity;
-  pool.freeList_dense =
+  pool->capacity = capacity;
+  pool->freeList_dense =
       (size_t *)_PushSizeZero(arena, sizeof(size_t) * capacity);
-  pool.freeCount_dense = 0;
+  pool->freeCount_dense = 0;
+
+  for (size_t i = 0; i < capacity; i++) {
+    pool->entities_sparse[i] = SIZE_MAX;
+  }
+
   return pool;
 }
-
-void EntityAlloc(EntityPool *pool, Entity entity) {
+void PrintEntityPoolMemoryLayout(EntityPool *pool) {
+  printf("EntityPool Memory Layout:\n");
+  printf("  Address of EntityPool: %p\n", (void *)pool);
+  printf("  Sparse Array Address: %p (Size: %zu bytes)\n",
+         (void *)pool->entities_sparse, pool->capacity * sizeof(size_t));
+  printf("  Dense Array Address: %p (Size: %zu bytes)\n",
+         (void *)pool->entities_dense, pool->capacity * sizeof(Entity));
+  printf("  Free List Address: %p (Size: %zu bytes)\n",
+         (void *)pool->freeList_dense, pool->capacity * sizeof(size_t));
+  printf("  Capacity Address: %p (Value: %zu)\n", (void *)&pool->capacity,
+         pool->capacity);
+  printf("  Count Address: %p (Value: %zu)\n", (void *)&pool->count,
+         pool->count);
+  printf("  Free Count Address: %p (Value: %zu)\n",
+         (void *)&pool->freeCount_dense, pool->freeCount_dense);
+  printf("\n");
+}
+void EntityPoolPush(EntityPool *pool, Entity entity) {
   if (pool->freeCount_dense > 0) {
     // Reuse an entity from the free list
-    size_t index = pool->freeList_dense[--pool->freeCount_dense];
-    pool->entities_dense[index] = entity; // Copy the constructed entity
-    pool->entities_dense[index].active = true;
-    pool->entities_sparse[entity.id - 1] = index; // Update sparse mapping
+    size_t denseIndex = pool->freeList_dense[--pool->freeCount_dense];
+    pool->entities_dense[denseIndex] = entity; // Copy the constructed entity
+    pool->entities_sparse[entity.id] = denseIndex; // Update sparse mapping
   } else if (pool->count < pool->capacity) {
     // Allocate a new entity
     pool->entities_dense[pool->count] = entity; // Copy the constructed entity
     pool->entities_dense[pool->count].id = pool->count + 1; // Assign ID
-    pool->entities_dense[pool->count].active = true;
     pool->entities_sparse[entity.id - 1] = pool->count; // Update sparse mapping
     pool->count++;
   } else {
@@ -143,21 +162,12 @@ void EntityRemoveIdx(EntityPool *pool, size_t idx) {
   size_t denseIdx = pool->entities_sparse[idx - 1];
   Entity *e = &pool->entities_dense[denseIdx];
   if (!e) {
-    printf("Tried to delete entity that doesn't exist");
+    printf("Tried to delete entity that doesn't exist\n");
     return;
   }
-  if (e->active) {
-    e->active = false;
-    pool->freeList_dense[pool->freeCount_dense++] = e->id;
-  }
-}
-void PrintEntities(EntityPool *pool) {
-  printf("Active Entities:\n");
-  for (size_t i = 0; i < pool->count; i++) {
-    if (pool->entities_dense[i].active) {
-      printf("Entity ID: %zu\n", pool->entities_dense[i].id);
-    }
-  }
+  pool->freeList_dense[pool->freeCount_dense++] =
+      denseIdx;                              // Add dense index to free list
+  pool->entities_sparse[idx - 1] = SIZE_MAX; // Reset sparse mapping
 }
 
 memory_arena arena_init(void *buffer, size_t arena_size) {
@@ -183,11 +193,8 @@ void PrintSparseAndDense(EntityPool *pool, size_t start, size_t end) {
 
   printf("\nDense Array (from %zu to %zu):\n", start, end);
   for (size_t i = start; i < end && i < pool->count; i++) {
-    printf("Dense[%zu] = { ID: %zu, Active: %s, Position: (%f, %f) }\n",
-           i,
-           pool->entities_dense[i].id,
-           pool->entities_dense[i].active ? "true" : "false",
-           pool->entities_dense[i].c_transform.pX,
+    printf("Dense[%zu] = { ID: %zu, Position: (%f, %f) }\n", i,
+           pool->entities_dense[i].id, pool->entities_dense[i].c_transform.pX,
            pool->entities_dense[i].c_transform.pY);
   }
   printf("\n");
@@ -213,47 +220,63 @@ int main(int argc, char const *argv[]) {
   memory_arena arena = arena_init(gameMemory.permamentMemory, MegaBytes(64));
 
   // Initialize the entity pool
-  EntityPool pool = EntityPoolInit(&arena, 1000);
+  EntityPool *pool = EntityPoolInitInArena(&arena, 1000);
 
-  // Construct and allocate entities
-  Entity entity1 = {0};
-  entity1.id = 1;
-  entity1.c_transform.pX = 10.0f;
-  entity1.c_transform.pY = 20.0f;
-  EntityAlloc(&pool, entity1);
+  PrintEntityPoolMemoryLayout(pool);
+  // Allocate a large number of entities
+  printf("Allocating 100 entities...\n");
+  for (size_t i = 1; i <= 50; i++) {
+    Entity entity = {0};
+    entity.id = i;
+    entity.c_transform.pX = i * 1.0f;
+    entity.c_transform.pY = i * 2.0f;
+    EntityPoolPush(pool, entity);
+  }
 
-  Entity entity2 = {0};
-  entity2.id = 2;
-  entity2.c_transform.pX = 30.0f;
-  entity2.c_transform.pY = 40.0f;
-  EntityAlloc(&pool, entity2);
+  // Print the first 20 entries of the sparse and dense arrays
+  // PrintEntities(pool);
+  PrintSparseAndDense(pool, 0, 20);
 
-  Entity entity3 = {0};
-  entity3.id = 3;
-  entity3.c_transform.pX = 50.0f;
-  entity3.c_transform.pY = 60.0f;
-  EntityAlloc(&pool, entity3);
+  // Remove some entities
+  printf("Removing entities with IDs 10, 20, 30, 40, 50...\n");
+  EntityRemoveIdx(pool, 5);
+  EntityRemoveIdx(pool, 10);
+  EntityRemoveIdx(pool, 15);
+  EntityRemoveIdx(pool, 20);
+  EntityRemoveIdx(pool, 25);
 
-  PrintEntities(&pool);
-  PrintSparseAndDense(&pool, 0, 10); // Print the first 10 entries
+  // Print the first 20 entries of the sparse and dense arrays after
+  // PrintEntities(pool);
+  PrintSparseAndDense(pool, 0, 20);
 
-  // Remove an entity
-  printf("Remove index 2\n");
-  EntityRemoveIdx(&pool, 2);
+  // Allocate new entities to reuse the removed slots
+  printf("Allocating 5 new entities...\n");
+  for (size_t i = 101; i <= 105; i++) {
+    Entity entity = {0};
+    entity.id = i;
+    entity.c_transform.pX = i * 1.0f;
+    entity.c_transform.pY = i * 2.0f;
+    EntityPoolPush(pool, entity);
+  }
 
-  PrintEntities(&pool);
-  PrintSparseAndDense(&pool, 0, 10); // Print the first 10 entries
+  // Print the first 20 entries of the sparse and dense arrays after
+  // reallocation
+  // PrintEntities(pool);
+  PrintSparseAndDense(pool, 0, 20);
 
-  // Add a new entity (should reuse the removed entity)
-  printf("Allocating index 4\n");
-  Entity entity4 = {0};
-  entity4.id = 4;
-  entity4.c_transform.pX = 70.0f;
-  entity4.c_transform.pY = 80.0f;
-  EntityAlloc(&pool, entity4);
+  // Allocate more entities to fill the pool
+  printf("Allocating 895 more entities to fill the pool...\n");
+  for (size_t i = 106; i <= 1000; i++) {
+    Entity entity = {0};
+    entity.id = i;
+    entity.c_transform.pX = i * 1.0f;
+    entity.c_transform.pY = i * 2.0f;
+    EntityPoolPush(pool, entity);
+  }
 
-  PrintEntities(&pool);
-  PrintSparseAndDense(&pool, 0, 10); // Print the first 10 entries
-
+  // Print the last 20 entries of the sparse and dense arrays
+  // PrintEntities(pool);
+  PrintSparseAndDense(pool, 95, 110);
+  PrintEntityPoolMemoryLayout(pool);
   return 0;
 }
