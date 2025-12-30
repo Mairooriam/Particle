@@ -149,8 +149,8 @@ int main() {
   float frameTime = 1.0f;
 
   // TODO: 3D CODE move out of here in future
-  Camera3D camera = {.position = (Vector3){500, 500, 100},
-                     .target = (Vector3){0, 0, 0},
+  Camera3D camera = {.position = (Vector3){100, 100, 100},
+                     .target = (Vector3){50, 50, 0},
                      .up = (Vector3){0, 1, 0},
                      .fovy = 45,
                      .projection = CAMERA_PERSPECTIVE};
@@ -168,7 +168,16 @@ int main() {
   bool isCursorDisabled = true;
   DisableCursor();
   while (!WindowShouldClose()) {
-    UpdateCamera(&input.camera, CAMERA_FIRST_PERSON);
+    Vector3 oldPosition = input.camera.position;
+    if (isCursorDisabled) {
+      UpdateCamera(&input.camera, CAMERA_FREE);
+      Vector3 positionDelta =
+          Vector3Subtract(input.camera.position, oldPosition);
+      float speedMultiplier = 5.0f;
+      input.camera.position =
+          Vector3Add(oldPosition, Vector3Scale(positionDelta, speedMultiplier));
+    }
+
     frameTime = GetFrameTime();
     collect_input(&input);
 
@@ -231,6 +240,26 @@ int main() {
         DrawMeshInstanced(*cmd.instance.mesh, matinstances,
                           cmd.instance.transforms, cmd.instance.count);
 
+      } break;
+      case RENDER_LINE_3D: {
+        DrawLine3D(cmd.line3D.start, cmd.line3D.end, cmd.line3D.color);
+      } break;
+      case RENDER_CUBE_3D: {
+        Vector3 corner = {0, 0, 0};
+        float width = cmd.cube3D.width, height = cmd.cube3D.height,
+              depth = cmd.cube3D.depth;
+        Vector3 center = {corner.x, corner.y, corner.z};
+
+        if (cmd.cube3D.origin == 1) {
+          center = (Vector3){corner.x + width / 2, corner.y + height / 2,
+                             corner.z + depth / 2};
+        }
+
+        if (cmd.cube3D.wireFrame) {
+          DrawCubeWires(center, width, height, depth, cmd.cube3D.color);
+        } else {
+          DrawCube(center, width, height, depth, cmd.cube3D.color);
+        }
       } break;
       }
     }
