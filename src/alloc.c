@@ -20,6 +20,7 @@ typedef struct {
   void *transientMemory;
   size_t transientMemorySize;
 } GameMemory;
+
 // RENDER COMPONENT
 typedef struct {
   float r, g, b, a;
@@ -93,29 +94,39 @@ typedef struct {
 } EntityPool;
 
 typedef struct {
-  char *base;
+  uint8_t *base;
   size_t size;
   size_t used;
 } memory_arena;
 
-static void *_PushSizeZero(memory_arena *arena, size_t size) {
+#define memory_index                                                           \
+  size_t // from casey experiment and see if this is good way to do this
+
+void arena_init(memory_arena *arena, uint8_t *base, memory_index arena_size) {
+  arena->base = base;
+  arena->size = arena_size;
+  arena->used = 0;
+}
+
+#define arena_PushStruct(Arena, type) (type *)_PushStruct(Arena, sizeof(type))
+#define arena_PushStructs(Arena, type, count)                                  \
+  _PushStruct(Arena, sizeof(type) * count)
+// Ment for internal use do not call
+// Zeroes out the pushed struct
+static void *_PushStruct(memory_arena *arena, size_t size) {
   Assert(arena->used + size <= arena->size);
   void *result = arena->base + arena->used;
   arena->used += size;
-  memset(result, 0, size);
   return result;
 }
 
 // Initialize the entity pool
 EntityPool *EntityPoolInitInArena(memory_arena *arena, size_t capacity) {
-  EntityPool *pool = (EntityPool *)_PushSizeZero(arena, sizeof(EntityPool));
-  pool->entities_sparse =
-      (size_t *)_PushSizeZero(arena, sizeof(size_t) * capacity);
-  pool->entities_dense =
-      (Entity *)_PushSizeZero(arena, sizeof(Entity) * capacity);
+  EntityPool *pool = arena_PushStruct(arena, EntityPool);
   pool->capacity = capacity;
-  pool->freeList_dense =
-      (size_t *)_PushSizeZero(arena, sizeof(size_t) * capacity);
+  pool->entities_sparse = (size_t *)arena_PushStructs(arena, size_t, capacity);
+  pool->entities_dense = (Entity *)arena_PushStructs(arena, Entity, capacity);
+  pool->freeList_dense = (size_t *)arena_PushStructs(arena, size_t, capacity);
   pool->freeCount_dense = 0;
 
   for (size_t i = 0; i < capacity; i++) {
@@ -170,13 +181,6 @@ void EntityRemoveIdx(EntityPool *pool, size_t idx) {
   pool->entities_sparse[idx - 1] = SIZE_MAX; // Reset sparse mapping
 }
 
-memory_arena arena_init(void *buffer, size_t arena_size) {
-  memory_arena arena = {0};
-  arena.base = (char *)buffer;
-  arena.size = arena_size;
-  arena.used = 0;
-  return arena;
-}
 void PrintSparseAndDense(EntityPool *pool, size_t start, size_t end) {
   if (start >= pool->capacity) {
     printf("Error: Start index out of bounds.\n");
@@ -199,11 +203,16 @@ void PrintSparseAndDense(EntityPool *pool, size_t start, size_t end) {
   }
   printf("\n");
 }
+typedef struct {
+  EntityPool *entityPool;
+  memory_arena entityArena;
+} GameState;
+
 int main(int argc, char const *argv[]) {
   LPVOID baseAddress = (LPVOID)TeraBytes((uint64_t)2);
 
   GameMemory gameMemory = {0};
-  gameMemory.permanentMemorySize = MegaBytes(64);
+  gameMemory.permanentMemorySize = MegaBytes(128);
   gameMemory.transientMemorySize = GigaBytes((uint64_t)1);
 
   uint64_t totalSize =
@@ -216,13 +225,16 @@ int main(int argc, char const *argv[]) {
   }
   gameMemory.transientMemory =
       ((uint8_t *)gameMemory.permamentMemory + gameMemory.permanentMemorySize);
+  GameState *gamestate = (GameState *)gameMemory.permamentMemory;
 
-  memory_arena arena = arena_init(gameMemory.permamentMemory, MegaBytes(64));
+  arena_init(&gamestate->entityArena,
+             (uint8_t *)gameMemory.permamentMemory + sizeof(GameState),
+             MegaBytes(64));
 
   // Initialize the entity pool
-  EntityPool *pool = EntityPoolInitInArena(&arena, 1000);
+  gamestate->entityPool = EntityPoolInitInArena(&gamestate->entityArena, 1000);
 
-  PrintEntityPoolMemoryLayout(pool);
+  PrintEntityPoolMemoryLayout(gamestate->entityPool);
   // Allocate a large number of entities
   printf("Allocating 100 entities...\n");
   for (size_t i = 1; i <= 50; i++) {
@@ -230,24 +242,24 @@ int main(int argc, char const *argv[]) {
     entity.id = i;
     entity.c_transform.pX = i * 1.0f;
     entity.c_transform.pY = i * 2.0f;
-    EntityPoolPush(pool, entity);
+    EntityPoolPush(gamestate->entityPool, entity);
   }
 
   // Print the first 20 entries of the sparse and dense arrays
   // PrintEntities(pool);
-  PrintSparseAndDense(pool, 0, 20);
+  PrintSparseAndDense(gamestate->entityPool, 0, 20);
 
   // Remove some entities
   printf("Removing entities with IDs 10, 20, 30, 40, 50...\n");
-  EntityRemoveIdx(pool, 5);
-  EntityRemoveIdx(pool, 10);
-  EntityRemoveIdx(pool, 15);
-  EntityRemoveIdx(pool, 20);
-  EntityRemoveIdx(pool, 25);
+  EntityRemoveIdx(gamestate->entityPool, 5);
+  EntityRemoveIdx(gamestate->entityPool, 10);
+  EntityRemoveIdx(gamestate->entityPool, 15);
+  EntityRemoveIdx(gamestate->entityPool, 20);
+  EntityRemoveIdx(gamestate->entityPool, 25);
 
   // Print the first 20 entries of the sparse and dense arrays after
-  // PrintEntities(pool);
-  PrintSparseAndDense(pool, 0, 20);
+  // PrintEntities(gamestate->entityPool);
+  PrintSparseAndDense(gamestate->entityPool, 0, 20);
 
   // Allocate new entities to reuse the removed slots
   printf("Allocating 5 new entities...\n");
@@ -256,27 +268,27 @@ int main(int argc, char const *argv[]) {
     entity.id = i;
     entity.c_transform.pX = i * 1.0f;
     entity.c_transform.pY = i * 2.0f;
-    EntityPoolPush(pool, entity);
+    EntityPoolPush(gamestate->entityPool, entity);
   }
 
   // Print the first 20 entries of the sparse and dense arrays after
   // reallocation
-  // PrintEntities(pool);
-  PrintSparseAndDense(pool, 0, 20);
+  // PrintEntities(gamestate->entityPool);
+  PrintSparseAndDense(gamestate->entityPool, 0, 20);
 
-  // Allocate more entities to fill the pool
-  printf("Allocating 895 more entities to fill the pool...\n");
+  // Allocate more entities to fill the gamestate->entityPool
+  printf("Allocating 895 more entities to fill the gamestate->entityPool...\n");
   for (size_t i = 106; i <= 1000; i++) {
     Entity entity = {0};
     entity.id = i;
     entity.c_transform.pX = i * 1.0f;
     entity.c_transform.pY = i * 2.0f;
-    EntityPoolPush(pool, entity);
+    EntityPoolPush(gamestate->entityPool, entity);
   }
 
   // Print the last 20 entries of the sparse and dense arrays
-  // PrintEntities(pool);
-  PrintSparseAndDense(pool, 95, 110);
-  PrintEntityPoolMemoryLayout(pool);
+  // PrintEntities(gamestate->entityPool);
+  PrintSparseAndDense(gamestate->entityPool, 95, 110);
+  PrintEntityPoolMemoryLayout(gamestate->entityPool);
   return 0;
 }
