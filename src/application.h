@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 // application.c
 
 static inline Vector3 Vector3Add(Vector3 v1, Vector3 v2) {
@@ -76,48 +77,163 @@ static inline void Entities_init_with_buffer(Entities *da, size_t cap,
   da->capacity = cap;
   da->items = buffer;
 }
-void update_spawners(float frameTime, Entity *e, Entities *entities);
+
+// TODO: make entities_dense be entities Dynamic array so it has count when
+// passed around?
+typedef struct {
+  size_t *entities_sparse;
+  Entity *entities_dense; // Array of entities
+  size_t count_dense;   // Number of active entities basically count of entities
+                        // in dense array
+  size_t capacity;      // Total capacity of the array
+  size_t *freeList_ids; // Stack of free IDs for reuse
+  size_t freeCount_ids; // Number of free IDs
+  size_t nextId;        // Next unique ID for truly new entities
+} EntityPool;
+void update_spawners(float frameTime, Entity *e, EntityPool *entityPool);
 
 typedef struct {
-  char *base;
+  uint8_t *base;
   size_t size;
   size_t used;
 } memory_arena;
 
-memory_arena initialize_arena(void *buffer, size_t arena_size) {
-  memory_arena arena = {0};
-  arena.base = (char *)buffer;
-  arena.size = arena_size;
-  arena.used = 0;
-  return arena;
-}
+#define memory_index                                                           \
+  size_t // from casey experiment and see if this is good way to do this
 
-void *arena_alloc(memory_arena *arena, size_t size) {
-  size_t mask = 7; // aligned to 8-1 for mask
-  size_t aligned_used = (arena->used + mask) & ~mask;
-  Assert(aligned_used + size <= arena->size);
-  if (aligned_used + size > arena->size) {
-    return NULL;
-  }
-  void *ptr = arena->base + aligned_used;
-  arena->used = aligned_used + size;
-  return ptr;
-}
-
-int arena_free(memory_arena *arena) {
+void arena_init(memory_arena *arena, uint8_t *base, memory_index arena_size) {
+  arena->base = base;
+  arena->size = arena_size;
   arena->used = 0;
-  memset(arena->base, 0, arena->size);
-  return 0;
 }
+
+#define arena_PushStruct(Arena, type) (type *)_PushStruct(Arena, sizeof(type))
+#define arena_PushStructs(Arena, type, count)                                  \
+  (type *)_PushStruct(Arena, sizeof(type) * count)
+// Ment for internal use do not call
+// Zeroes out the pushed struct
+static void *_PushStruct(memory_arena *arena, size_t size) {
+  Assert(arena->used + size <= arena->size);
+  void *result = arena->base + arena->used;
+  arena->used += size;
+  return result;
+}
+
+// Initialize the entity pool
+static EntityPool *EntityPoolInitInArena(memory_arena *arena, size_t capacity) {
+  EntityPool *pool = arena_PushStruct(arena, EntityPool);
+  pool->capacity = capacity;
+  pool->entities_sparse = (size_t *)arena_PushStructs(
+      arena, size_t, capacity + 1); // +1 for unused index 0
+  pool->entities_dense = (Entity *)arena_PushStructs(arena, Entity, capacity);
+  pool->freeList_ids =
+      (size_t *)arena_PushStructs(arena, size_t, capacity); // Free ID stack
+  pool->freeCount_ids = 0; // No free IDs initially
+  pool->nextId = 1;        // Start at 1
+  pool->count_dense = 0;
+
+  for (size_t i = 0; i <= capacity; i++) { // Include index 0
+    pool->entities_sparse[i] = SIZE_MAX;
+  }
+
+  return pool;
+}
+void PrintSparseAndDense(EntityPool *pool, size_t start, size_t end) {
+  if (start >= pool->capacity) {
+    printf("Error: Start index out of bounds.\n");
+    return;
+  }
+  if (end > pool->capacity) {
+    end = pool->capacity; // Clamp the end index to the capacity
+  }
+
+  printf("Sparse Array (from %zu to %zu):\n", start, end);
+  for (size_t i = start; i < end; i++) {
+    printf("Sparse[%zu] = %zu\n", i, pool->entities_sparse[i]);
+  }
+
+  printf("\nDense Array (from %zu to %zu):\n", start, end);
+  for (size_t i = start; i < end && i < pool->count_dense; i++) {
+    printf("Dense[%zu] = { ID: %zu }\n", i, pool->entities_dense[i].id);
+  }
+  printf("\n");
+}
+static size_t EntityPoolGetNextId(EntityPool *pool) {
+  if (pool->freeCount_ids > 0) {
+    return pool
+        ->freeList_ids[--pool->freeCount_ids]; // Pop the ID from the free list
+  } else {
+    return pool->nextId++; // return new id
+  }
+}
+
+static void EntityPoolPush(EntityPool *pool, Entity entity) {
+  // If supplied entity ID == 0 -> choose id for it
+  if (entity.id == 0) {
+    entity.id = EntityPoolGetNextId(pool);
+  } else {
+    // If ID is pre-assigned, ensure it's free and valid
+    // TODO: do i want to add flag to override exisiting? or do i want to delete
+    // it first and then push new one?
+    Assert(entity.id <= pool->capacity);
+    Assert(pool->entities_sparse[entity.id] ==
+           SIZE_MAX); // Ensure ID slot is free (prevent duplicates)
+  }
+  // Assert incase someone changes entity id to be not unsigned
+  Assert(entity.id >= 0)
+
+      // currently pool doesnt grow. assert entity is fits the pool
+      Assert(entity.id <= pool->capacity);
+  if (pool->count_dense < pool->capacity) {
+    // Add to the end of the dense array
+    pool->entities_dense[pool->count_dense] = entity;
+    pool->entities_sparse[entity.id] =
+        pool->count_dense; // Use entity.id directly
+    pool->count_dense++;
+  } else {
+    printf("Error: Entity capacity reached.\n");
+  }
+}
+
+static void EntityPoolRemoveIdx(EntityPool *pool, size_t idx) {
+  // Safety check: Ensure the pool has entities and the ID is valid/active
+  if (pool->count_dense == 0) {
+    // printf("Warning: Attempted to remove from an empty EntityPool.\n");
+    return;
+  }
+  if (idx == 0 || idx > pool->capacity) {
+    // printf("Warning: Invalid ID %zu for removal (out of range).\n", idx);
+    return;
+  }
+  size_t denseIndex = pool->entities_sparse[idx]; // Use idx directly
+  if (denseIndex == SIZE_MAX || denseIndex >= pool->count_dense) {
+    // printf("Warning: ID %zu is not active or invalid for removal.\n", idx);
+    return;
+  }
+
+  // Swap with the last entity (even if it's the same)
+  pool->entities_dense[denseIndex] =
+      pool->entities_dense[pool->count_dense - 1];
+  size_t swappedId = pool->entities_dense[denseIndex].id;
+  pool->entities_sparse[swappedId] = denseIndex; // Use swappedId directly
+
+  // Mark removed ID as free
+  pool->entities_sparse[idx] = SIZE_MAX; // Use idx directly
+  pool->freeList_ids[pool->freeCount_ids++] = idx;
+  pool->count_dense--;
+}
+
 typedef struct {
   Input lastFrameInput;
   Vector2 mouseDelta;
-  Entities entities;
   Mesh instancedMesh;
   Input inputLastFrame;
   bool instancedMeshUpdated;
   memory_arena permanentArena;
   memory_arena transientArena;
+  EntityPool *entityPool; // stores entities
+  Vector3 minBounds;
+  Vector3 maxBounds;
 } GameState;
 static Mesh GenMeshCube(memory_arena *arena, float width, float height,
                         float length) {
@@ -168,23 +284,22 @@ static Mesh GenMeshCube(memory_arena *arena, float width, float height,
     k++;
   }
 
-  mesh.vertices = (float *)arena_alloc(arena, 24 * 3 * sizeof(float));
+  mesh.vertices = arena_PushStructs(arena, float, 24 * 3);
   if (!mesh.vertices)
     return mesh; // Allocation failed
   memcpy(mesh.vertices, vertices, 24 * 3 * sizeof(float));
 
-  mesh.texcoords = (float *)arena_alloc(arena, 24 * 2 * sizeof(float));
+  mesh.texcoords = arena_PushStructs(arena, float, 24 * 2);
   if (!mesh.texcoords)
     return mesh;
   memcpy(mesh.texcoords, texcoords, 24 * 2 * sizeof(float));
 
-  mesh.normals = (float *)arena_alloc(arena, 24 * 3 * sizeof(float));
+  mesh.normals = arena_PushStructs(arena, float, 24 * 3);
   if (!mesh.normals)
     return mesh;
   memcpy(mesh.normals, normals, 24 * 3 * sizeof(float));
 
-  mesh.indices =
-      (unsigned short *)arena_alloc(arena, 36 * sizeof(unsigned short));
+  mesh.indices = arena_PushStructs(arena, unsigned short, 36);
   if (!mesh.indices)
     return mesh;
   memcpy(mesh.indices, indices, 36 * sizeof(unsigned short));
@@ -212,3 +327,52 @@ static inline bool is_key_up(Input *current, int key) {
 
 #define KEY_SPACE 32
 #define KEY_ENTER 257
+#define KEY_ESCAPE 256
+#define KEY_BACKSPACE 259
+#define KEY_TAB 258
+#define KEY_LEFT_SHIFT 340
+#define KEY_LEFT_CONTROL 341
+#define KEY_LEFT_ALT 342
+#define KEY_RIGHT_SHIFT 344
+#define KEY_RIGHT_CONTROL 345
+#define KEY_RIGHT_ALT 346
+#define KEY_A 65
+#define KEY_B 66
+#define KEY_C 67
+#define KEY_D 68
+#define KEY_E 69
+#define KEY_F 70
+#define KEY_G 71
+#define KEY_H 72
+#define KEY_I 73
+#define KEY_J 74
+#define KEY_K 75
+#define KEY_L 76
+#define KEY_M 77
+#define KEY_N 78
+#define KEY_O 79
+#define KEY_P 80
+#define KEY_Q 81
+#define KEY_R 82
+#define KEY_S 83
+#define KEY_T 84
+#define KEY_U 85
+#define KEY_V 86
+#define KEY_W 87
+#define KEY_X 88
+#define KEY_Y 89
+#define KEY_Z 90
+#define KEY_0 48
+#define KEY_1 49
+#define KEY_2 50
+#define KEY_3 51
+#define KEY_4 52
+#define KEY_5 53
+#define KEY_6 54
+#define KEY_7 55
+#define KEY_8 56
+#define KEY_9 57
+#define KEY_LEFT 263
+#define KEY_RIGHT 262
+#define KEY_UP 265
+#define KEY_DOWN 264

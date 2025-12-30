@@ -145,7 +145,9 @@ GAME_UPDATE(game_update_stub) {
 typedef enum {
   RENDER_RECTANGLE,
   RENDER_CIRCLE,
-  RENDER_INSTANCED
+  RENDER_INSTANCED,
+  RENDER_CUBE_3D,
+  RENDER_LINE_3D
 } RenderCommandType;
 
 typedef struct {
@@ -165,6 +167,19 @@ typedef struct {
       Material *material;
       size_t count;
     } instance;
+    struct {
+      Vector3 start;
+      Vector3 end;
+      Color color;
+    } line3D;
+    struct {
+      bool wireFrame;
+      int origin; // 0 = center, 1 = ???, 2 = ??
+      float height;
+      float width;
+      float depth;
+      Color color;
+    } cube3D;
   };
 } RenderCommand;
 

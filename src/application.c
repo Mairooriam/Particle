@@ -23,52 +23,82 @@ GAME_UPDATE(game_update) {
   if (!gameMemory->isInitialized) {
     size_t gameStateSize = sizeof(GameState);
     size_t permanentArenaSize = 32 * 1024 * 1024;
-
+    gameState->minBounds = (Vector3){0, 0, 0};
+    gameState->maxBounds = (Vector3){100, 100, 100};
     // Reserve space for arena, then calculate maxEntities from remaining
     size_t availableForEntities =
         gameMemory->permanentMemorySize - gameStateSize - permanentArenaSize;
     size_t maxEntities = availableForEntities / sizeof(Entity);
 
-    Entity *entitiesBuffer =
-        (Entity *)((char *)gameMemory->permamentMemory + gameStateSize);
-    Entities_init_with_buffer(&gameState->entities, maxEntities,
-                              entitiesBuffer);
-
+    // Entity *entitiesBuffer =
+    //     (Entity *)((char *)gameMemory->permamentMemory + gameStateSize);
+    // Entities_init_with_buffer(&gameState->entities, maxEntities,
+    //                           entitiesBuffer);
+    //
     // Initialize arenas
     size_t permanentArenaOffset = gameStateSize + maxEntities * sizeof(Entity);
     void *permanentArenaBase =
         (char *)gameMemory->permamentMemory + permanentArenaOffset;
     Assert(permanentArenaSize > 0);
 
-    gameState->permanentArena =
-        initialize_arena(permanentArenaBase, permanentArenaSize);
-    gameState->transientArena = initialize_arena(
-        gameMemory->transientMemory, gameMemory->transientMemorySize);
-
+    arena_init(&gameState->permanentArena, permanentArenaBase,
+               permanentArenaSize);
+    arena_init(&gameState->transientArena, gameMemory->transientMemory,
+               gameMemory->transientMemorySize);
+    size_t entityCapacity = 100000;
+    gameState->entityPool =
+        EntityPoolInitInArena(&gameState->permanentArena, entityCapacity);
     // Mesh generation
     gameState->instancedMesh =
         GenMeshCube(&gameState->permanentArena, 1.0f, 1.0f, 1.0f);
     gameState->instancedMeshUpdated = true;
 
-    Entity player = entity_create_physics_particle((Vector3){400, 300, 200},
-                                                   (Vector3){0, 9.81, 0});
+    Entity player =
+        entity_create_physics_particle((Vector3){0, 0, 0}, (Vector3){0, 0, 0});
     player.followMouse = true;
-    entity_add(&gameState->entities, player);
-
+    EntityPoolPush(gameState->entityPool, player);
     Entity spawner = entity_create_spawner_entity();
-    entity_add(&gameState->entities, spawner);
+    EntityPoolPush(gameState->entityPool, spawner);
+    // entity_add(&gameState->entities, spawner);
 
     gameMemory->isInitialized = true;
   }
 
   gameState->mouseDelta =
       Vector2Subtract(input->mousePos, gameState->lastFrameInput.mousePos);
+  // float speed = 10.0f;
+  // if (is_key_down(input, KEY_W)) {
+  //   input->camera.position.z += speed * frameTime;
+  // }
+  // if (is_key_down(input, KEY_S)) {
+  //   input->camera.position.z -= speed * frameTime;
+  // }
+  // if (is_key_down(input, KEY_A)) {
+  //   input->camera.position.x -= speed * frameTime;
+  // }
+  // if (is_key_down(input, KEY_D)) {
+  //   input->camera.position.x += speed * frameTime;
+  // }
+  // if (is_key_down(input, KEY_Q)) {
+  // }
+  // if (is_key_down(input, KEY_E)) {
+  // }
 
   if (is_key_pressed(input, &gameState->lastFrameInput, KEY_SPACE)) {
+    // NUKE half of entitieseses
+    static size_t idx = 0;
+    for (size_t i = 0; i < gameState->entityPool->count_dense; i++) {
+      Entity *e = &gameState->entityPool->entities_dense[i];
+      if (idx % 2) {
+        EntityPoolRemoveIdx(gameState->entityPool, e->id);
+      }
+      idx++;
+    }
     printf("Space pressed!\n");
   }
 
   if (is_key_released(input, &gameState->lastFrameInput, KEY_SPACE)) {
+    PrintSparseAndDense(gameState->entityPool, 0, 50);
     printf("Space released!\n");
   }
 
@@ -76,20 +106,24 @@ GAME_UPDATE(game_update) {
     printf("Space is down!\n");
   }
 
-  Entities *entities = &gameState->entities;
+  EntityPool *entityPool = gameState->entityPool;
 
   // Update entities
-  for (size_t i = 0; i < entities->count; i++) {
-    Entity *e = &entities->items[i];
+  for (size_t i = 0; i < entityPool->count_dense; i++) {
+    Entity *e = &entityPool->entities_dense[i];
     if (e->flags & ENTITY_FLAG_ACTIVE) {
       if (e->flags & ENTITY_FLAG_HAS_TRANSFORM) {
-        e->c_transform.a = (Vector3){0, 9.81, 0};
+        // e->c_transform.a = (Vector3){0, 9.81, 0};
         update_entity_position(e, frameTime, input->mousePos);
-        update_entity_boundaries(e, 800, 0, 600, 0, 100,
-                                 -100); // Added Z bounds
+        update_entity_boundaries(e, gameState->maxBounds.x,
+                                 gameState->minBounds.x, gameState->maxBounds.y,
+                                 gameState->minBounds.y, gameState->maxBounds.z,
+                                 gameState->minBounds.z);
       }
       if (e->flags & ENTITY_FLAG_HAS_SPAWNER) {
-        update_spawners(frameTime, e, entities);
+        e->c_transform.v =
+            Vector3Add(e->c_transform.v, (Vector3){1, 2.0f, 0.5f});
+        update_spawners(frameTime, e, entityPool);
       }
     }
   }
@@ -105,8 +139,10 @@ GAME_UPDATE(game_update) {
       (gameMemory->transientMemorySize - sizeof(RenderQueue)) / sizeof(Matrix);
   size_t sphereCount = 0;
 
-  for (size_t i = 0; i < entities->count && sphereCount < maxTransforms; i++) {
-    Entity *e = &entities->items[i];
+  for (size_t i = 0;
+       i < gameState->entityPool->count_dense && sphereCount < maxTransforms;
+       i++) {
+    Entity *e = &gameState->entityPool->entities_dense[i];
     if ((e->flags & ENTITY_FLAG_VISIBLE) &&
         (e->flags & ENTITY_FLAG_HAS_RENDER)) {
       // Collect transform for instanced drawing
@@ -127,16 +163,92 @@ GAME_UPDATE(game_update) {
                                       sphereTransforms, NULL, sphereCount}};
     push_render_command(renderQueue, cmd);
   }
+  RenderCommand cubeCmd = {
+      RENDER_CUBE_3D,
+      .cube3D = {false, 1, 100.0f, 100.0f, 100.0f,
+                 (Color){255, 0, 0, 10}}}; // wireFrame=false, origin=0
+                                           // (center), dimensions, color
+  push_render_command(renderQueue, cubeCmd);
+
+  Color boundsColorX = (Color){255, 0, 0, 200};
+  Color boundsColorY = (Color){0, 0, 255, 200};
+  Color boundsColorZ = (Color){0, 255, 0, 200};
+
+  Vector3 min = gameState->minBounds;
+  Vector3 max = gameState->maxBounds;
+  // Bottom face
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, min.y, min.z},
+                                                 (Vector3){max.x, min.y, min.z},
+                                                 boundsColorX}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, min.y, min.z},
+                                                 (Vector3){max.x, max.y, min.z},
+                                                 boundsColorX}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, max.y, min.z},
+                                                 (Vector3){min.x, max.y, min.z},
+                                                 boundsColorY}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, max.y, min.z},
+                                                 (Vector3){min.x, min.y, min.z},
+                                                 boundsColorY}});
+  // Top face
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, min.y, max.z},
+                                                 (Vector3){max.x, min.y, max.z},
+                                                 boundsColorZ}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, min.y, max.z},
+                                                 (Vector3){max.x, max.y, max.z},
+                                                 boundsColorZ}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, max.y, max.z},
+                                                 (Vector3){min.x, max.y, max.z},
+                                                 boundsColorX}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, max.y, max.z},
+                                                 (Vector3){min.x, min.y, max.z},
+                                                 boundsColorX}});
+  // Vertical edges
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, min.y, min.z},
+                                                 (Vector3){min.x, min.y, max.z},
+                                                 boundsColorY}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, min.y, min.z},
+                                                 (Vector3){max.x, min.y, max.z},
+                                                 boundsColorX}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, max.y, min.z},
+                                                 (Vector3){max.x, max.y, max.z},
+                                                 boundsColorZ}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, max.y, min.z},
+                                                 (Vector3){min.x, max.y, max.z},
+                                                 boundsColorY}});
 
   gameState->lastFrameInput = *input;
 }
 
-void update_spawners(float frameTime, Entity *e, Entities *entities) {
+void update_spawners(float frameTime, Entity *e, EntityPool *entityPool) {
   e->clock += frameTime;
   if (e->clock > (1 / e->spawnRate)) {
     for (size_t i = 0; i < e->spawnCount; i++) {
       e->spawnEntity->c_transform.pos = e->c_transform.pos;
-      entity_add(entities, *e->spawnEntity);
+      EntityPoolPush(entityPool, *e->spawnEntity);
     }
     e->clock = 0.0f;
   }
@@ -198,18 +310,7 @@ void update_entity_boundaries(Entity *e, float x_bound, float x_bound_min,
     cTp1->v.z = cTp1->v.z * -1;
   }
 }
-void entity_add(Entities *entities, Entity entity) {
-  if (!entities) {
-    fprintf(stderr, "Entities pointer is NULL\n");
-    return;
-  }
-  if (entities->count >= entities->capacity) {
-    fprintf(stderr, "Entities buffer is full, cannot add more entities\n");
-    return;
-  }
-  entity.id = entities->count;
-  entities->items[entities->count++] = entity;
-}
+
 Entity entity_create_physics_particle(Vector3 pos, Vector3 velocity) {
   Entity e = {0};
   e.flags = ENTITY_FLAG_ACTIVE | ENTITY_FLAG_VISIBLE | ENTITY_FLAG_COLLIDING |
@@ -235,23 +336,24 @@ Entity entity_create_physics_particle(Vector3 pos, Vector3 velocity) {
 
 Entity entity_create_spawner_entity() {
   Entity e = {0};
-  e.flags =
-      ENTITY_FLAG_HAS_SPAWNER | ENTITY_FLAG_ACTIVE | ENTITY_FLAG_HAS_TRANSFORM;
+  e.flags = ENTITY_FLAG_HAS_SPAWNER | ENTITY_FLAG_ACTIVE |
+            ENTITY_FLAG_HAS_TRANSFORM | ENTITY_FLAG_HAS_RENDER |
+            ENTITY_FLAG_VISIBLE;
 
   e.spawnRate = 20.0f;
   e.clock = 0;
   // e.followMouse = true;
   e.c_render = (c_Render){.renderRadius = 24.0f,
                           .color = {.r = 0, .b = 255, .g = 0, .a = 200}};
-  e.spawnCount = 5;
+  e.spawnCount = 1;
   e.c_transform = (c_Transform){.pos = {.x = 0, .y = 0, .z = 0},
-                                .v = {.x = 0, .y = 0, .z = 0},
-                                .a = {.x = 0, .y = 0, .z = 0},
+                                .v = {.x = 50, .y = 50, .z = 50},
+                                .a = {.x = 0, .y = 9.81, .z = 0},
                                 .restitution = 0.90f};
   e.spawnEntity = malloc(sizeof(Entity));
 
-  *e.spawnEntity = entity_create_physics_particle((Vector3){0, 0, 0},
-                                                  (Vector3){100, 100, 0});
-  e.spawnEntity->c_transform.a = (Vector3){0, 9.81, 0};
+  *e.spawnEntity =
+      entity_create_physics_particle((Vector3){0, 0, 0}, (Vector3){0, 0, 0});
+  e.spawnEntity->c_transform.a = (Vector3){0, 0, 0};
   return e;
 }
