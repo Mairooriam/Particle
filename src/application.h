@@ -30,15 +30,14 @@ static Matrix MatrixTranslate(float x, float y, float z) {
 
   return result;
 }
-static inline Vector3 Vector3Lerp(Vector3 v1, Vector3 v2, float amount)
-{
-    Vector3 result = { 0 };
+static inline Vector3 Vector3Lerp(Vector3 v1, Vector3 v2, float amount) {
+  Vector3 result = {0};
 
-    result.x = v1.x + amount*(v2.x - v1.x);
-    result.y = v1.y + amount*(v2.y - v1.y);
-    result.z = v1.z + amount*(v2.z - v1.z);
+  result.x = v1.x + amount * (v2.x - v1.x);
+  result.y = v1.y + amount * (v2.y - v1.y);
+  result.z = v1.z + amount * (v2.z - v1.z);
 
-    return result;
+  return result;
 }
 // ================================
 // ENTITY FLAGS (up to 64, using uint64_t)
@@ -90,15 +89,25 @@ static inline void Entities_init_with_buffer(Entities *da, size_t cap,
 
 // TODO: make entities_dense be entities Dynamic array so it has count when
 // passed around?
+
 typedef struct {
-  size_t *entities_sparse;
-  Entity *entities_dense; // Array of entities
-  size_t count_dense;   // Number of active entities basically count of entities
-                        // in dense array
-  size_t capacity;      // Total capacity of the array
-  size_t *freeList_ids; // Stack of free IDs for reuse
-  size_t freeCount_ids; // Number of free IDs
-  size_t nextId;        // Next unique ID for truly new entities
+  Entity *items;
+  size_t count;
+  size_t capacity;
+} arr_Entity;
+
+typedef struct {
+  size_t *items;
+  size_t count;
+  size_t capacity;
+} arr_size_t;
+
+typedef struct {
+  arr_size_t entities_sparse; // stores indicies for entities located in dense
+  arr_Entity entities_dense;  // contigious entity arr
+  size_t capacity; // Total capacity of pool. other arrays share the same size
+  arr_size_t freeIds;
+  size_t nextId; // Next unique ID
 } EntityPool;
 void update_spawners(float frameTime, Entity *e, EntityPool *entityPool);
 
@@ -133,17 +142,27 @@ static void *_PushStruct(memory_arena *arena, size_t size) {
 static EntityPool *EntityPoolInitInArena(memory_arena *arena, size_t capacity) {
   EntityPool *pool = arena_PushStruct(arena, EntityPool);
   pool->capacity = capacity;
-  pool->entities_sparse = (size_t *)arena_PushStructs(
-      arena, size_t, capacity + 1); // +1 for unused index 0
-  pool->entities_dense = (Entity *)arena_PushStructs(arena, Entity, capacity);
-  pool->freeList_ids =
-      (size_t *)arena_PushStructs(arena, size_t, capacity); // Free ID stack
-  pool->freeCount_ids = 0; // No free IDs initially
-  pool->nextId = 1;        // Start at 1
-  pool->count_dense = 0;
 
-  for (size_t i = 0; i <= capacity; i++) { // Include index 0
-    pool->entities_sparse[i] = SIZE_MAX;
+  pool->entities_sparse.items = (size_t *)arena_PushStructs(
+      arena, size_t, capacity + 1); // +1 for unused index 0
+  pool->entities_sparse.capacity = capacity + 1;
+  pool->entities_sparse.count = 0;
+
+  pool->entities_dense.items =
+      (Entity *)arena_PushStructs(arena, Entity, capacity);
+  pool->entities_dense.capacity = capacity;
+  pool->entities_dense.count = 0;
+
+  pool->freeIds.items =
+      (size_t *)arena_PushStructs(arena, size_t, capacity); // Free ID stack
+  pool->freeIds.capacity = capacity;
+  pool->freeIds.count = 0;
+
+  pool->nextId = 1; // Start at 1
+
+  for (size_t i = 0; i <= pool->entities_sparse.capacity;
+       i++) { // Include index 0 (though not used)
+    pool->entities_sparse.items[i] = SIZE_MAX;
   }
 
   return pool;
@@ -159,19 +178,18 @@ void PrintSparseAndDense(EntityPool *pool, size_t start, size_t end) {
 
   printf("Sparse Array (from %zu to %zu):\n", start, end);
   for (size_t i = start; i < end; i++) {
-    printf("Sparse[%zu] = %zu\n", i, pool->entities_sparse[i]);
+    printf("Sparse[%zu] = %zu\n", i, pool->entities_sparse.items[i]);
   }
 
   printf("\nDense Array (from %zu to %zu):\n", start, end);
-  for (size_t i = start; i < end && i < pool->count_dense; i++) {
-    printf("Dense[%zu] = { ID: %zu }\n", i, pool->entities_dense[i].id);
+  for (size_t i = start; i < end && i < pool->entities_dense.count; i++) {
+    printf("Dense[%zu] = { ID: %zu }\n", i, pool->entities_dense.items[i].id);
   }
   printf("\n");
 }
 static size_t EntityPoolGetNextId(EntityPool *pool) {
-  if (pool->freeCount_ids > 0) {
-    return pool
-        ->freeList_ids[--pool->freeCount_ids]; // Pop the ID from the free list
+  if (pool->freeIds.count > 0) {
+    return pool->freeIds.items[--pool->freeIds.count];
   } else {
     return pool->nextId++; // return new id
   }
@@ -186,7 +204,7 @@ static void EntityPoolPush(EntityPool *pool, Entity entity) {
     // TODO: do i want to add flag to override exisiting? or do i want to delete
     // it first and then push new one?
     Assert(entity.id <= pool->capacity);
-    Assert(pool->entities_sparse[entity.id] ==
+    Assert(pool->entities_sparse.items[entity.id] ==
            SIZE_MAX); // Ensure ID slot is free (prevent duplicates)
   }
   // Assert incase someone changes entity id to be not unsigned
@@ -194,12 +212,12 @@ static void EntityPoolPush(EntityPool *pool, Entity entity) {
 
       // currently pool doesnt grow. assert entity is fits the pool
       Assert(entity.id <= pool->capacity);
-  if (pool->count_dense < pool->capacity) {
+  if (pool->entities_dense.count < pool->capacity) {
     // Add to the end of the dense array
-    pool->entities_dense[pool->count_dense] = entity;
-    pool->entities_sparse[entity.id] =
-        pool->count_dense; // Use entity.id directly
-    pool->count_dense++;
+    pool->entities_dense.items[pool->entities_dense.count] = entity;
+    pool->entities_sparse.items[entity.id] =
+        pool->entities_dense.count; // Use entity.id directly
+    pool->entities_dense.count++;
   } else {
     printf("Error: Entity capacity reached.\n");
   }
@@ -207,7 +225,7 @@ static void EntityPoolPush(EntityPool *pool, Entity entity) {
 
 static void EntityPoolRemoveIdx(EntityPool *pool, size_t idx) {
   // Safety check: Ensure the pool has entities and the ID is valid/active
-  if (pool->count_dense == 0) {
+  if (pool->entities_dense.count == 0) {
     // printf("Warning: Attempted to remove from an empty EntityPool.\n");
     return;
   }
@@ -215,22 +233,22 @@ static void EntityPoolRemoveIdx(EntityPool *pool, size_t idx) {
     // printf("Warning: Invalid ID %zu for removal (out of range).\n", idx);
     return;
   }
-  size_t denseIndex = pool->entities_sparse[idx]; // Use idx directly
-  if (denseIndex == SIZE_MAX || denseIndex >= pool->count_dense) {
+  size_t denseIndex = pool->entities_sparse.items[idx]; // Use idx directly
+  if (denseIndex == SIZE_MAX || denseIndex >= pool->entities_dense.count) {
     // printf("Warning: ID %zu is not active or invalid for removal.\n", idx);
     return;
   }
 
   // Swap with the last entity (even if it's the same)
-  pool->entities_dense[denseIndex] =
-      pool->entities_dense[pool->count_dense - 1];
-  size_t swappedId = pool->entities_dense[denseIndex].id;
-  pool->entities_sparse[swappedId] = denseIndex; // Use swappedId directly
+  pool->entities_dense.items[denseIndex] =
+      pool->entities_dense.items[pool->entities_dense.count - 1];
+  size_t swappedId = pool->entities_dense.items[denseIndex].id;
+  pool->entities_sparse.items[swappedId] = denseIndex; // Use swappedId directly
 
   // Mark removed ID as free
-  pool->entities_sparse[idx] = SIZE_MAX; // Use idx directly
-  pool->freeList_ids[pool->freeCount_ids++] = idx;
-  pool->count_dense--;
+  pool->entities_sparse.items[idx] = SIZE_MAX; // Use idx directly
+  pool->freeIds.items[pool->freeIds.count++] = idx;
+  pool->entities_dense.count--;
 }
 
 typedef struct {
