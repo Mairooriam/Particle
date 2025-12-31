@@ -51,8 +51,8 @@ GAME_UPDATE(game_update) {
   if (is_key_pressed(input, &gameState->lastFrameInput, KEY_SPACE)) {
     // NUKE half of entitieseses
     static size_t idx = 0;
-    for (size_t i = 0; i < gameState->entityPool->count_dense; i++) {
-      Entity *e = &gameState->entityPool->entities_dense[i];
+    for (size_t i = 0; i < gameState->entityPool->entities_dense.count; i++) {
+      Entity *e = &gameState->entityPool->entities_dense.items[i];
       if (idx % 2) {
         EntityPoolRemoveIdx(gameState->entityPool, e->id);
       }
@@ -73,8 +73,8 @@ GAME_UPDATE(game_update) {
   EntityPool *entityPool = gameState->entityPool;
 
   // Update entities
-  for (size_t i = 0; i < entityPool->count_dense; i++) {
-    Entity *e = &entityPool->entities_dense[i];
+  for (size_t i = 0; i < entityPool->entities_dense.count; i++) {
+    Entity *e = &entityPool->entities_dense.items[i];
     if (e->flags & ENTITY_FLAG_ACTIVE) {
       if (e->flags & ENTITY_FLAG_HAS_TRANSFORM) {
         e->c_transform.a = (Vector3){0, -9.81, 0};
@@ -105,10 +105,10 @@ GAME_UPDATE(game_update) {
       (gameMemory->transientMemorySize - sizeof(RenderQueue)) / sizeof(Matrix);
   size_t sphereCount = 0;
 
-  for (size_t i = 0;
-       i < gameState->entityPool->count_dense && sphereCount < maxTransforms;
+  for (size_t i = 0; i < gameState->entityPool->entities_dense.count &&
+                     sphereCount < maxTransforms;
        i++) {
-    Entity *e = &gameState->entityPool->entities_dense[i];
+    Entity *e = &gameState->entityPool->entities_dense.items[i];
     if ((e->flags & ENTITY_FLAG_VISIBLE) &&
         (e->flags & ENTITY_FLAG_HAS_RENDER)) {
       // Collect transform for instanced drawing
