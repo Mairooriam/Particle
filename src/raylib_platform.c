@@ -1,16 +1,23 @@
 
 #include <raylib.h>
+#include "fix_win32_compatibility.h"
 #include "rlgl.h"
 #include "raymath.h"
 #include "raylib_platfrom.h"
 
 #include "log.h"
+#include "shared.h"
 
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <winnt.h>
+
+// TODO: fix timestep https://gafferongames.com/post/fix_your_timestep/
+// TODO: Clean up hotloop code
+// TODO: clean up this pile of code
 
 static FILETIME getFileLastWriteTime(const char *filename) {
   FILETIME result;
@@ -80,6 +87,37 @@ static void ConcatStrings(size_t sourceACount, char *sourceAstr,
   }
   *destStr++ = 0;
 }
+
+void saveGameMemory(const char *filePath, GameMemory *gameMemory) {
+  HANDLE file = CreateFileA(filePath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+                            FILE_ATTRIBUTE_NORMAL, NULL);
+  Assert(file != INVALID_HANDLE_VALUE);
+
+  DWORD bytesWritten;
+  BOOL result = WriteFile(file, gameMemory->permamentMemory,
+                          gameMemory->permanentMemorySize, &bytesWritten, NULL);
+  // Optionally check if bytesWritten == gameMemory->permanentMemorySize
+  Assert(
+      result !=
+      0) // Will break stuff down the line. add handling if u come accros this.
+      CloseHandle(file);
+}
+
+void loadGameMemory(const char *filePath, GameMemory *gameMemory) {
+  HANDLE file = CreateFileA(filePath, GENERIC_READ, 0, NULL, OPEN_EXISTING,
+                            FILE_ATTRIBUTE_NORMAL, NULL);
+  Assert(file != INVALID_HANDLE_VALUE);
+
+  DWORD bytesRead;
+  BOOL result = ReadFile(file, gameMemory->permamentMemory,
+                         gameMemory->permanentMemorySize, &bytesRead, NULL);
+  Assert(
+      result !=
+      0); // Will break stuff down the line. add handling if u come accros this.
+  Assert(bytesRead == gameMemory->permanentMemorySize);
+  CloseHandle(file);
+}
+
 // TODO: use something other than raylib?
 static void collect_input(Input *input) {
   input->mousePos = GetMousePosition();
@@ -90,6 +128,19 @@ static void collect_input(Input *input) {
     input->keys[i] = IsKeyDown(i);
   }
 }
+
+// static void appendToFile(FILE *h, void *base, size_t size) {
+//   BOOL result = WriteFile(h, base, size, NULL, NULL);
+// }
+
+static void save_input_to_file(HANDLE h, Input *input) {
+  DWORD written;
+  BOOL result = WriteFile(h, input, sizeof(Input), &written, NULL);
+  Assert(written == sizeof(Input));
+  // Will break stuff down the line. add handling if u come accros this.
+  Assert(result != 0);
+}
+
 int main() {
   char EXEDirPath[MAX_PATH];
   DWORD SizeOfFilename = GetModuleFileNameA(0, EXEDirPath, sizeof(EXEDirPath));
@@ -146,7 +197,6 @@ int main() {
   }
   Input input = {0};
   SetTargetFPS(60);
-  float frameTime = 1.0f;
 
   // TODO: 3D CODE move out of here in future
   Camera3D camera = {.position = (Vector3){100, 100, 100},
@@ -166,9 +216,30 @@ int main() {
   matinstances.maps[MATERIAL_MAP_DIFFUSE].color = RED;
   // END OF 3D SHIT
   bool isCursorDisabled = true;
+  bool recordingInput = false;
+  bool playBackOn = false;
+  HANDLE inputFileHandle = NULL;
+  Input loadedInput = {0};
   DisableCursor();
+
+  double t = 0.0;
+  const double dt = 1.0 / 40.0;
+  double currentTime = GetTime();
+  double accumulator = 0.0;
+  Camera3D previousCamera = input.camera;
+  Camera3D currentCamera = input.camera;
+
   while (!WindowShouldClose()) {
+    double newTime = GetTime();
+    double frameTime = newTime - currentTime;
+    if (frameTime > 0.25)
+      frameTime = 0.25;
+    currentTime = newTime;
+    accumulator += frameTime;
+
+    previousCamera = currentCamera;
     Vector3 oldPosition = input.camera.position;
+
     if (isCursorDisabled) {
       UpdateCamera(&input.camera, CAMERA_FREE);
       Vector3 positionDelta =
@@ -177,9 +248,25 @@ int main() {
       input.camera.position =
           Vector3Add(oldPosition, Vector3Scale(positionDelta, speedMultiplier));
     }
+    currentCamera = input.camera;
 
-    frameTime = GetFrameTime();
-    collect_input(&input);
+    if (playBackOn) {
+      printf("playing back input\n");
+      DWORD bytesRead;
+      BOOL result = ReadFile(inputFileHandle, &loadedInput, sizeof(Input),
+                             &bytesRead, NULL);
+      if (!result || bytesRead != sizeof(Input)) {
+        loadGameMemory("test.tmp", &gameMemory);
+        SetFilePointer(inputFileHandle, 0, NULL, FILE_BEGIN);
+      } else {
+        input = loadedInput;
+      }
+    } else {
+      collect_input(&input);
+    }
+    if (playBackOn) {
+      input = loadedInput;
+    }
 
     if (code.reloadDLLRequested) {
       code.clock += frameTime;
@@ -192,6 +279,44 @@ int main() {
         DisableCursor();
       }
       isCursorDisabled = !isCursorDisabled;
+    }
+    if (IsKeyPressed(KEY_F2)) {
+      recordingInput = recordingInput ? false : true;
+      if (recordingInput == true) {
+        CloseHandle(inputFileHandle);
+        saveGameMemory("test.tmp", &gameMemory);
+        inputFileHandle =
+            CreateFileA("input.tmp", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+                        FILE_ATTRIBUTE_NORMAL, NULL);
+
+      } else {
+        if (inputFileHandle) {
+          CloseHandle(inputFileHandle);
+          inputFileHandle =
+              CreateFileA("input.tmp", GENERIC_READ, 0, NULL, OPEN_EXISTING,
+                          FILE_ATTRIBUTE_NORMAL, NULL);
+        }
+      }
+    }
+    if (IsKeyPressed(KEY_F7)) {
+      saveGameMemory("test.tmp", &gameMemory);
+    }
+
+    if (IsKeyPressed(KEY_F8)) {
+      loadGameMemory("test.tmp", &gameMemory);
+    }
+    if (IsKeyPressed(KEY_F4)) {
+      playBackOn = playBackOn ? false : true;
+      if (playBackOn) {
+        // Reset file position to beginning for playback
+        if (inputFileHandle) {
+          SetFilePointer(inputFileHandle, 0, NULL, FILE_BEGIN);
+        }
+      }
+    }
+    if (recordingInput) {
+      printf("saving input each frame\n");
+      save_input_to_file(inputFileHandle, &input);
     }
 
     if (code.reloadDLLRequested && (code.clock >= code.reloadDLLDelay)) {
@@ -207,11 +332,25 @@ int main() {
       code.reloadDLLRequested = true;
     }
 
-    code.update(&gameMemory, &input, frameTime);
+    // https://gafferongames.com/post/fix_your_timestep/
+    // NOt sure how to add interpolation to my "state" because of the
+    // hotreload stuff....
+    while (accumulator >= dt) {
+      code.update(&gameMemory, &input, dt);
+      accumulator -= dt;
+      t += dt;
+    }
+
+    const double alpha = accumulator / dt;
+    Camera3D renderCamera = currentCamera;
+    renderCamera.position =
+        Vector3Lerp(previousCamera.position, currentCamera.position, alpha);
+    renderCamera.target =
+        Vector3Lerp(previousCamera.target, currentCamera.target, alpha);
 
     BeginDrawing();
     ClearBackground(RAYWHITE);
-    BeginMode3D(input.camera);
+    BeginMode3D(renderCamera);
     RenderQueue *renderQueue = (RenderQueue *)gameMemory.transientMemory;
     if (renderQueue->isMeshReloadRequired) {
       UploadMesh(&renderQueue->instanceMesh, false);

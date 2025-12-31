@@ -19,6 +19,7 @@ typedef struct {
   Vector3 a;         // acceleration
   float restitution; // 1 -> will bounce apart - 0 -> both will keep moving to
                      // same direction
+  Vector3 previousPos; // https://gafferongames.com/post/fix_your_timestep/
 } c_Transform;
 
 typedef struct {

@@ -1,5 +1,6 @@
 // application.c
 #include "application.h"
+#include "shared.h"
 #include "stdio.h"
 // if moving to c++ to prevent name mangling
 // extern "C" GAME_UPDATE(game_update) { pos->y++; }
@@ -121,6 +122,7 @@ GAME_UPDATE(game_update) {
                                  gameState->minBounds.z);
       }
       if (e->flags & ENTITY_FLAG_HAS_SPAWNER) {
+        // e->c_transform.v = (Vector3){0, 0, 0};
         e->c_transform.v =
             Vector3Add(e->c_transform.v, (Vector3){1, 2.0f, 0.5f});
         update_spawners(frameTime, e, entityPool);
@@ -166,7 +168,7 @@ GAME_UPDATE(game_update) {
   RenderCommand cubeCmd = {
       RENDER_CUBE_3D,
       .cube3D = {false, 1, 100.0f, 100.0f, 100.0f,
-                 (Color){255, 0, 0, 10}}}; // wireFrame=false, origin=0
+                 (Color){255, 0, 0, 50}}}; // wireFrame=false, origin=0
                                            // (center), dimensions, color
   push_render_command(renderQueue, cubeCmd);
 
