@@ -6,36 +6,18 @@
 // extern "C" GAME_UPDATE(game_update) { pos->y++; }
 GAME_UPDATE(game_update) {
   Assert(sizeof(GameState) <= gameMemory->permanentMemorySize);
-  // float lerpFactor = 0.5f;
-  // static float posZ = 1;
-  // if (posZ > 10) {
-  //   posZ = 1;
-  // } else {
-  //   posZ += 10;
-  // }
-  // input->camera.position.z = Lerp(1, posZ, lerpFactor);
-  // // cTp1->pos.y = Lerp(cTp1->pos.y, mouseWorldPos.y, lerpFactor);
-  // // cTp1->pos.z = 0.0f;
-  // // input->camera.position.z = 200;
-  // input->camera.target.x = 400;
-  // input->camera.target.y = 200;
 
   GameState *gameState = (GameState *)gameMemory->permamentMemory;
   if (!gameMemory->isInitialized) {
     size_t gameStateSize = sizeof(GameState);
     size_t permanentArenaSize = 32 * 1024 * 1024;
     gameState->minBounds = (Vector3){0, 0, 0};
-    gameState->maxBounds = (Vector3){100, 100, 100};
+    gameState->maxBounds = (Vector3){100, 100, 0};
     // Reserve space for arena, then calculate maxEntities from remaining
     size_t availableForEntities =
         gameMemory->permanentMemorySize - gameStateSize - permanentArenaSize;
     size_t maxEntities = availableForEntities / sizeof(Entity);
 
-    // Entity *entitiesBuffer =
-    //     (Entity *)((char *)gameMemory->permamentMemory + gameStateSize);
-    // Entities_init_with_buffer(&gameState->entities, maxEntities,
-    //                           entitiesBuffer);
-    //
     // Initialize arenas
     size_t permanentArenaOffset = gameStateSize + maxEntities * sizeof(Entity);
     void *permanentArenaBase =
@@ -60,30 +42,11 @@ GAME_UPDATE(game_update) {
     EntityPoolPush(gameState->entityPool, player);
     Entity spawner = entity_create_spawner_entity();
     EntityPoolPush(gameState->entityPool, spawner);
-    // entity_add(&gameState->entities, spawner);
-
     gameMemory->isInitialized = true;
   }
 
   gameState->mouseDelta =
       Vector2Subtract(input->mousePos, gameState->lastFrameInput.mousePos);
-  // float speed = 10.0f;
-  // if (is_key_down(input, KEY_W)) {
-  //   input->camera.position.z += speed * frameTime;
-  // }
-  // if (is_key_down(input, KEY_S)) {
-  //   input->camera.position.z -= speed * frameTime;
-  // }
-  // if (is_key_down(input, KEY_A)) {
-  //   input->camera.position.x -= speed * frameTime;
-  // }
-  // if (is_key_down(input, KEY_D)) {
-  //   input->camera.position.x += speed * frameTime;
-  // }
-  // if (is_key_down(input, KEY_Q)) {
-  // }
-  // if (is_key_down(input, KEY_E)) {
-  // }
 
   if (is_key_pressed(input, &gameState->lastFrameInput, KEY_SPACE)) {
     // NUKE half of entitieseses
@@ -114,7 +77,7 @@ GAME_UPDATE(game_update) {
     Entity *e = &entityPool->entities_dense[i];
     if (e->flags & ENTITY_FLAG_ACTIVE) {
       if (e->flags & ENTITY_FLAG_HAS_TRANSFORM) {
-        // e->c_transform.a = (Vector3){0, 9.81, 0};
+        e->c_transform.a = (Vector3){0, -9.81, 0};
         update_entity_position(e, frameTime, input->mousePos);
         update_entity_boundaries(e, gameState->maxBounds.x,
                                  gameState->minBounds.x, gameState->maxBounds.y,
@@ -125,6 +88,7 @@ GAME_UPDATE(game_update) {
         // e->c_transform.v = (Vector3){0, 0, 0};
         e->c_transform.v =
             Vector3Add(e->c_transform.v, (Vector3){1, 2.0f, 0.5f});
+        e->spawnRate = 100.0f;
         update_spawners(frameTime, e, entityPool);
       }
     }
@@ -167,7 +131,8 @@ GAME_UPDATE(game_update) {
   }
   RenderCommand cubeCmd = {
       RENDER_CUBE_3D,
-      .cube3D = {false, 1, 100.0f, 100.0f, 100.0f,
+      .cube3D = {false, 1, gameState->maxBounds.x, gameState->maxBounds.y,
+                 gameState->maxBounds.z,
                  (Color){255, 0, 0, 50}}}; // wireFrame=false, origin=0
                                            // (center), dimensions, color
   push_render_command(renderQueue, cubeCmd);
