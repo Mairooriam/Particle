@@ -199,17 +199,17 @@ int main() {
   SetTargetFPS(60);
 
   // TODO: 3D CODE move out of here in future
-  // Camera3D camera = {.position = (Vector3){100, 100, 100},
-  //                    .target = (Vector3){50, 50, 0},
-  //                    .up = (Vector3){0, 1, 0},
-  //                    .fovy = 45,
-  //                    .projection = CAMERA_PERSPECTIVE};
-  Camera3D camera = {0};
-  camera.position = (Vector3){50, 50, 100}; // Above the center, looking down
-  camera.target = (Vector3){50, 50, 0};     // Looking at the center
-  camera.up = (Vector3){0, 1, 0};
-  camera.fovy = 100; // This value is ignored for orthographic
-  camera.projection = CAMERA_ORTHOGRAPHIC;
+  Camera3D camera = {.position = (Vector3){100, 100, 100},
+                     .target = (Vector3){50, 50, 0},
+                     .up = (Vector3){0, 1, 0},
+                     .fovy = 45,
+                     .projection = CAMERA_PERSPECTIVE};
+  // Camera3D camera = {0};
+  // camera.position = (Vector3){50, 50, 100}; // Above the center, looking down
+  // camera.target = (Vector3){50, 50, 0};     // Looking at the center
+  // camera.up = (Vector3){0, 1, 0};
+  // camera.fovy = 100; // This value is ignored for orthographic
+  // camera.projection = CAMERA_ORTHOGRAPHIC;
   input.camera = camera;
   Shader shader = LoadShader("lighting_instancing.vs", "lighting.fs");
   Material matinstances = LoadMaterialDefault();
@@ -247,45 +247,43 @@ int main() {
     Vector3 oldPosition = input.camera.position;
 
     // --- 2D-style orthographic camera controls ---
-    float panSpeed = 2.0f;
-    float zoomSpeed = 4.0f;
-
-    if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D))
-      input.camera.position.x += panSpeed;
-    if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))
-      input.camera.position.x -= panSpeed;
-    if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W))
-      input.camera.position.y += panSpeed;
-    if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S))
-      input.camera.position.y -= panSpeed;
-
-    input.camera.target.x = input.camera.position.x;
-    input.camera.target.y = input.camera.position.y;
-
-    float wheel = GetMouseWheelMove();
-    if (wheel != 0) {
-      float zoomFactor = 1.15f;
-      if (wheel > 0) {
-        input.camera.fovy /= powf(zoomFactor, wheel);
-      } else {
-        input.camera.fovy *= powf(zoomFactor, -wheel);
-      }
-      if (input.camera.fovy < 5)
-        input.camera.fovy = 5;
-      if (input.camera.fovy > 1000)
-        input.camera.fovy = 1000;
-    }
-    // --- end 2D-style camera controls ---
-
-    // if (isCursorDisabled) {
-    //   UpdateCamera(&input.camera, CAMERA_FREE);
-    //   Vector3 positionDelta =
-    //       Vector3Subtract(input.camera.position, oldPosition);
-    //   float speedMultiplier = 5.0f;
-    //   input.camera.position =
-    //       Vector3Add(oldPosition, Vector3Scale(positionDelta,
-    //       speedMultiplier));
+    // float panSpeed = 2.0f;
+    // float zoomSpeed = 4.0f;
+    //
+    // if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D))
+    //   input.camera.position.x += panSpeed;
+    // if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))
+    //   input.camera.position.x -= panSpeed;
+    // if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W))
+    //   input.camera.position.y += panSpeed;
+    // if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S))
+    //   input.camera.position.y -= panSpeed;
+    //
+    // input.camera.target.x = input.camera.position.x;
+    // input.camera.target.y = input.camera.position.y;
+    //
+    // float wheel = GetMouseWheelMove();
+    // if (wheel != 0) {
+    //   float zoomFactor = 1.15f;
+    //   if (wheel > 0) {
+    //     input.camera.fovy /= powf(zoomFactor, wheel);
+    //   } else {
+    //     input.camera.fovy *= powf(zoomFactor, -wheel);
+    //   }
+    //   if (input.camera.fovy < 5)
+    //     input.camera.fovy = 5;
+    //   if (input.camera.fovy > 1000)
+    //     input.camera.fovy = 1000;
     // }
+    // --- end 2D-style camera controls ---
+    if (isCursorDisabled) {
+      UpdateCamera(&input.camera, CAMERA_FREE);
+      Vector3 positionDelta =
+          Vector3Subtract(input.camera.position, oldPosition);
+      float speedMultiplier = 5.0f;
+      input.camera.position =
+          Vector3Add(oldPosition, Vector3Scale(positionDelta, speedMultiplier));
+    }
     currentCamera = input.camera;
 
     if (playBackOn) {

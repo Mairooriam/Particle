@@ -29,13 +29,20 @@ GAME_UPDATE(game_update) {
     arena_init(&gameState->transientArena, gameMemory->transientMemory,
                gameMemory->transientMemorySize);
     size_t entityCapacity = 100000;
+
+    // ENTITY POOL
     gameState->entityPool =
         EntityPoolInitInArena(&gameState->permanentArena, entityCapacity);
+
+    // SPATIAL GRID
+    gameState->sGrid =
+        spatialGrid_create(&gameState->permanentArena, entityCapacity);
+    spatialGrid_update_dimensions(gameState->sGrid, gameState->minBounds,
+                                  gameState->maxBounds, 25.0f);
     // Mesh generation
     gameState->instancedMesh =
         GenMeshCube(&gameState->permanentArena, 1.0f, 1.0f, 1.0f);
     gameState->instancedMeshUpdated = true;
-
     Entity player =
         entity_create_physics_particle((Vector3){0, 0, 0}, (Vector3){0, 0, 0});
     player.followMouse = true;
@@ -88,11 +95,12 @@ GAME_UPDATE(game_update) {
         // e->c_transform.v = (Vector3){0, 0, 0};
         e->c_transform.v =
             Vector3Add(e->c_transform.v, (Vector3){1, 2.0f, 0.5f});
-        e->spawnRate = 100.0f;
         update_spawners(frameTime, e, entityPool);
       }
     }
   }
+
+  // update_spatial(gameState->sGrid, &gameState->entityPool->entities_dense);
 
   // Render entities (instanced)
   RenderQueue *renderQueue = (RenderQueue *)gameMemory->transientMemory;
@@ -112,8 +120,11 @@ GAME_UPDATE(game_update) {
     if ((e->flags & ENTITY_FLAG_VISIBLE) &&
         (e->flags & ENTITY_FLAG_HAS_RENDER)) {
       // Collect transform for instanced drawing
-      sphereTransforms[sphereCount++] = MatrixTranslate(
-          e->c_transform.pos.x, e->c_transform.pos.y, e->c_transform.pos.z);
+      Matrix t = MatrixTranslate(e->c_transform.pos.x, e->c_transform.pos.y,
+                                 e->c_transform.pos.z);
+      Matrix s =
+          MatrixScale(1.1f, 1.1f, 0.1f); // Change 2.0f to your desired scale
+      sphereTransforms[sphereCount++] = MatrixMultiply(s, t);
     }
   }
 
@@ -129,6 +140,8 @@ GAME_UPDATE(game_update) {
                                       sphereTransforms, NULL, sphereCount}};
     push_render_command(renderQueue, cmd);
   }
+
+  // ==================== BOUNDS DEBUG RENDERING ====================
   RenderCommand cubeCmd = {
       RENDER_CUBE_3D,
       .cube3D = {false, 1, gameState->maxBounds.x, gameState->maxBounds.y,
@@ -206,6 +219,45 @@ GAME_UPDATE(game_update) {
       (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, max.y, min.z},
                                                  (Vector3){min.x, max.y, max.z},
                                                  boundsColorY}});
+
+  // ==================== SPATIAL GRID DEBUG RENDERING ====================
+  if (gameState->sGrid && gameState->sGrid->isInitalized) {
+    float spacing = (float)gameState->sGrid->spacing;
+    Vector3 min = gameState->minBounds;
+    Vector3 max = gameState->maxBounds;
+    int numX = gameState->sGrid->numX;
+    int numY = gameState->sGrid->numY;
+    Color gridColor = (Color){100, 255, 100, 255};
+
+    // Vertical grid lines
+    for (int x = 0; x <= numX; x++) {
+      float gx = min.x + x * spacing;
+      push_render_command(
+          renderQueue,
+          (RenderCommand){RENDER_LINE_3D,
+                          .line3D = {(Vector3){gx, min.y, min.z},
+                                     (Vector3){gx, max.y, min.z}, gridColor}});
+      push_render_command(
+          renderQueue,
+          (RenderCommand){RENDER_LINE_3D,
+                          .line3D = {(Vector3){gx, min.y, max.z},
+                                     (Vector3){gx, max.y, max.z}, gridColor}});
+    }
+    // Horizontal grid lines
+    for (int y = 0; y <= numY; y++) {
+      float gy = min.y + y * spacing;
+      push_render_command(
+          renderQueue,
+          (RenderCommand){RENDER_LINE_3D,
+                          .line3D = {(Vector3){min.x, gy, min.z},
+                                     (Vector3){max.x, gy, min.z}, gridColor}});
+      push_render_command(
+          renderQueue,
+          (RenderCommand){RENDER_LINE_3D,
+                          .line3D = {(Vector3){min.x, gy, max.z},
+                                     (Vector3){max.x, gy, max.z}, gridColor}});
+    }
+  }
 
   gameState->lastFrameInput = *input;
 }

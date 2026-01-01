@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 // application.c
 
 static inline Vector3 Vector3Add(Vector3 v1, Vector3 v2) {
@@ -90,33 +91,7 @@ static inline void Entities_init_with_buffer(Entities *da, size_t cap,
 // TODO: make entities_dense be entities Dynamic array so it has count when
 // passed around?
 
-typedef struct {
-  Entity *items;
-  size_t count;
-  size_t capacity;
-} arr_Entity;
-
-typedef struct {
-  size_t *items;
-  size_t count;
-  size_t capacity;
-} arr_size_t;
-
-typedef struct {
-  arr_size_t entities_sparse; // stores indicies for entities located in dense
-  arr_Entity entities_dense;  // contigious entity arr
-  size_t capacity; // Total capacity of pool. other arrays share the same size
-  arr_size_t freeIds;
-  size_t nextId; // Next unique ID
-} EntityPool;
 void update_spawners(float frameTime, Entity *e, EntityPool *entityPool);
-
-typedef struct {
-  uint8_t *base;
-  size_t size;
-  size_t used;
-} memory_arena;
-
 #define memory_index                                                           \
   size_t // from casey experiment and see if this is good way to do this
 
@@ -260,6 +235,7 @@ typedef struct {
   memory_arena permanentArena;
   memory_arena transientArena;
   EntityPool *entityPool; // stores entities
+  SpatialGrid *sGrid;
   Vector3 minBounds;
   Vector3 maxBounds;
 } GameState;
@@ -351,6 +327,105 @@ static inline bool is_key_down(Input *current, int key) {
 
 static inline bool is_key_up(Input *current, int key) {
   return !current->keys[key];
+}
+
+SpatialGrid *spatialGrid_create(memory_arena *arena, size_t entityCount) {
+  SpatialGrid *sGrid = arena_PushStruct(arena, SpatialGrid);
+
+  sGrid->spatialDense.items = arena_PushStructs(arena, size_t, entityCount);
+  sGrid->spatialDense.count = 0;
+  sGrid->spatialDense.capacity = entityCount;
+
+  sGrid->spatialSparse.items =
+      arena_PushStructs(arena, size_t, entityCount + 1);
+  sGrid->spatialSparse.capacity = entityCount + 1;
+  sGrid->spatialSparse.count = 0;
+
+  return sGrid;
+}
+void spatialGrid_update_dimensions(SpatialGrid *sGrid, Vector3 minBounds,
+                                   Vector3 maxBounds, int spacing) {
+  sGrid->spacing = spacing;
+  sGrid->bX = (int)(maxBounds.x - minBounds.x);
+  sGrid->bY = (int)(maxBounds.y - minBounds.y);
+  sGrid->numX = sGrid->bX / spacing;
+  sGrid->numY = sGrid->bY / spacing;
+  sGrid->isInitalized = true;
+}
+void update_spatial(SpatialGrid *sGrid, arr_Entity *e) {
+  float spacing = sGrid->spacing;
+
+  // Clear arrays
+  // memset(sGrid->entities.items, 0,
+  //        sGrid->entities.capacity * sizeof(sGrid->entities.items[0]));
+  // sGrid->antitiesDense.count = 0;
+
+  // First pass: count entities per cell
+  for (size_t i = 0; i < e->count; i++) {
+    c_Transform *cT1 = &e->items[i].c_transform;
+
+    float xi_f = cT1->pos.x / spacing;
+    float yi_f = cT1->pos.y / spacing;
+    if (xi_f < 0 || yi_f < 0)
+      continue;
+
+    size_t xi = (size_t)floorf(xi_f);
+    size_t yi = (size_t)floorf(yi_f);
+
+    if (xi >= sGrid->numX || yi >= sGrid->numY)
+      continue;
+
+    size_t idx = xi * sGrid->numY + yi;
+    if (idx >= sGrid->spatialSparse.capacity)
+      continue;
+
+    // Count entities in this cell
+    sGrid->spatialSparse.items[idx]++;
+  }
+
+  // Prefix sum to get start indices
+  size_t sum = 0;
+  for (size_t i = 0; i < sGrid->spatialSparse.capacity; i++) {
+    size_t count = sGrid->spatialSparse.items[i];
+    sGrid->spatialSparse.items[i] = sum; // Store start index
+    sum += count;
+  }
+
+  // Resize dense array to fit all entities
+  // sGrid->antitiesDense.count = sum;
+
+  // Second pass: fill dense array
+  for (size_t i = 0; i < e->count; i++) {
+    c_Transform *cT1 = &e->items[i].c_transform;
+
+    float xi_f = cT1->pos.x / spacing;
+    float yi_f = cT1->pos.y / spacing;
+    if (xi_f < 0 || yi_f < 0)
+      continue;
+
+    size_t xi = (size_t)floorf(xi_f);
+    size_t yi = (size_t)floorf(yi_f);
+
+    if (xi >= sGrid->numX || yi >= sGrid->numY)
+      continue;
+
+    size_t idx = xi * sGrid->numY + yi;
+    if (idx >= sGrid->spatialSparse.capacity)
+      continue;
+
+    // Add entity to dense array at the next available position for this cell
+    size_t denseIdx = sGrid->spatialSparse.items[idx];
+    sGrid->spatialDense.items[denseIdx] = i;
+    sGrid->spatialSparse.items[idx]++; // Increment for next entity in this cell
+  }
+
+  // Restore start indices (optional, needed for querying)
+  sum = 0;
+  for (size_t i = 0; i < sGrid->spatialSparse.capacity; i++) {
+    size_t end = sGrid->spatialSparse.items[i];
+    sGrid->spatialSparse.items[i] = sum;
+    sum = end;
+  }
 }
 
 #define KEY_SPACE 32
