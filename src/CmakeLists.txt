@@ -11,3 +11,5 @@ set(RAYLIB_LIB_DIR "${RAYLIB_DIR}")
 
 add_executable(alloc alloc.c)
 
+add_executable(enityPool entityPool.c)
+
