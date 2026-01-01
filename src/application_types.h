@@ -2,17 +2,12 @@
 #include "shared.h"
 #include <stdint.h>
 
-// ----------------------------
-// ENTITIES
-// ----------------------------
-
-// RENDER COMPONENT
+// ==================== COMPONENTS ====================
 typedef struct {
   Color color;
   float renderRadius; // Visual size (can differ from collision radius)
 } c_Render;
 
-// TRANSFORM COMPONENT
 typedef struct {
   Vector3 pos;
   Vector3 v;           // Velocity
@@ -28,7 +23,6 @@ typedef struct {
   size_t parent;
 } c_Spring;
 
-// COLLISION COMPONENT
 typedef struct {
   float radius;
   float mass;
@@ -38,6 +32,7 @@ typedef struct {
   Vector3 forceAccum;
 } c_Collision;
 
+// ==================== ENTITY ====================
 struct Entity {
   size_t id;
   uint64_t flags;
@@ -53,8 +48,54 @@ struct Entity {
 };
 typedef struct Entity Entity;
 
+// ==================== DYNAMIC ARRAYS ====================
+typedef struct {
+  Entity *items;
+  size_t count;
+  size_t capacity;
+} arr_Entity;
+
+typedef struct {
+  size_t *items;
+  size_t count;
+  size_t capacity;
+} arr_size_t;
+
 typedef struct Entities {
   Entity *items;
   size_t count;
   size_t capacity;
 } Entities;
+
+// ==================== ENTITY POOL ====================
+typedef struct {
+  arr_size_t entities_sparse; // stores indicies for entities located in dense
+  arr_Entity entities_dense;  // contigious entity arr
+  size_t capacity; // Total capacity of pool. other arrays share the same size
+  arr_size_t freeIds;
+  size_t nextId; // Next unique ID
+} EntityPool;
+
+// ==================== ARENA ====================
+typedef struct {
+  uint8_t *base;
+  size_t size;
+  size_t used;
+} memory_arena;
+
+// ==================== SPATIAL ====================
+typedef struct {
+  int bX, bY; // Bounds x and y
+  int spacing;
+  size_t capacity;
+  arr_size_t spatialDense;
+  arr_size_t spatialSparse;
+  size_t numY; // number of cells in Y
+  size_t numX; // number of cells in X
+  bool isInitalized;
+} SpatialGrid;
+
+SpatialGrid *spatialGrid_create(memory_arena *arena, size_t entityCount);
+void spatialGrid_update_dimensions(SpatialGrid *sGrid, Vector3 minBounds,
+                                   Vector3 maxBounds, int spacing);
+void update_spatial(SpatialGrid *sGrid, arr_Entity *e);
