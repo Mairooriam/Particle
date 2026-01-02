@@ -5,6 +5,12 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+// https://ajmmertens.medium.com/doing-a-lot-with-a-little-ecs-identifiers-25a72bd2647
+// https://doc.lagout.org/security/Hackers%20Delight.pdf
+// https://stackoverflow.com/questions/69023477/what-are-some-good-resources-for-learning-bit-shifting
+// https://graphics.stanford.edu/%7Eseander/bithacks.html
+//
+//
 #define memory_index                                                           \
   size_t // from casey experiment and see if this is good way to do this
 
@@ -40,7 +46,7 @@ typedef struct Entity Entity;
 // ==================== ENTITY POOL ====================
 #define entityID size_t
 typedef struct {
-   entityID *items;
+  entityID *items;
   size_t count;
   size_t capacity;
 } arr_entityID;
@@ -66,17 +72,15 @@ typedef struct {
   size_t capacity;
 } arr_Entity;
 
-
 typedef struct Entities {
   Entity *items;
   size_t count;
   size_t capacity;
 } Entities;
 
-
 typedef struct {
   arr_entityID entities_sparse; // stores indicies for entities located in dense
-  arr_Entity entities_dense;  // contigious entity arr
+  arr_Entity entities_dense;    // contigious entity arr
   size_t capacity; // Total capacity of pool. other arrays share the same size
   arr_entityID freeIds;
   size_t nextId; // Next unique ID
