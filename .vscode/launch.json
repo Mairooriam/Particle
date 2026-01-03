@@ -6,7 +6,7 @@
             "type": "cppdbg",
             "MIMode": "gdb",
             "request": "launch",
-            "program": "${workspaceFolder}/build/enityPool.exe",
+            "program": "${workspaceFolder}/build/main_entitypool.exe",
             "args": [],
             "cwd": "${workspaceFolder}/build",
             "environment": []

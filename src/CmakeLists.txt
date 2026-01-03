@@ -7,16 +7,22 @@ set(CMAKE_COLOR_DIAGNOSTICS ON)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_definitions(SLOW_CODE_ALLOWED)
+    add_compile_definitions(ENTITY_POOL_DEVELOPMENT)
 endif()
 
-# Raylib paths
-# set(RAYLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib")
-# set(RAYLIB_INCLUDE_DIR "${RAYLIB_DIR}/include")
-# set(RAYLIB_LIB_DIR "${RAYLIB_DIR}")
+add_library(entity_lib STATIC
+    entity/entityPool.c
+    entity/entity_types.h
+    entity/entityPool_types.h
+    entity/entityPool.h
+)
+
+target_include_directories(entity_lib PUBLIC entity)
 
 add_executable(alloc alloc.c)
 
-add_executable(enityPool entityPool.c)
+add_executable(main_entitypool main_entitypool.c)
+target_link_libraries(main_entitypool entity_lib)
 
 add_executable(bitwise bitstuff.c)
 
