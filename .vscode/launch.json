@@ -1,12 +1,9 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
             "name": "Debug Existing EXE",
-            "type": "cppdbg",           // Use "cppvsdbg" for MSVC, "cppdbg" for MinGW/GDB
+            "type": "cppdbg",
             "MIMode": "gdb",
             "request": "launch",
             "program": "${workspaceFolder}/build/enityPool.exe",
@@ -14,8 +11,5 @@
             "cwd": "${workspaceFolder}/build",
             "environment": []
         }
-
-        
-
     ]
 }

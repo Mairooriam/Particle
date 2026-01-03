@@ -5,6 +5,10 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic")
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_definitions(SLOW_CODE_ALLOWED)
+endif()
+
 # Raylib paths
 # set(RAYLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib")
 # set(RAYLIB_INCLUDE_DIR "${RAYLIB_DIR}/include")
@@ -15,3 +19,4 @@ add_executable(alloc alloc.c)
 add_executable(enityPool entityPool.c)
 
 add_executable(bitwise bitstuff.c)
+

@@ -116,8 +116,10 @@ int main(int argc, char *argv[]) {
   printf("\nflag:      %s\n", buf);
 
   size_t x = 0xFF;
-  // x = x & ~0xF; // first flips bits at 0xF then ands against x -> zeroing
-  x = ~x; // flips bits
+  x = x & ~0xFF; // first flips bits at 0xF then ands against x -> zeroing
+  // 0000 1101
+  // 1111 0000
+  // x = ~x; // flips bits
   NUM_TO_BINARY_STR(buf, 128, x);
   printf("\nx   :      %s\n", buf);
 
