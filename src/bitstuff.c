@@ -107,6 +107,14 @@ int main(int argc, char *argv[]) {
   NUM_TO_BINARY_STR(buf, 128, entity);
   printf("id:      %s\n", buf);
 
+  // size_t flag = 0xFFFFFFFFFFFFFFFF;
+  size_t flag = 1ULL;
+  NUM_TO_BINARY_STR(buf, 128, flag);
+  printf("\nflag:      %s\n", buf);
+  flag = (1ULL << 1);
+  NUM_TO_BINARY_STR(buf, 128, flag);
+  printf("\nflag:      %s\n", buf);
+
   // printf("sizeof(int):%zu  *  8  -  1\n", sizeof(int));
 
   return 0;
