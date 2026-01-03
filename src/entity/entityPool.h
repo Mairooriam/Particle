@@ -32,7 +32,7 @@ en_identifier entity_id_create(uint32_t _idx, uint16_t _gen, uint16_t _spare,
 void entityPool_remove(EntityPool *pool, en_id idx);
 void entityPool_insert(EntityPool *pool, Entity entity);
 void entityPool_push(EntityPool *pool, Entity entity);
-
+Entity* entityPool_allocate_batch(EntityPool *pool, size_t count);
 #ifdef ENTITY_POOL_DEVELOPMENT
 en_id _entityPool_GetNextId(EntityPool *pool);
 en_id _entityPool_PeekNextId(EntityPool *pool);

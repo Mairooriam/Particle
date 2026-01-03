@@ -237,3 +237,22 @@ void *_PushStruct(memory_arena *arena, size_t size) {
   memset(result, 0, size);
   return result;
 }
+
+Entity* entityPool_allocate_batch(EntityPool *pool, size_t count) {
+    if (pool->entities_dense.count + count > pool->entities_dense.capacity) {
+        return NULL; // Not enough space
+    }
+    
+    Entity *first = &pool->entities_dense.items[pool->entities_dense.count];
+    
+    memset(first, 0, sizeof(Entity) * count);
+    
+    for (size_t i = 0; i < count; i++) {
+        first[i].identifier = entity_id_create(_entityPool_GetNextId(pool), 0, 0, 0);
+        en_id id = en_get_id(first[i].identifier);
+        pool->entities_sparse.items[id] = pool->entities_dense.count + i;
+    }
+    
+    pool->entities_dense.count += count;
+    return first;
+}

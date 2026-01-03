@@ -18,13 +18,21 @@ int main(int argc, char *argv[]) {
 
   entityPool_clear(ePool);
 
+  // for (size_t i = 0; i < 50; i++) {
+  //   entityPool_push(ePool,
+  //                   (Entity){.identifier = entity_id_create(0, 0, 0, 0)});
+  // }
+
+  // entityPool_remove(ePool, 25);
+  Entity *entities = entityPool_allocate_batch(ePool, 50);
+  // Now customize each entity without copying:
   for (size_t i = 0; i < 50; i++) {
-    entityPool_push(ePool,
-                    (Entity){.identifier = entity_id_create(0, 0, 0, 0)});
+    entities[i].position.x = i * 10;
+    entities[i].position.y = i * 20;
+
+
   }
-
   entityPool_remove(ePool, 25);
-
   // size_t newid = _entityPool_GetNextId(ePool);
   en_identifier test = entity_id_create(0xFFFF, 1, 2, 1);
   char buf[128];
