@@ -44,7 +44,7 @@ typedef struct Entity Entity;
   } while (0)
 
 // ==================== ENTITY POOL ====================
-#define entityID size_t
+#define entityID uint64_t
 typedef struct {
   entityID *items;
   size_t count;
@@ -169,12 +169,84 @@ static void PrintSparseAndDense(EntityPool *pool, size_t start, size_t end) {
   }
   printf("\n");
 }
-static size_t entityPool_GetNextId(EntityPool *pool) {
+
+// internal function do not use. modifies the pool
+static entityID _entityPool_GetNextId(EntityPool *pool) {
   if (pool->freeIds.count > 0) {
     return pool->freeIds.items[--pool->freeIds.count];
   } else {
     return pool->nextId++; // return new id
   }
+}
+static void strrev_impl(char *head) {
+  if (!head)
+    return;
+  char *tail = head;
+  while (*tail)
+    ++tail; // find the 0 terminator, like head+strlen
+  --tail;   // tail points to the last real char
+            // head still points to the first
+  for (; head < tail; ++head, --tail) {
+    // walk pointers inwards until they meet or cross in the middle
+    char h = *head, t = *tail;
+    *head = t; // swapping as we go
+    *tail = h;
+  }
+}
+
+// straight from AI
+#define NUM_TO_BINARY_STR(buf, size, num)                                      \
+  do {                                                                         \
+    size_t pos = 0;                                                            \
+    size_t total_bits = sizeof(num) * 8;                                       \
+    for (size_t i = 0; i < total_bits; i++) {                                  \
+      size_t shift_amount = total_bits - 1 - i;                                \
+      uint64_t mask = (shift_amount < 64) ? (1ULL << shift_amount) : 0;        \
+      uint64_t masked = ((uint64_t)(num) & mask);                              \
+      char c = masked ? '1' : '0';                                             \
+      snprintf((buf) + pos, (size) - pos, "%c", c);                            \
+      pos++;                                                                   \
+      if ((i + 1) % 8 == 0 && (i + 1) < total_bits) {                          \
+        snprintf((buf) + pos, (size) - pos, " ");                              \
+        pos++;                                                                 \
+      }                                                                        \
+    }                                                                          \
+    (buf)[pos] = '\0';                                                         \
+  } while (0)
+
+//   255|8                           65k                 16 million
+// |00000000|00000000 00000000|00000000 00000000|00000000 00000000 00000000|
+// |  flags |    spare        |   generation    |         ID               |
+// TODO: make these into #defines?
+uint64_t en_mask_id = 0xFFFFFF; // 24 bits for raw id -> 16 million entities;
+uint64_t en_mask_generation = 0xFFFF; // 16 bits for generation
+uint64_t en_mask_generation_offset = 24;
+uint64_t en_mask_spare = 0xFFFF;
+uint64_t en_mask_spare_offset = 40;
+uint64_t en_mask_flags = 0xFF;
+uint64_t en_mask_flags_offset = 56;
+
+// TODO: should parameters be bigger? if i change layout?
+static entityID _entity_id_create(uint32_t _idx, uint16_t _gen, uint16_t _spare,
+                                  uint8_t _flags) {
+  entityID idx = 0;
+  idx = en_mask_id & _idx;
+  idx |= (en_mask_generation & _gen) << en_mask_generation_offset;
+  idx |= (en_mask_spare & _spare) << en_mask_spare_offset;
+  idx |= (en_mask_flags & _flags) << en_mask_flags_offset;
+  return idx;
+}
+
+// TODO: should i add overflow protection? 0xFF++ -> 0x00
+// TODO: have it return it or edit the value?
+static entityID _increment_number_at_offset(entityID idx, size_t offset,
+                                            size_t mask) {
+  size_t num = 0;
+  num |= ((idx) >> offset) & mask;
+  num++;
+  idx = idx & ~(mask << offset);
+  idx |= ((num) << offset);
+  return idx;
 }
 
 static void EntityPoolPush(EntityPool *pool, Entity entity) {}
@@ -203,8 +275,30 @@ int main(int argc, char *argv[]) {
 
   entityPool_clear(ePool);
 
-  size_t newid = entityPool_GetNextId(ePool);
-
+  size_t newid = _entityPool_GetNextId(ePool);
+  entityID test = _entity_id_create(0xFF, 1, 2, 1);
+  char buf[128];
+  NUM_TO_BINARY_STR(buf, 128, test);
+  printf("\nid  :      %s\n", buf);
   printf("hello world");
+  // _increment_number_at_offset(test, 0, en_mask_id);
+  entityID val = test;
+  for (size_t i = 0; i < 255; i++) {
+    val = _increment_number_at_offset(val, en_mask_flags_offset, en_mask_flags);
+    NUM_TO_BINARY_STR(buf, 128, val);
+    printf("id  :      %s\n", buf);
+  }
+
+  for (size_t i = 0; i < 0xFFFF; i++) {
+    val = _increment_number_at_offset(val, en_mask_generation_offset,
+                                      en_mask_generation);
+    NUM_TO_BINARY_STR(buf, 128, val);
+    printf("id  :      %s\n", buf);
+  }
+
+  // _increment_number_at_offset(&test, en_mask_flags_offset, en_mask_flags);
+  NUM_TO_BINARY_STR(buf, 128, test);
+  printf("\nid  :      %s\n", buf);
+
   return 0;
 }

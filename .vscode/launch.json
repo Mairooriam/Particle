@@ -9,7 +9,7 @@
             "type": "cppdbg",           // Use "cppvsdbg" for MSVC, "cppdbg" for MinGW/GDB
             "MIMode": "gdb",
             "request": "launch",
-            "program": "${workspaceFolder}/build/bitwise.exe",
+            "program": "${workspaceFolder}/build/enityPool.exe",
             "args": [],
             "cwd": "${workspaceFolder}/build",
             "environment": []
