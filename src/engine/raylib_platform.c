@@ -392,52 +392,64 @@ int main() {
       UploadMesh(&renderQueue->instanceMesh, false);
       renderQueue->isMeshReloadRequired = false;
     }
-    for (int i = 0; i < renderQueue->count; i++) {
-      RenderCommand cmd = renderQueue->commands[i];
-      switch (cmd.type) {
-      case RENDER_RECTANGLE: {
+// FIRST PASS 
+// TODO: also consume the commands so second pass doenst have to iterate trough all of them again
+for (int i = 0; i < renderQueue->count; i++) {
+  RenderCommand cmd = renderQueue->commands[i];
+  if (cmd.type == RENDER_INSTANCED) {
+    DrawMeshInstanced(*cmd.instance.mesh, matinstances,
+                      cmd.instance.transforms, cmd.instance.count);
+  }
+}
 
-        Color color = (Color){cmd.rectangle.color.r, cmd.rectangle.color.g,
-                              cmd.rectangle.color.b, cmd.rectangle.color.a};
-        DrawRectangle(cmd.rectangle.x, cmd.rectangle.y, cmd.rectangle.width,
-                      cmd.rectangle.height, color);
-      } break;
-      case RENDER_CIRCLE: {
-        Color color = (Color){cmd.circle.color.r, cmd.circle.color.g,
-                              cmd.circle.color.b, cmd.circle.color.a};
-        DrawSphere((Vector3){cmd.circle.centerX, cmd.circle.centerY, 0},
-                   cmd.circle.radius, color);
-      } break;
-      case RENDER_INSTANCED: {
-        // TODO: FOR FUTURE
-        //  DrawMeshInstanced(*cmd.instance.mesh, *cmd.instance.material,
-        //                    cmd.instance.transforms, cmd.instance.count);
-        DrawMeshInstanced(*cmd.instance.mesh, matinstances,
-                          cmd.instance.transforms, cmd.instance.count);
+// Not sure what does but works
+rlDrawRenderBatchActive();
 
-      } break;
-      case RENDER_LINE_3D: {
-        DrawLine3D(cmd.line3D.start, cmd.line3D.end, cmd.line3D.color);
-      } break;
-      case RENDER_CUBE_3D: {
-        Vector3 corner = {0, 0, 0};
-        float width = cmd.cube3D.width, height = cmd.cube3D.height,
-              depth = cmd.cube3D.depth;
-        Vector3 center = {corner.x, corner.y, corner.z};
+// SECOND PASS 
+for (int i = 0; i < renderQueue->count; i++) {
+  RenderCommand cmd = renderQueue->commands[i];
+  switch (cmd.type) {
+  case RENDER_RECTANGLE: {
+    Color color = (Color){cmd.rectangle.color.r, cmd.rectangle.color.g,
+                          cmd.rectangle.color.b, cmd.rectangle.color.a};
+    DrawRectangle(cmd.rectangle.x, cmd.rectangle.y, cmd.rectangle.width,
+                  cmd.rectangle.height, color);
+  } break;
+  case RENDER_CIRCLE: {
+    Color color = (Color){cmd.circle.color.r, cmd.circle.color.g,
+                          cmd.circle.color.b, cmd.circle.color.a};
+    DrawSphere((Vector3){cmd.circle.centerX, cmd.circle.centerY, 0},
+               cmd.circle.radius, color);
+  } break;
+  case RENDER_INSTANCED: {
+    // Already handled in first pass - skip
+  } break;
+  case RENDER_LINE_3D: {
+    DrawLine3D(cmd.line3D.start, cmd.line3D.end, cmd.line3D.color);
+  } break;
+  case RENDER_CUBE_3D: {
+    Vector3 corner = {0, 0, 0};
+    float width = cmd.cube3D.width, height = cmd.cube3D.height,
+          depth = cmd.cube3D.depth;
+    Vector3 center = {corner.x, corner.y, corner.z};
 
-        if (cmd.cube3D.origin == 1) {
-          center = (Vector3){corner.x + width / 2, corner.y + height / 2,
-                             corner.z + depth / 2};
-        }
-
-        if (cmd.cube3D.wireFrame) {
-          DrawCubeWires(center, width, height, depth, cmd.cube3D.color);
-        } else {
-          DrawCube(center, width, height, depth, cmd.cube3D.color);
-        }
-      } break;
-      }
+    if (cmd.cube3D.origin == 1) {
+      center = (Vector3){corner.x + width / 2, corner.y + height / 2,
+                         corner.z + depth / 2};
     }
+
+    if (cmd.cube3D.wireFrame) {
+      DrawCubeWires(center, width, height, depth, cmd.cube3D.color);
+    } else {
+      DrawCube(center, width, height, depth, cmd.cube3D.color);
+    }
+  } break;
+  case RENDER_SPHERE_3D: {
+    DrawSphere(cmd.sphere3D.center, cmd.sphere3D.radius,
+               cmd.sphere3D.color);
+  } break;
+  }
+}
     EndMode3D();
     DrawFPS(10, 10);
     EndDrawing();

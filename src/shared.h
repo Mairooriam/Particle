@@ -190,7 +190,8 @@ typedef enum {
   RENDER_CIRCLE,
   RENDER_INSTANCED,
   RENDER_CUBE_3D,
-  RENDER_LINE_3D
+  RENDER_LINE_3D,
+  RENDER_SPHERE_3D
 } RenderCommandType;
 
 typedef struct {
@@ -223,6 +224,11 @@ typedef struct {
       float depth;
       Color color;
     } cube3D;
+    struct {
+      Vector3 center;
+      float radius;
+      Color color;
+    } sphere3D;
   };
 } RenderCommand;
 
