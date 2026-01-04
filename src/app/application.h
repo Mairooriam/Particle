@@ -1,8 +1,10 @@
 #pragma once
+#include "entityPool_types.h"
 #include "shared.h"
 #include "application_types.h"
 #include "entity_types.h"
 #include "memory_allocator.h"
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -73,12 +75,15 @@ typedef struct {
   bool instancedMeshUpdated;
   memory_arena permanentArena;
   memory_arena transientArena;
-  EntityPool *entityPool; // stores entities
-  SpatialGrid *sGrid;
+  MemoryAllocator permanentAllocator;
+  MemoryAllocator transientAllocator;
   Vector3 minBounds;
   Vector3 maxBounds;
+
+  EntityPool *entityPool; // stores entities
+  SpatialGrid *sGrid;
 } GameState;
-static Mesh GenMeshCube(MemoryAllocator allocator, float width, float height,
+static Mesh GenMeshCube(MemoryAllocator *allocator, float width, float height,
                         float length) {
   Mesh mesh = {0};
 
@@ -127,20 +132,28 @@ static Mesh GenMeshCube(MemoryAllocator allocator, float width, float height,
     k++;
   }
 
-  mesh.vertices = (float*)allocator.alloc(allocator.context, sizeof(float) * 24 * 3);
-  if (!mesh.vertices) return mesh;
+  mesh.vertices =
+      (float *)allocator->alloc(allocator->context, sizeof(float) * 24 * 3);
+  if (!mesh.vertices)
+    return mesh;
   memcpy(mesh.vertices, vertices, 24 * 3 * sizeof(float));
 
-  mesh.texcoords = (float*)allocator.alloc(allocator.context, sizeof(float) * 24 * 2);
-  if (!mesh.texcoords) return mesh;
+  mesh.texcoords =
+      (float *)allocator->alloc(allocator->context, sizeof(float) * 24 * 2);
+  if (!mesh.texcoords)
+    return mesh;
   memcpy(mesh.texcoords, texcoords, 24 * 2 * sizeof(float));
 
-  mesh.normals = (float*)allocator.alloc(allocator.context, sizeof(float) * 24 * 3);
-  if (!mesh.normals) return mesh;
+  mesh.normals =
+      (float *)allocator->alloc(allocator->context, sizeof(float) * 24 * 3);
+  if (!mesh.normals)
+    return mesh;
   memcpy(mesh.normals, normals, 24 * 3 * sizeof(float));
 
-  mesh.indices = (unsigned short*)allocator.alloc(allocator.context, sizeof(unsigned short) * 36);
-  if (!mesh.indices) return mesh;
+  mesh.indices = (unsigned short *)allocator->alloc(
+      allocator->context, sizeof(unsigned short) * 36);
+  if (!mesh.indices)
+    return mesh;
   memcpy(mesh.indices, indices, 36 * sizeof(unsigned short));
 
   mesh.vertexCount = 24;
@@ -167,129 +180,156 @@ SpatialGrid *spatialGrid_create_with_dimensions(MemoryAllocator allocator,
                                                 Vector3 minBounds,
                                                 Vector3 maxBounds, int spacing,
                                                 size_t maxEntities) {
-  SpatialGrid *sGrid = (SpatialGrid*)allocator.alloc(allocator.context, sizeof(SpatialGrid));
+  SpatialGrid *sGrid =
+      (SpatialGrid *)allocator.alloc(allocator.context, sizeof(SpatialGrid));
 
-  // Calculate grid dimensions first
+  // GRID DETAILS
   sGrid->spacing = spacing;
   sGrid->bX = (int)(maxBounds.x - minBounds.x);
   sGrid->bY = (int)(maxBounds.y - minBounds.y);
   sGrid->numX = sGrid->bX / spacing;
   sGrid->numY = sGrid->bY / spacing;
-
-  size_t gridCells = sGrid->numX * sGrid->numY;
   sGrid->capacity = maxEntities;
 
-  sGrid->spatialDense.items = (size_t*)allocator.alloc(allocator.context, sizeof(size_t) * maxEntities);
+  // DENSE
+  sGrid->spatialDense.items = (SpatialEntry *)allocator.alloc(
+      allocator.context, sizeof(SpatialEntry) * maxEntities);
   sGrid->spatialDense.count = 0;
   sGrid->spatialDense.capacity = maxEntities;
 
-  sGrid->spatialSparse.items = (size_t*)allocator.alloc(allocator.context, sizeof(size_t) * gridCells);
+  // SPARSE
+  size_t gridCells = sGrid->numX * sGrid->numY;
+  sGrid->spatialSparse.items =
+      (size_t *)allocator.alloc(allocator.context, sizeof(size_t) * gridCells);
   sGrid->spatialSparse.capacity = gridCells;
   sGrid->spatialSparse.count = 0;
+
+  // CELL COUNTS
+  sGrid->cellCounts.items =
+      (size_t *)allocator.alloc(allocator.context, sizeof(size_t) * gridCells);
+  sGrid->cellCounts.capacity = gridCells;
+  sGrid->cellCounts.count = 0;
 
   sGrid->isInitalized = true;
   return sGrid;
 }
+
 void spatialGrid_update_dimensions(SpatialGrid *sGrid, Vector3 minBounds,
                                    Vector3 maxBounds, int spacing) {
+  assert(!sGrid->isInitalized && "Initialize first before updating");
+
   sGrid->spacing = spacing;
   sGrid->bX = (int)(maxBounds.x - minBounds.x);
   sGrid->bY = (int)(maxBounds.y - minBounds.y);
   sGrid->numX = sGrid->bX / spacing;
   sGrid->numY = sGrid->bY / spacing;
-  sGrid->isInitalized = true;
 }
-void update_spatial(SpatialGrid *sGrid, arr_Entity *e) {
-  float spacing = sGrid->spacing;
-  // MEMORY SAFETY CHECK - Add this assert to catch overlap
+static inline size_t spatialGrid_get_cell_index(const SpatialGrid *sGrid,
+                                                Vector3 position) {
+  int cellX = (int)(position.x / sGrid->spacing);
+  int cellY = (int)(position.y / sGrid->spacing);
 
-  // Clear arrays
-  memset(sGrid->spatialSparse.items, 0,
-         sGrid->spatialSparse.capacity * sizeof(sGrid->spatialSparse.items[0]));
-  sGrid->spatialDense.count = 0;
-
-  // First pass: count entities per cell
-  for (size_t i = 0; i < e->count; i++) {
-    c_Transform *cT1 = &e->items[i].c_transform;
-
-    float xi_f = cT1->pos.x / spacing;
-    float yi_f = cT1->pos.y / spacing;
-    if (xi_f < 0 || yi_f < 0)
-      continue;
-
-    size_t xi = (size_t)floorf(xi_f);
-    size_t yi = (size_t)floorf(yi_f);
-
-    if (xi >= sGrid->numX || yi >= sGrid->numY)
-      continue;
-
-    size_t idx = xi * sGrid->numY + yi;
-    if (idx >= sGrid->spatialSparse.capacity)
-      continue;
-
-    // Count entities in this cell
-    sGrid->spatialSparse.items[idx]++;
+  if (cellX < 0 || cellX >= (int)sGrid->numX || cellY < 0 ||
+      cellY >= (int)sGrid->numY) {
+    return (size_t)-1;
   }
 
-  // Prefix sum to get start indices
-  size_t sum = 0;
+  return cellY * sGrid->numX + cellX;
+}
+
+static inline size_t
+spatialGrid_get_entry_cell_index(const SpatialGrid *sGrid,
+                                 const SpatialEntry *entry) {
+  return spatialGrid_get_cell_index(sGrid, entry->position);
+}
+static void _spatialGrid_populate(SpatialGrid *sGrid, arr_vec3f *positions,
+                                  arr_size_t *ids) {
+  size_t numY = sGrid->numY;
+  
+    sGrid->spatialDense.count = 0;
+  memset(sGrid->spatialSparse.items, 0, sizeof(size_t) * sGrid->spatialSparse.capacity);
+  if (sGrid->cellCounts.items) {
+    memset(sGrid->cellCounts.items, 0, sizeof(size_t) * sGrid->cellCounts.capacity);
+  }
+
+  // PART ONE: fill sparse with the entitie counts AND push into dense
+  size_t count = 0;
+  for (size_t i = 0; i < positions->count; i++) {
+    SpatialEntry entry =
+        (SpatialEntry){.entityId = ids->items[i],
+                       .position = positions->items[i],
+                       .entityPoolIndex = 0}; // TODO: for now 0 not used yet
+    size_t sparseID = spatialGrid_get_entry_cell_index(sGrid, &entry);
+    if (sparseID == (size_t)-1)
+      continue;
+
+    sGrid->spatialDense.items[count] = entry;
+    sGrid->spatialSparse.items[sparseID] = count + 1;
+    count++;
+  }
+  sGrid->spatialDense.count = count;
+
+  // PART TWO: partial sums
+  size_t currentSum = 0;
   for (size_t i = 0; i < sGrid->spatialSparse.capacity; i++) {
-    size_t count = sGrid->spatialSparse.items[i];
-    sGrid->spatialSparse.items[i] = sum; // Store start index
-    sum += count;
+    size_t num = sGrid->spatialSparse.items[i];
+    if ((currentSum != num) && (num != 0)) {
+      currentSum = num;
+    }
+    sGrid->spatialSparse.items[i] = currentSum;
   }
 
-  // Resize dense array to fit all entities
-  // sGrid->antitiesDense.count = sum;
+  // PART THREE: iterate trough dense entries and decrement sparse
+  for (size_t i = 0; i < sGrid->spatialDense.count; i++) {
+    SpatialEntry *entry = &sGrid->spatialDense.items[i];
+    size_t sparseID = spatialGrid_get_entry_cell_index(sGrid, entry);
 
-  // Second pass: fill dense array
-  for (size_t i = 0; i < e->count; i++) {
-    c_Transform *cT1 = &e->items[i].c_transform;
+    sGrid->spatialSparse.items[sparseID]--;
+  }
+}
 
-    float xi_f = cT1->pos.x / spacing;
-    float yi_f = cT1->pos.y / spacing;
-    if (xi_f < 0 || yi_f < 0)
+void spatial_populate(SpatialGrid *sGrid, EntityPool *entityPool,
+                      MemoryAllocator *allocator) {
+  arr_vec3f positions = {0};
+  arr_size_t ids = {0};
+
+  positions.items = (Vector3 *)allocator->alloc(
+      allocator->context, sizeof(Vector3) * entityPool->entities_dense.count);
+  positions.capacity = entityPool->entities_dense.count;
+  positions.count = 0;
+
+  ids.items = (size_t *)allocator->alloc(
+      allocator->context, sizeof(size_t) * entityPool->entities_dense.count);
+  ids.capacity = entityPool->entities_dense.count;
+  ids.count = 0;
+
+  for (size_t i = 0; i < entityPool->entities_dense.count; i++) {
+    Entity *e = &entityPool->entities_dense.items[i];
+
+    if (!(e->flags & ENTITY_FLAG_HAS_TRANSFORM))
       continue;
 
-    size_t xi = (size_t)floorf(xi_f);
-    size_t yi = (size_t)floorf(yi_f);
-
-    if (xi >= sGrid->numX || yi >= sGrid->numY)
-      continue;
-
-    size_t idx = xi * sGrid->numY + yi;
-    if (idx >= sGrid->spatialSparse.capacity)
-      continue;
-
-    // Add entity to dense array at the next available position for this cell
-    size_t denseIdx = sGrid->spatialSparse.items[idx];
-    sGrid->spatialDense.items[denseIdx] = i;
-    sGrid->spatialSparse.items[idx]++; // Increment for next entity in this cell
+    positions.items[positions.count] = e->c_transform.pos;
+    ids.items[ids.count] = e->identifier;
+    positions.count++;
+    ids.count++;
   }
 
-  // Restore start indices (optional, needed for querying)
-  sum = 0;
-  for (size_t i = 0; i < sGrid->spatialSparse.capacity; i++) {
-    size_t end = sGrid->spatialSparse.items[i];
-    sGrid->spatialSparse.items[i] = sum;
-    sum = end;
-  }
-
-  sGrid->spatialDense.count = sum;
-  sGrid->spatialSparse.count = sGrid->spatialSparse.capacity;
+  _spatialGrid_populate(sGrid, &positions, &ids);
 }
 
 void render(GameMemory *gameMemory, GameState *gameState) {
-  // Render entities (instanced)
-  RenderQueue *renderQueue = (RenderQueue *)gameMemory->transientMemory;
+  RenderQueue *renderQueue = (RenderQueue *)gameState->transientAllocator.alloc(
+      gameState->transientAllocator.context, sizeof(RenderQueue));
   renderQueue->count = 0;
+  renderQueue->isMeshReloadRequired = false;
 
-  // Allocate transforms in transient memory
-  Matrix *sphereTransforms =
-      (Matrix *)((char *)gameMemory->transientMemory + sizeof(RenderQueue));
-  size_t maxTransforms =
-      (gameMemory->transientMemorySize - sizeof(RenderQueue)) / sizeof(Matrix);
+  size_t maxTransforms = 10000;
+  Matrix *sphereTransforms = (Matrix *)gameState->transientAllocator.alloc(
+      gameState->transientAllocator.context, sizeof(Matrix) * maxTransforms);
   size_t sphereCount = 0;
+
+  gameMemory->renderQueue = renderQueue;
 
   for (size_t i = 0; i < gameState->entityPool->entities_dense.count &&
                      sphereCount < maxTransforms;
@@ -307,13 +347,15 @@ void render(GameMemory *gameMemory, GameState *gameState) {
   }
   // Push instanced render command
   if (sphereCount > 0) {
-    if (gameState->instancedMeshUpdated) {
+    renderQueue->instanceMesh = &gameState->instancedMesh;
+    // TODO: workaround. sometimes intanceMesh VAO etc is 0
+    //  not sure why.
+    if (gameState->instancedMeshUpdated || gameState->instancedMesh.vaoId == 0) {
       renderQueue->isMeshReloadRequired = true;
-      renderQueue->instanceMesh = gameState->instancedMesh;
       gameState->instancedMeshUpdated = false;
     }
     RenderCommand cmd = {RENDER_INSTANCED,
-                         .instance = {&renderQueue->instanceMesh,
+                         .instance = {renderQueue->instanceMesh,
                                       sphereTransforms, NULL, sphereCount}};
     push_render_command(renderQueue, cmd);
   }
