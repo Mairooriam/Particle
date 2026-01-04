@@ -30,7 +30,9 @@ void arena_init(memory_arena *arena, mem_base *base, memory_index arena_size) {
   arena->size = arena_size;
   arena->used = 0;
 }
-
+static inline void arena_reset(memory_arena *arena) {
+  arena->used = 0;
+}
 #define arena_PushStruct(Arena, type) (type *)_PushStruct(Arena, sizeof(type))
 #define arena_PushStructs(Arena, type, count) \
   (type *)_PushStruct(Arena, sizeof(type) * count)

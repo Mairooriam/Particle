@@ -10,13 +10,7 @@
 #define GigaBytes(value) ((MegaBytes(value)) * 1024)
 #define TeraBytes(value) ((GigaBytes(value)) * 1024)
 
-typedef struct {
-  bool isInitialized;
-  void *permamentMemory;
-  size_t permanentMemorySize;
-  void *transientMemory;
-  size_t transientMemorySize;
-} GameMemory;
+
 
 // to not clash with raylib when included in main.c
 #ifndef RAYLIB_H
@@ -169,21 +163,7 @@ static Matrix MatrixMultiply(Matrix left, Matrix right) {
   return result;
 }
 #endif
-typedef struct {
-  Vector2 mousePos;
-  Camera3D camera;
-  bool mouseButtons[3]; // Left, middle, right
-  bool keys[256];       // Keyboard state
-} Input;
 
-#define GAME_UPDATE(name)                                                      \
-  void name(GameMemory *gameMemory, Input *input, float frameTime)
-typedef GAME_UPDATE(GameUpdate);
-static GAME_UPDATE(game_update_stub) {
-  (void)gameMemory;
-  (void)frameTime;
-  (void)input;
-}
 
 typedef enum {
   RENDER_RECTANGLE,
@@ -235,7 +215,33 @@ typedef struct {
 #define MAX_RENDER_COMMANDS 1000000
 typedef struct {
   bool isMeshReloadRequired;
-  Mesh instanceMesh;
+  Mesh* instanceMesh;
   RenderCommand commands[MAX_RENDER_COMMANDS];
   int count;
 } RenderQueue;
+
+typedef struct {
+  bool isInitialized;
+  void *permamentMemory;
+  size_t permanentMemorySize;
+  void *transientMemory;
+  size_t transientMemorySize;
+
+  RenderQueue *renderQueue;
+} GameMemory;
+
+typedef struct {
+  Vector2 mousePos;
+  Camera3D camera;
+  bool mouseButtons[3]; // Left, middle, right
+  bool keys[256];       // Keyboard state
+} Input;
+
+#define GAME_UPDATE(name)                                                      \
+  void name(GameMemory *gameMemory, Input *input, float frameTime)
+typedef GAME_UPDATE(GameUpdate);
+static GAME_UPDATE(game_update_stub) {
+  (void)gameMemory;
+  (void)frameTime;
+  (void)input;
+}
