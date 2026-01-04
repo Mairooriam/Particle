@@ -1,6 +1,5 @@
 #pragma once
 #include "shared.h"
-#include "utils.h"
 #include "application_types.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -40,37 +39,7 @@ static inline Vector3 Vector3Lerp(Vector3 v1, Vector3 v2, float amount) {
 
   return result;
 }
-// ================================
-// ENTITY FLAGS (up to 64, using uint64_t)
-// ================================
 
-// Flag constants (bit positions 0-63)
-#define ENTITY_FLAG_NONE 0ULL             // No flags set
-#define ENTITY_FLAG_ACTIVE (1ULL << 0)    // Entity updates (e.g., physics)
-#define ENTITY_FLAG_VISIBLE (1ULL << 1)   // Entity renders
-#define ENTITY_FLAG_COLLIDING (1ULL << 2) // Entity participates in collisions
-#define ENTITY_FLAG_DEAD (1ULL << 3)      // Entity is marked for removal
-
-// Component flags (control if components are used)
-#define ENTITY_FLAG_HAS_TRANSFORM                                              \
-  (1ULL << 4) // Use c_transform (position/velocity)
-#define ENTITY_FLAG_HAS_RENDER (1ULL << 5)    // Use c_render (visuals)
-#define ENTITY_FLAG_HAS_COLLISION (1ULL << 6) // Use c_collision (physics)
-#define ENTITY_FLAG_HAS_SPAWNER                                                \
-  (1ULL << 7) // Use spawner fields (spawnRate, clock)
-
-// Entity type flags (combine with core/component flags for functionality)
-#define ENTITY_FLAG_PLAYER (1ULL << 8)      // Player-controlled
-#define ENTITY_FLAG_ENEMY (1ULL << 9)       // AI enemy
-#define ENTITY_FLAG_PROJECTILE (1ULL << 10) // Fast-moving projectile
-#define ENTITY_FLAG_PARTICLE (1ULL << 11)   // Short-lived effect
-#define ENTITY_FLAG_STATIC (1ULL << 12)     // Immovable object
-#define ENTITY_FLAG_SPRING (1ULL << 13)
-// ================================
-// END ENTITY FLAGS
-// ================================
-
-void entity_add(Entities *entities, Entity entity);
 void update_entity_position(Entity *e, float frameTime,
                             Vector2 mouseWorldPosition);
 void update_entity_boundaries(Entity *e, float x_bound, float x_bound_min,
@@ -329,17 +298,31 @@ static inline bool is_key_up(Input *current, int key) {
   return !current->keys[key];
 }
 
-SpatialGrid *spatialGrid_create(memory_arena *arena, size_t entityCount) {
+SpatialGrid *spatialGrid_create_with_dimensions(memory_arena *arena,
+                                                Vector3 minBounds,
+                                                Vector3 maxBounds, int spacing,
+                                                size_t maxEntities) {
   SpatialGrid *sGrid = arena_PushStruct(arena, SpatialGrid);
 
-  sGrid->spatialDense.items = arena_PushStructs(arena, size_t, entityCount);
-  sGrid->spatialDense.count = 0;
-  sGrid->spatialDense.capacity = entityCount;
+  // Calculate grid dimensions first
+  sGrid->spacing = spacing;
+  sGrid->bX = (int)(maxBounds.x - minBounds.x);
+  sGrid->bY = (int)(maxBounds.y - minBounds.y);
+  sGrid->numX = sGrid->bX / spacing;
+  sGrid->numY = sGrid->bY / spacing;
 
-  sGrid->spatialSparse.items =
-      arena_PushStructs(arena, size_t, entityCount + 1);
-  sGrid->spatialSparse.capacity = entityCount + 1;
+  size_t gridCells = sGrid->numX * sGrid->numY;
+  sGrid->capacity = maxEntities;
+
+  sGrid->spatialDense.items = arena_PushStructs(arena, size_t, maxEntities);
+  sGrid->spatialDense.count = 0;
+  sGrid->spatialDense.capacity = maxEntities;
+
+  sGrid->spatialSparse.items = arena_PushStructs(arena, size_t, gridCells);
+  sGrid->spatialSparse.capacity = gridCells; // NOT maxEntities!
   sGrid->spatialSparse.count = 0;
+
+  sGrid->isInitalized = true;
 
   return sGrid;
 }
@@ -354,11 +337,12 @@ void spatialGrid_update_dimensions(SpatialGrid *sGrid, Vector3 minBounds,
 }
 void update_spatial(SpatialGrid *sGrid, arr_Entity *e) {
   float spacing = sGrid->spacing;
+  // MEMORY SAFETY CHECK - Add this assert to catch overlap
 
   // Clear arrays
-  // memset(sGrid->entities.items, 0,
-  //        sGrid->entities.capacity * sizeof(sGrid->entities.items[0]));
-  // sGrid->antitiesDense.count = 0;
+  memset(sGrid->spatialSparse.items, 0,
+         sGrid->spatialSparse.capacity * sizeof(sGrid->spatialSparse.items[0]));
+  sGrid->spatialDense.count = 0;
 
   // First pass: count entities per cell
   for (size_t i = 0; i < e->count; i++) {
@@ -425,6 +409,185 @@ void update_spatial(SpatialGrid *sGrid, arr_Entity *e) {
     size_t end = sGrid->spatialSparse.items[i];
     sGrid->spatialSparse.items[i] = sum;
     sum = end;
+  }
+
+  sGrid->spatialDense.count = sum;
+  sGrid->spatialSparse.count = sGrid->spatialSparse.capacity;
+}
+
+void render(GameMemory *gameMemory, GameState *gameState) {
+  // Render entities (instanced)
+  RenderQueue *renderQueue = (RenderQueue *)gameMemory->transientMemory;
+  renderQueue->count = 0;
+
+  // Allocate transforms in transient memory
+  Matrix *sphereTransforms =
+      (Matrix *)((char *)gameMemory->transientMemory + sizeof(RenderQueue));
+  size_t maxTransforms =
+      (gameMemory->transientMemorySize - sizeof(RenderQueue)) / sizeof(Matrix);
+  size_t sphereCount = 0;
+
+  for (size_t i = 0; i < gameState->entityPool->entities_dense.count &&
+                     sphereCount < maxTransforms;
+       i++) {
+    Entity *e = &gameState->entityPool->entities_dense.items[i];
+    if ((e->flags & ENTITY_FLAG_VISIBLE) &&
+        (e->flags & ENTITY_FLAG_HAS_RENDER)) {
+      // Collect transform for instanced drawing
+      Matrix t = MatrixTranslate(e->c_transform.pos.x, e->c_transform.pos.y,
+                                 e->c_transform.pos.z);
+      Matrix s =
+          MatrixScale(1.1f, 1.1f, 1.1f); // Change 2.0f to your desired scale
+      sphereTransforms[sphereCount++] = MatrixMultiply(s, t);
+    }
+  }
+  // Push instanced render command
+  if (sphereCount > 0) {
+    if (gameState->instancedMeshUpdated) {
+      renderQueue->isMeshReloadRequired = true;
+      renderQueue->instanceMesh = gameState->instancedMesh;
+      gameState->instancedMeshUpdated = false;
+    }
+    RenderCommand cmd = {RENDER_INSTANCED,
+                         .instance = {&renderQueue->instanceMesh,
+                                      sphereTransforms, NULL, sphereCount}};
+    push_render_command(renderQueue, cmd);
+  }
+
+  // ==================== BOUNDS DEBUG RENDERING ====================
+  RenderCommand cubeCmd = {
+      RENDER_CUBE_3D,
+      .cube3D = {false, 1, gameState->maxBounds.x, gameState->maxBounds.y,
+                 gameState->maxBounds.z,
+                 (Color){255, 0, 0, 50}}}; // wireFrame=false, origin=0
+                                           // (center), dimensions, color
+  push_render_command(renderQueue, cubeCmd);
+
+  Color boundsColorX = (Color){255, 0, 0, 200};
+  Color boundsColorY = (Color){0, 0, 255, 200};
+  Color boundsColorZ = (Color){0, 255, 0, 200};
+
+  Vector3 min = gameState->minBounds;
+  Vector3 max = gameState->maxBounds;
+  // Bottom face
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, min.y, min.z},
+                                                 (Vector3){max.x, min.y, min.z},
+                                                 boundsColorX}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, min.y, min.z},
+                                                 (Vector3){max.x, max.y, min.z},
+                                                 boundsColorX}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, max.y, min.z},
+                                                 (Vector3){min.x, max.y, min.z},
+                                                 boundsColorY}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, max.y, min.z},
+                                                 (Vector3){min.x, min.y, min.z},
+                                                 boundsColorY}});
+  // Top face
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, min.y, max.z},
+                                                 (Vector3){max.x, min.y, max.z},
+                                                 boundsColorZ}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, min.y, max.z},
+                                                 (Vector3){max.x, max.y, max.z},
+                                                 boundsColorZ}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, max.y, max.z},
+                                                 (Vector3){min.x, max.y, max.z},
+                                                 boundsColorX}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, max.y, max.z},
+                                                 (Vector3){min.x, min.y, max.z},
+                                                 boundsColorX}});
+  // Vertical edges
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, min.y, min.z},
+                                                 (Vector3){min.x, min.y, max.z},
+                                                 boundsColorY}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, min.y, min.z},
+                                                 (Vector3){max.x, min.y, max.z},
+                                                 boundsColorX}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, max.y, min.z},
+                                                 (Vector3){max.x, max.y, max.z},
+                                                 boundsColorZ}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, max.y, min.z},
+                                                 (Vector3){min.x, max.y, max.z},
+                                                 boundsColorY}});
+
+  // ==================== SPATIAL GRID DEBUG RENDERING ====================
+  if (gameState->sGrid && gameState->sGrid->isInitalized) {
+    float spacing = (float)gameState->sGrid->spacing;
+    Vector3 min = gameState->minBounds;
+    Vector3 max = gameState->maxBounds;
+    int numX = gameState->sGrid->numX;
+    int numY = gameState->sGrid->numY;
+    Color gridColor = (Color){100, 255, 100, 255};
+
+    // Vertical grid lines
+    for (int x = 0; x <= numX; x++) {
+      float gx = min.x + x * spacing;
+      push_render_command(
+          renderQueue,
+          (RenderCommand){RENDER_LINE_3D,
+                          .line3D = {(Vector3){gx, min.y, min.z},
+                                     (Vector3){gx, max.y, min.z}, gridColor}});
+      push_render_command(
+          renderQueue,
+          (RenderCommand){RENDER_LINE_3D,
+                          .line3D = {(Vector3){gx, min.y, max.z},
+                                     (Vector3){gx, max.y, max.z}, gridColor}});
+    }
+    // Horizontal grid lines
+    for (int y = 0; y <= numY; y++) {
+      float gy = min.y + y * spacing;
+      push_render_command(
+          renderQueue,
+          (RenderCommand){RENDER_LINE_3D,
+                          .line3D = {(Vector3){min.x, gy, min.z},
+                                     (Vector3){max.x, gy, min.z}, gridColor}});
+      push_render_command(
+          renderQueue,
+          (RenderCommand){RENDER_LINE_3D,
+                          .line3D = {(Vector3){min.x, gy, max.z},
+                                     (Vector3){max.x, gy, max.z}, gridColor}});
+    }
+    // Cell centers
+    for (int x = 0; x < numX; x++) {
+      for (int y = 0; y < numY; y++) {
+        // CELL CENTER
+        float cellCenterX = min.x + (x + 0.5f) * spacing;
+        float cellCenterY = min.y + (y + 0.5f) * spacing;
+        float cellCenterZ = max.z;
+        float sphereRadius = 3.0f;
+        Color cellColor = (Color){(25 * x) % 255, (25 * y) % 255, 0, 200};
+
+        push_render_command(
+            renderQueue,
+            (RenderCommand){
+                RENDER_SPHERE_3D,
+                .sphere3D = {(Vector3){cellCenterX, cellCenterY, cellCenterZ},
+                             sphereRadius, cellColor}});
+      }
+    }
   }
 }
 
