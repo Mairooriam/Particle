@@ -103,27 +103,27 @@ INTERNAL bool entityPool_sparse_remove_idx(EntityPool *pool, en_id idx) {
 }
 
 // ==================== PUBLIC API IMPLEMENTATIONS ==================
-EntityPool *entityPool_InitInArena(memory_arena *arena, size_t capacity) {
-  EntityPool *pool = arena_PushStruct(arena, EntityPool);
+EntityPool *entityPool_InitInArena(EntityPoolAllocator allocator, size_t capacity) {
+  EntityPool *pool = (EntityPool*)allocator.alloc(allocator.context, sizeof(EntityPool));
+  if (!pool) return NULL;
   pool->capacity = capacity;
 
-  pool->entities_sparse.items = (en_id *)arena_PushStructs(
-      arena, en_id, capacity + 1); // +1 for unused index 0
+  pool->entities_sparse.items = (en_id*)allocator.alloc(allocator.context, sizeof(en_id) * (capacity + 1));
+  if (!pool->entities_sparse.items) return NULL;
   pool->entities_sparse.capacity = capacity + 1;
   pool->entities_sparse.count = 0;
 
-  pool->entities_dense.items =
-      (Entity *)arena_PushStructs(arena, Entity, capacity);
+  pool->entities_dense.items = (Entity*)allocator.alloc(allocator.context, sizeof(Entity) * capacity);
+  if (!pool->entities_dense.items) return NULL;
   pool->entities_dense.capacity = capacity;
   pool->entities_dense.count = 0;
 
-  pool->freeIds.items =
-      (en_id *)arena_PushStructs(arena, en_id, capacity); // Free ID stack
+  pool->freeIds.items = (en_id*)allocator.alloc(allocator.context, sizeof(en_id) * capacity);
+  if (!pool->freeIds.items) return NULL;
   pool->freeIds.capacity = capacity;
   pool->freeIds.count = 0;
 
-  pool->nextId = 1; // Start at 1
-
+  pool->nextId = 1;
   return pool;
 }
 void entityPool_clear(EntityPool *ePool) {
@@ -223,36 +223,23 @@ en_identifier entity_id_create(uint32_t _idx, uint16_t _gen, uint16_t _spare,
   idx |= (en_mask_flags & _flags) << en_mask_flags_offset;
   return idx;
 }
-void arena_init(memory_arena *arena, unsigned char *base,
-                memory_index arena_size) {
-  arena->base = base;
-  arena->size = arena_size;
-  arena->used = 0;
-}
 
-void *_PushStruct(memory_arena *arena, size_t size) {
-  assert(arena->used + size <= arena->size);
-  void *result = arena->base + arena->used;
-  arena->used += size;
-  memset(result, 0, size);
-  return result;
-}
+Entity *entityPool_allocate_batch(EntityPool *pool, size_t count) {
+  if (pool->entities_dense.count + count > pool->entities_dense.capacity) {
+    return NULL; // Not enough space
+  }
 
-Entity* entityPool_allocate_batch(EntityPool *pool, size_t count) {
-    if (pool->entities_dense.count + count > pool->entities_dense.capacity) {
-        return NULL; // Not enough space
-    }
-    
-    Entity *first = &pool->entities_dense.items[pool->entities_dense.count];
-    
-    memset(first, 0, sizeof(Entity) * count);
-    
-    for (size_t i = 0; i < count; i++) {
-        first[i].identifier = entity_id_create(_entityPool_GetNextId(pool), 0, 0, 0);
-        en_id id = en_get_id(first[i].identifier);
-        pool->entities_sparse.items[id] = pool->entities_dense.count + i;
-    }
-    
-    pool->entities_dense.count += count;
-    return first;
+  Entity *first = &pool->entities_dense.items[pool->entities_dense.count];
+
+  memset(first, 0, sizeof(Entity) * count);
+
+  for (size_t i = 0; i < count; i++) {
+    first[i].identifier =
+        entity_id_create(_entityPool_GetNextId(pool), 0, 0, 0);
+    en_id id = en_get_id(first[i].identifier);
+    pool->entities_sparse.items[id] = pool->entities_dense.count + i;
+  }
+
+  pool->entities_dense.count += count;
+  return first;
 }

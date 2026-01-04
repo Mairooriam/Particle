@@ -124,13 +124,13 @@ typedef struct Material {
 } Material;
 
 typedef Vector4 Quaternion;
-Matrix MatrixScale(float x, float y, float z) {
+static Matrix MatrixScale(float x, float y, float z) {
   Matrix result = {x,    0.0f, 0.0f, 0.0f, 0.0f, y,    0.0f, 0.0f,
                    0.0f, 0.0f, z,    0.0f, 0.0f, 0.0f, 0.0f, 1.0f};
 
   return result;
 }
-Matrix MatrixMultiply(Matrix left, Matrix right) {
+static Matrix MatrixMultiply(Matrix left, Matrix right) {
   Matrix result = {0};
 
   result.m0 = left.m0 * right.m0 + left.m1 * right.m4 + left.m2 * right.m8 +
@@ -179,7 +179,7 @@ typedef struct {
 #define GAME_UPDATE(name)                                                      \
   void name(GameMemory *gameMemory, Input *input, float frameTime)
 typedef GAME_UPDATE(GameUpdate);
-GAME_UPDATE(game_update_stub) {
+static GAME_UPDATE(game_update_stub) {
   (void)gameMemory;
   (void)frameTime;
   (void)input;

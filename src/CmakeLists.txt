@@ -15,6 +15,7 @@ add_library(entity_lib STATIC
 )
 
 target_include_directories(entity_lib PUBLIC 
+${CMAKE_CURRENT_SOURCE_DIR} # REMOVE THIS LATER. NOT NICE
     ${CMAKE_CURRENT_SOURCE_DIR}/entity
     ${CMAKE_CURRENT_SOURCE_DIR}/entity/pool
 )

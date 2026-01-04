@@ -29,26 +29,26 @@ GAME_UPDATE(game_update) {
     arena_init(&gameState->transientArena, gameMemory->transientMemory,
                gameMemory->transientMemorySize);
     size_t entityCapacity = 10000;
+    // Create allocators for EntityPool, mesh, and spatial grid
+    EntityPoolAllocator poolAllocator = {arena_alloc, &gameState->permanentArena};
+    MemoryAllocator meshAllocator = create_arena_allocator(&gameState->permanentArena);
+    MemoryAllocator spatialAllocator = create_arena_allocator(&gameState->permanentArena);
+
     // Mesh generation
-    gameState->instancedMesh =
-        GenMeshCube(&gameState->permanentArena, 1.0f, 1.0f, 1.0f);
+    gameState->instancedMesh = GenMeshCube(meshAllocator, 1.0f, 1.0f, 1.0f);
     gameState->instancedMeshUpdated = true;
 
     // ENTITY POOL
-    gameState->entityPool =
-        EntityPoolInitInArena(&gameState->permanentArena, entityCapacity);
+    gameState->entityPool = entityPool_InitInArena(poolAllocator, entityCapacity);
 
     // SPATIAL GRID
-    gameState->sGrid = spatialGrid_create_with_dimensions(
-        &gameState->permanentArena, gameState->minBounds, gameState->maxBounds,
-        25, entityCapacity);
+    gameState->sGrid = spatialGrid_create_with_dimensions(spatialAllocator, gameState->minBounds, gameState->maxBounds, 25, entityCapacity);
 
-    Entity player =
-        entity_create_physics_particle((Vector3){0, 0, 0}, (Vector3){0, 0, 0});
+    Entity player = entity_create_physics_particle((Vector3){0, 0, 0}, (Vector3){0, 0, 0});
     player.followMouse = true;
-    EntityPoolPush(gameState->entityPool, player);
+    entityPool_push(gameState->entityPool, player);
     Entity spawner = entity_create_spawner_entity();
-    EntityPoolPush(gameState->entityPool, spawner);
+    entityPool_push(gameState->entityPool, spawner);
     gameMemory->isInitialized = true;
   }
 
@@ -61,7 +61,7 @@ GAME_UPDATE(game_update) {
     for (size_t i = 0; i < gameState->entityPool->entities_dense.count; i++) {
       Entity *e = &gameState->entityPool->entities_dense.items[i];
       if (idx % 2) {
-        EntityPoolRemoveIdx(gameState->entityPool, e->id);
+        entityPool_remove(gameState->entityPool, e->identifier); 
       }
       idx++;
     }
@@ -69,7 +69,7 @@ GAME_UPDATE(game_update) {
   }
 
   if (is_key_released(input, &gameState->lastFrameInput, KEY_SPACE)) {
-    PrintSparseAndDense(gameState->entityPool, 0, 50);
+    // PrintSparseAndDense(gameState->entityPool, 0, 50);
     printf("Space released!\n");
   }
 
@@ -122,7 +122,7 @@ void update_spawners(float frameTime, Entity *e, EntityPool *entityPool) {
   if (e->clock > (1 / e->spawnRate)) {
     for (size_t i = 0; i < e->spawnCount; i++) {
       e->spawnEntity->c_transform.pos = e->c_transform.pos;
-      EntityPoolPush(entityPool, *e->spawnEntity);
+      entityPool_push(entityPool, *e->spawnEntity);
     }
     e->clock = 0.0f;
   }

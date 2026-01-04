@@ -5,34 +5,21 @@
 #include <assert.h>
 #include <stdio.h>
 
-#define memory_index size_t
-
-// ==================== ARENA ====================
+#include "entityPool_types.h"
+typedef void *(*EntityPoolAllocFunc)(void *context, size_t size);
 typedef struct {
-  unsigned char *base;
-  size_t size;
-  size_t used;
-} memory_arena;
-
-void arena_init(memory_arena *arena, unsigned char *base, memory_index arena_size);
-void *_PushStruct(memory_arena *arena, size_t size);
-
-
-#define arena_PushStruct(Arena, type) (type *)_PushStruct(Arena, sizeof(type))
-#define arena_PushStructs(Arena, type, count) \
-  (type *)_PushStruct(Arena, sizeof(type) * count)
-
-
-  #include "entityPool_types.h"
+  EntityPoolAllocFunc alloc; // Allocates 'size' bytes, returns NULL on failure
+  void *context;             // Allocator-specific data (e.g., arena pointer)
+} EntityPoolAllocator;
 // ==================== ENTITY POOL ==================
-EntityPool *entityPool_InitInArena(memory_arena *arena, size_t capacity);
+EntityPool *entityPool_InitInArena(EntityPoolAllocator arena, size_t capacity);
 void entityPool_clear(EntityPool *ePool);
 en_identifier entity_id_create(uint32_t _idx, uint16_t _gen, uint16_t _spare,
-                                uint8_t _flags);
+                               uint8_t _flags);
 void entityPool_remove(EntityPool *pool, en_id idx);
 void entityPool_insert(EntityPool *pool, Entity entity);
 void entityPool_push(EntityPool *pool, Entity entity);
-Entity* entityPool_allocate_batch(EntityPool *pool, size_t count);
+Entity *entityPool_allocate_batch(EntityPool *pool, size_t count);
 #ifdef ENTITY_POOL_DEVELOPMENT
 en_id _entityPool_GetNextId(EntityPool *pool);
 en_id _entityPool_PeekNextId(EntityPool *pool);
@@ -51,10 +38,7 @@ en_identifier entityPool_from_dense_get_identifier(EntityPool *pool, en_id idx);
 bool entityPool_sparse_remove_idx(EntityPool *pool, en_id idx);
 #endif // ENTITY_POOL_DEVELOPMENT
 
-
-
-
-//TODO: go trough this:
+// TODO: go trough this:
 
 // ;compile
 // World

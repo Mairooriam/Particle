@@ -1,12 +1,15 @@
 #pragma once
 #include "shared.h"
 #include "application_types.h"
+#include "entity_types.h"
+#include "memory_allocator.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include "entityPool.h"
 // application.c
 
 static inline Vector3 Vector3Add(Vector3 v1, Vector3 v2) {
@@ -50,150 +53,17 @@ Entity entity_create_spawner_entity();
 
 void push_render_command(RenderQueue *queue, RenderCommand cmd);
 
-static inline void Entities_init_with_buffer(Entities *da, size_t cap,
-                                             Entity *buffer) {
-  da->count = 0;
-  da->capacity = cap;
-  da->items = buffer;
-}
+// static inline void Entities_init_with_buffer(Entities *da, size_t cap,
+//                                              Entity *buffer) {
+//   da->count = 0;
+//   da->capacity = cap;
+//   da->items = buffer;
+// }
 
 // TODO: make entities_dense be entities Dynamic array so it has count when
 // passed around?
 
 void update_spawners(float frameTime, Entity *e, EntityPool *entityPool);
-#define memory_index                                                           \
-  size_t // from casey experiment and see if this is good way to do this
-
-void arena_init(memory_arena *arena, uint8_t *base, memory_index arena_size) {
-  arena->base = base;
-  arena->size = arena_size;
-  arena->used = 0;
-}
-
-#define arena_PushStruct(Arena, type) (type *)_PushStruct(Arena, sizeof(type))
-#define arena_PushStructs(Arena, type, count)                                  \
-  (type *)_PushStruct(Arena, sizeof(type) * count)
-// Ment for internal use do not call
-// Zeroes out the pushed struct
-static void *_PushStruct(memory_arena *arena, size_t size) {
-  Assert(arena->used + size <= arena->size);
-  void *result = arena->base + arena->used;
-  arena->used += size;
-  return result;
-}
-
-// Initialize the entity pool
-static EntityPool *EntityPoolInitInArena(memory_arena *arena, size_t capacity) {
-  EntityPool *pool = arena_PushStruct(arena, EntityPool);
-  pool->capacity = capacity;
-
-  pool->entities_sparse.items = (size_t *)arena_PushStructs(
-      arena, size_t, capacity + 1); // +1 for unused index 0
-  pool->entities_sparse.capacity = capacity + 1;
-  pool->entities_sparse.count = 0;
-
-  pool->entities_dense.items =
-      (Entity *)arena_PushStructs(arena, Entity, capacity);
-  pool->entities_dense.capacity = capacity;
-  pool->entities_dense.count = 0;
-
-  pool->freeIds.items =
-      (size_t *)arena_PushStructs(arena, size_t, capacity); // Free ID stack
-  pool->freeIds.capacity = capacity;
-  pool->freeIds.count = 0;
-
-  pool->nextId = 1; // Start at 1
-
-  for (size_t i = 0; i <= pool->entities_sparse.capacity;
-       i++) { // Include index 0 (though not used)
-    pool->entities_sparse.items[i] = SIZE_MAX;
-  }
-
-  return pool;
-}
-void PrintSparseAndDense(EntityPool *pool, size_t start, size_t end) {
-  if (start >= pool->capacity) {
-    printf("Error: Start index out of bounds.\n");
-    return;
-  }
-  if (end > pool->capacity) {
-    end = pool->capacity; // Clamp the end index to the capacity
-  }
-
-  printf("Sparse Array (from %zu to %zu):\n", start, end);
-  for (size_t i = start; i < end; i++) {
-    printf("Sparse[%zu] = %zu\n", i, pool->entities_sparse.items[i]);
-  }
-
-  printf("\nDense Array (from %zu to %zu):\n", start, end);
-  for (size_t i = start; i < end && i < pool->entities_dense.count; i++) {
-    printf("Dense[%zu] = { ID: %zu }\n", i, pool->entities_dense.items[i].id);
-  }
-  printf("\n");
-}
-static size_t EntityPoolGetNextId(EntityPool *pool) {
-  if (pool->freeIds.count > 0) {
-    return pool->freeIds.items[--pool->freeIds.count];
-  } else {
-    return pool->nextId++; // return new id
-  }
-}
-
-static void EntityPoolPush(EntityPool *pool, Entity entity) {
-  // If supplied entity ID == 0 -> choose id for it
-  if (entity.id == 0) {
-    entity.id = EntityPoolGetNextId(pool);
-  } else {
-    // If ID is pre-assigned, ensure it's free and valid
-    // TODO: do i want to add flag to override exisiting? or do i want to delete
-    // it first and then push new one?
-    Assert(entity.id <= pool->capacity);
-    Assert(pool->entities_sparse.items[entity.id] ==
-           SIZE_MAX); // Ensure ID slot is free (prevent duplicates)
-  }
-  // Assert incase someone changes entity id to be not unsigned
-  Assert(entity.id >= 0)
-
-      // currently pool doesnt grow. assert entity is fits the pool
-      Assert(entity.id <= pool->capacity);
-  if (pool->entities_dense.count < pool->capacity) {
-    // Add to the end of the dense array
-    pool->entities_dense.items[pool->entities_dense.count] = entity;
-    pool->entities_sparse.items[entity.id] =
-        pool->entities_dense.count; // Use entity.id directly
-    pool->entities_dense.count++;
-  } else {
-    printf("Error: Entity capacity reached.\n");
-  }
-}
-
-static void EntityPoolRemoveIdx(EntityPool *pool, size_t idx) {
-  // Safety check: Ensure the pool has entities and the ID is valid/active
-  if (pool->entities_dense.count == 0) {
-    // printf("Warning: Attempted to remove from an empty EntityPool.\n");
-    return;
-  }
-  if (idx == 0 || idx > pool->capacity) {
-    // printf("Warning: Invalid ID %zu for removal (out of range).\n", idx);
-    return;
-  }
-  size_t denseIndex = pool->entities_sparse.items[idx]; // Use idx directly
-  if (denseIndex == SIZE_MAX || denseIndex >= pool->entities_dense.count) {
-    // printf("Warning: ID %zu is not active or invalid for removal.\n", idx);
-    return;
-  }
-
-  // Swap with the last entity (even if it's the same)
-  pool->entities_dense.items[denseIndex] =
-      pool->entities_dense.items[pool->entities_dense.count - 1];
-  size_t swappedId = pool->entities_dense.items[denseIndex].id;
-  pool->entities_sparse.items[swappedId] = denseIndex; // Use swappedId directly
-
-  // Mark removed ID as free
-  pool->entities_sparse.items[idx] = SIZE_MAX; // Use idx directly
-  pool->freeIds.items[pool->freeIds.count++] = idx;
-  pool->entities_dense.count--;
-}
 
 typedef struct {
   Input lastFrameInput;
@@ -208,7 +78,7 @@ typedef struct {
   Vector3 minBounds;
   Vector3 maxBounds;
 } GameState;
-static Mesh GenMeshCube(memory_arena *arena, float width, float height,
+static Mesh GenMeshCube(MemoryAllocator allocator, float width, float height,
                         float length) {
   Mesh mesh = {0};
 
@@ -257,29 +127,24 @@ static Mesh GenMeshCube(memory_arena *arena, float width, float height,
     k++;
   }
 
-  mesh.vertices = arena_PushStructs(arena, float, 24 * 3);
-  if (!mesh.vertices)
-    return mesh; // Allocation failed
+  mesh.vertices = (float*)allocator.alloc(allocator.context, sizeof(float) * 24 * 3);
+  if (!mesh.vertices) return mesh;
   memcpy(mesh.vertices, vertices, 24 * 3 * sizeof(float));
 
-  mesh.texcoords = arena_PushStructs(arena, float, 24 * 2);
-  if (!mesh.texcoords)
-    return mesh;
+  mesh.texcoords = (float*)allocator.alloc(allocator.context, sizeof(float) * 24 * 2);
+  if (!mesh.texcoords) return mesh;
   memcpy(mesh.texcoords, texcoords, 24 * 2 * sizeof(float));
 
-  mesh.normals = arena_PushStructs(arena, float, 24 * 3);
-  if (!mesh.normals)
-    return mesh;
+  mesh.normals = (float*)allocator.alloc(allocator.context, sizeof(float) * 24 * 3);
+  if (!mesh.normals) return mesh;
   memcpy(mesh.normals, normals, 24 * 3 * sizeof(float));
 
-  mesh.indices = arena_PushStructs(arena, unsigned short, 36);
-  if (!mesh.indices)
-    return mesh;
+  mesh.indices = (unsigned short*)allocator.alloc(allocator.context, sizeof(unsigned short) * 36);
+  if (!mesh.indices) return mesh;
   memcpy(mesh.indices, indices, 36 * sizeof(unsigned short));
 
   mesh.vertexCount = 24;
   mesh.triangleCount = 12;
-
   return mesh;
 }
 static inline bool is_key_pressed(Input *current, Input *last, int key) {
@@ -298,11 +163,11 @@ static inline bool is_key_up(Input *current, int key) {
   return !current->keys[key];
 }
 
-SpatialGrid *spatialGrid_create_with_dimensions(memory_arena *arena,
+SpatialGrid *spatialGrid_create_with_dimensions(MemoryAllocator allocator,
                                                 Vector3 minBounds,
                                                 Vector3 maxBounds, int spacing,
                                                 size_t maxEntities) {
-  SpatialGrid *sGrid = arena_PushStruct(arena, SpatialGrid);
+  SpatialGrid *sGrid = (SpatialGrid*)allocator.alloc(allocator.context, sizeof(SpatialGrid));
 
   // Calculate grid dimensions first
   sGrid->spacing = spacing;
@@ -314,16 +179,15 @@ SpatialGrid *spatialGrid_create_with_dimensions(memory_arena *arena,
   size_t gridCells = sGrid->numX * sGrid->numY;
   sGrid->capacity = maxEntities;
 
-  sGrid->spatialDense.items = arena_PushStructs(arena, size_t, maxEntities);
+  sGrid->spatialDense.items = (size_t*)allocator.alloc(allocator.context, sizeof(size_t) * maxEntities);
   sGrid->spatialDense.count = 0;
   sGrid->spatialDense.capacity = maxEntities;
 
-  sGrid->spatialSparse.items = arena_PushStructs(arena, size_t, gridCells);
-  sGrid->spatialSparse.capacity = gridCells; // NOT maxEntities!
+  sGrid->spatialSparse.items = (size_t*)allocator.alloc(allocator.context, sizeof(size_t) * gridCells);
+  sGrid->spatialSparse.capacity = gridCells;
   sGrid->spatialSparse.count = 0;
 
   sGrid->isInitalized = true;
-
   return sGrid;
 }
 void spatialGrid_update_dimensions(SpatialGrid *sGrid, Vector3 minBounds,
