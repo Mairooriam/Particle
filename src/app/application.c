@@ -1,5 +1,7 @@
 // application.c
 #include "application.h"
+#include "entityPool_types.h"
+#include "entity_types.h"
 #include "shared.h"
 #include "stdio.h"
 // if moving to c++ to prevent name mangling
@@ -7,158 +9,29 @@
 GAME_UPDATE(game_update) {
   Assert(sizeof(GameState) <= gameMemory->permanentMemorySize);
 
+  // ==================== INITIALIZATION ====================
   GameState *gameState = (GameState *)gameMemory->permamentMemory;
   if (!gameMemory->isInitialized) {
-    size_t gameStateSize = sizeof(GameState);
-    size_t permanentArenaSize = 32 * 1024 * 1024;
-    gameState->minBounds = (Vector3){0, 0, 0};
-    gameState->maxBounds = (Vector3){100, 100, 0};
-    // Reserve space for arena, then calculate maxEntities from remaining
-    size_t availableForEntities =
-        gameMemory->permanentMemorySize - gameStateSize - permanentArenaSize;
-    size_t maxEntities = availableForEntities / sizeof(Entity);
-
-    // Initialize arenas
-    size_t permanentArenaOffset = gameStateSize + maxEntities * sizeof(Entity);
-    void *permanentArenaBase =
-        (char *)gameMemory->permamentMemory + permanentArenaOffset;
-    Assert(permanentArenaSize > 0);
-
-    arena_init(&gameState->permanentArena, permanentArenaBase,
-               permanentArenaSize);
-    arena_init(&gameState->transientArena, gameMemory->transientMemory,
-               gameMemory->transientMemorySize);
-    gameState->permanentAllocator =
-        create_arena_allocator(&gameState->permanentArena);
-    gameState->transientAllocator =
-        create_arena_allocator(&gameState->transientArena);
-
-    size_t entityCapacity = 10000;
-    // Use the stored allocators
-    EntityPoolAllocator poolAllocator = {arena_alloc,
-                                         &gameState->permanentArena};
-
-    // Mesh generation
-    gameState->instancedMesh =
-        GenMeshCube(&gameState->permanentAllocator, 1.0f, 1.0f, 1.0f);
-    gameState->instancedMeshUpdated = true;
-
-    // ENTITY POOL
-    gameState->entityPool =
-        entityPool_InitInArena(poolAllocator, entityCapacity);
-
-    // SPATIAL GRID
-    int cellSpacing = 25;
-    int numCellsX =
-        (int)(gameState->maxBounds.x - gameState->minBounds.x) / cellSpacing;
-    int numCellsY =
-        (int)(gameState->maxBounds.y - gameState->minBounds.y) / cellSpacing;
-
-    gameState->sGrid = spatialGrid_create_with_dimensions(
-        gameState->permanentAllocator, gameState->minBounds,
-        gameState->maxBounds, 25, entityCapacity);
-
-    for (int cy = 0; cy < numCellsY; cy++) {
-      for (int cx = 0; cx < numCellsX; cx++) {
-        Vector3 cellPos = {.x = gameState->minBounds.x + (cx * cellSpacing) +
-                                (cellSpacing / 2.0f),
-                           .y = gameState->minBounds.y + (cy * cellSpacing) +
-                                (cellSpacing / 2.0f),
-                           .z = 0.0f};
-
-        Entity testEntity =
-            entity_create_physics_particle(cellPos, (Vector3){0, 0, 0});
-        testEntity.c_transform.a = (Vector3){0, 0, 0}; // No acceleration
-        testEntity.c_render.color =
-            (Color){100, 100, 255, 200}; // Blue for test entities
-
-        if (cx == 0 && cy == 0) {
-
-          entityPool_push(gameState->entityPool, testEntity);
-          entityPool_push(gameState->entityPool, testEntity);
-          entityPool_push(gameState->entityPool, testEntity);
-          entityPool_push(gameState->entityPool, testEntity);
-        }
-        if (cx == 0 && cy == 1) {
-          entityPool_push(gameState->entityPool, testEntity);
-          entityPool_push(gameState->entityPool, testEntity);
-        }
-      }
-    }
-
-    // Entity player =
-    //     entity_create_physics_particle((Vector3){0, 0, 0}, (Vector3){0, 0,
-    //     0});
-    // player.followMouse = true;
-    // entityPool_push(gameState->entityPool, player);
-    // Entity spawner = entity_create_spawner_entity();
-    // entityPool_push(gameState->entityPool, spawner);
-    gameMemory->isInitialized = true;
+    handle_init(gameMemory, gameState);
   }
+
   arena_reset(&gameState->transientArena);
 
-  gameState->mouseDelta =
-      Vector2Subtract(input->mousePos, gameState->lastFrameInput.mousePos);
+  handle_input(gameState, input);
 
-  if (is_key_pressed(input, &gameState->lastFrameInput, KEY_SPACE)) {
-    // NUKE half of entitieseses
-    static size_t idx = 0;
-    for (size_t i = 0; i < gameState->entityPool->entities_dense.count; i++) {
-      Entity *e = &gameState->entityPool->entities_dense.items[i];
-      if (idx % 2) {
-        entityPool_remove(gameState->entityPool, e->identifier);
-      }
-      idx++;
-    }
-    printf("Space pressed!\n");
-  }
+  handle_update(gameState, frameTime, input);
 
-  if (is_key_released(input, &gameState->lastFrameInput, KEY_1)) {
-
-    // PrintSparseAndDense(gameState->entityPool, 0, 50);
-    printf("Space released!\n");
-  }
-
-  if (is_key_down(input, KEY_SPACE)) {
-    printf("Space is down!\n");
-  }
-
-  EntityPool *entityPool = gameState->entityPool;
-
-  // Update entities
-  for (size_t i = 0; i < entityPool->entities_dense.count; i++) {
-    Entity *e = &entityPool->entities_dense.items[i];
-    if (e->flags & ENTITY_FLAG_ACTIVE) {
-      if (e->flags & ENTITY_FLAG_HAS_TRANSFORM) {
-        e->c_transform.a = (Vector3){0, -9.81, 0};
-        update_entity_position(e, frameTime, input->mousePos);
-        update_entity_boundaries(e, gameState->maxBounds.x,
-                                 gameState->minBounds.x, gameState->maxBounds.y,
-                                 gameState->minBounds.y, gameState->maxBounds.z,
-                                 gameState->minBounds.z);
-      }
-      if (e->flags & ENTITY_FLAG_HAS_SPAWNER) {
-        // e->c_transform.v = (Vector3){0, 0, 0};
-        e->c_transform.v =
-            Vector3Add(e->c_transform.v, (Vector3){1, 2.0f, 0.5f});
-        update_spawners(frameTime, e, entityPool);
-      }
-    }
-  }
-
-  spatial_populate(gameState->sGrid, entityPool,
-                   &gameState->transientAllocator);
-
-  size_t cell = 0; // or any cell index you want to inspect
-  size_t start = gameState->sGrid->spatialSparse.items[cell];
-  size_t end = (cell + 1 < gameState->sGrid->spatialSparse.capacity)
-                   ? gameState->sGrid->spatialSparse.items[cell + 1]
-                   : gameState->sGrid->spatialDense.count;
-  printf("Entities in cell %zu: ", cell);
-  for (size_t i = start; i < end; i++) {
-    printf("%zu ", gameState->sGrid->spatialDense.items[i].entityId);
-  }
-  printf("\n");
+  // ==================== DEBUG STUFF ====================
+  // size_t cell = 0; // or any cell index you want to inspect
+  // size_t start = gameState->sGrid->spatialSparse.items[cell];
+  // size_t end = (cell + 1 < gameState->sGrid->spatialSparse.capacity)
+  //                  ? gameState->sGrid->spatialSparse.items[cell + 1]
+  //                  : gameState->sGrid->spatialDense.count;
+  // printf("Entities in cell %zu: ", cell);
+  // for (size_t i = start; i < end; i++) {
+  //   printf("%zu ", gameState->sGrid->spatialDense.items[i].entityId);
+  // }
+  // printf("\n");
 
   // ==================== PUSING RENDER COMMANDS ETC ====================
   render(gameMemory, gameState);
@@ -233,7 +106,236 @@ void update_entity_boundaries(Entity *e, float x_bound, float x_bound_min,
     cTp1->v.z = cTp1->v.z * -1;
   }
 }
+void handle_input(GameState *gameState, Input *input) {
+  gameState->mouseDelta =
+      Vector2Subtract(input->mousePos, gameState->lastFrameInput.mousePos);
 
+  if (is_key_pressed(input, &gameState->lastFrameInput, KEY_SPACE)) {
+    // NUKE half of entitieseses
+    static size_t idx = 0;
+    for (size_t i = 0; i < gameState->entityPool->entities_dense.count; i++) {
+      Entity *e = &gameState->entityPool->entities_dense.items[i];
+      if (idx % 2) {
+        entityPool_remove(gameState->entityPool, e->identifier);
+      }
+      idx++;
+    }
+    printf("Space pressed!\n");
+  }
+
+  if (is_key_released(input, &gameState->lastFrameInput, KEY_1)) {
+
+    // PrintSparseAndDense(gameState->entityPool, 0, 50);
+    printf("Space released!\n");
+  }
+
+  if (is_key_down(input, KEY_SPACE)) {
+    printf("Space is down!\n");
+  }
+}
+void handle_update(GameState *gameState, float frameTime, Input *input) {
+  EntityPool *entityPool = gameState->entityPool;
+  // Update entities
+
+  update_collision(gameState, frameTime);
+
+  for (size_t i = 0; i < entityPool->entities_dense.count; i++) {
+    Entity *e = &entityPool->entities_dense.items[i];
+    if (e->flags & ENTITY_FLAG_ACTIVE) {
+      if (e->flags & ENTITY_FLAG_HAS_TRANSFORM) {
+        e->c_transform.a = (Vector3){0, -9.81, 0};
+        update_entity_position(e, frameTime, input->mousePos);
+        update_entity_boundaries(e, gameState->maxBounds.x,
+                                 gameState->minBounds.x, gameState->maxBounds.y,
+                                 gameState->minBounds.y, gameState->maxBounds.z,
+                                 gameState->minBounds.z);
+      }
+      if (e->flags & ENTITY_FLAG_HAS_SPAWNER) {
+        // e->c_transform.v = (Vector3){0, 0, 0};
+        e->c_transform.v =
+            Vector3Add(e->c_transform.v, (Vector3){1, 2.0f, 0.5f});
+        update_spawners(frameTime, e, entityPool);
+      }
+    }
+  }
+
+  spatial_populate(gameState->sGrid, entityPool,
+                   &gameState->transientAllocator);
+}
+void update_collision(GameState *gameState, float frameTime) {
+  EntityPool *ePool = gameState->entityPool;
+  for (size_t i = 0; i < ePool->entities_dense.count; i++) {
+    Entity *e = &ePool->entities_dense.items[i];
+    c_Transform *cTp1 = &e->c_transform;
+    c_Collision *cCp1 = &e->c_collision;
+
+    for (size_t j = 0; j < ePool->entities_dense.count; j++) {
+      if (i == j)
+        continue;
+      Entity *e2 = &ePool->entities_dense.items[j];
+      c_Transform *cTp2 = &e2->c_transform;
+      c_Collision *cCp2 = &e2->c_collision;
+
+      if (CheckCollisionCircles(
+              (Vector2){cTp1->pos.x, cTp1->pos.y}, cCp1->radius,
+              (Vector2){cTp2->pos.x, cTp2->pos.y}, cCp2->radius)) {
+        Vector3 delta = Vector3Subtract(cTp1->pos, cTp2->pos);
+        float distance = Vector3Length(delta);
+        Vector3 n12 = Vector3Normalize(delta);
+        // If objects are spawned on top of each other delta is 0.0.
+        if (distance == 0.0f) {
+          n12 = (Vector3){0.0f, 1.0f, 0.0f}; // YODO: test other kinds of forces
+        } else {
+          n12 = Vector3Normalize(delta);
+        }
+        float overlap = (cCp1->radius + cCp2->radius) - distance;
+        float totalInverseMass = cCp1->inverseMass + cCp2->inverseMass;
+        if (totalInverseMass <= 0)
+          break; // infinite mass impulses have no effect
+
+        if (totalInverseMass >
+            0) { // Only separate if at least one has finite mass
+          Vector3 separation1 =
+              Vector3Scale(n12, overlap * cCp2->inverseMass / totalInverseMass);
+          Vector3 separation2 = Vector3Scale(n12, -overlap * cCp1->inverseMass /
+                                                      totalInverseMass);
+          cTp1->pos = Vector3Add(cTp1->pos, separation1);
+          cTp2->pos = Vector3Add(cTp2->pos, separation2);
+        } else {
+          // Both infinite mass: don't separate (or handle as static)
+        }
+        cCp1->collisionCount++;
+        Vector3 dV12 = Vector3Subtract(cTp1->v, cTp2->v);
+        float Vs = Vector3DotProduct(dV12, n12); // separation velocity
+
+        if (Vs > 0) {
+          break; // contact is either separating or stationary no impulse
+                 // needed
+        }
+        float nVs =
+            -Vs * cTp1->restitution; // New separation velocity with restitution
+        float deltaV = nVs - Vs;
+
+        // TODO: not checking if no particle -> colliding with wall? etc? in
+        // example there is
+
+        float impulse = deltaV / totalInverseMass;
+
+        Vector3 impulsePerIMass = Vector3Scale(n12, impulse);
+
+        cTp1->v = Vector3Add(cTp1->v,
+                             Vector3Scale(impulsePerIMass, cCp1->inverseMass));
+        cTp2->v = Vector3Subtract(
+            cTp2->v, Vector3Scale(impulsePerIMass, cCp2->inverseMass));
+      }
+    }
+  }
+}
+
+void handle_init(GameMemory *gameMemory, GameState *gameState) {
+  size_t gameStateSize = sizeof(GameState);
+  size_t maxEntities = 1000000;
+
+  size_t entityPoolSize = maxEntities * sizeof(Entity);
+  size_t spatialGridSize = maxEntities * sizeof(SpatialEntry);
+  size_t spatialGridCells = (100 / 25) * (100 / 25);
+  size_t spatialSparseSize = spatialGridCells * sizeof(size_t) * 2;
+  size_t meshDataSize = 1024 * 1024;
+
+  size_t permanentArenaSize =
+      entityPoolSize + spatialGridSize + spatialSparseSize + meshDataSize;
+
+  size_t totalRequired = gameStateSize + permanentArenaSize;
+  printf("=== Memory Allocation ===\n");
+  printf("Entity Pool: %.2f MB (%zu entities)\n",
+         entityPoolSize / (1024.0 * 1024.0), maxEntities);
+  printf("Spatial Grid Dense: %.2f MB\n", spatialGridSize / (1024.0 * 1024.0));
+  printf("Spatial Grid Sparse: %.2f MB (%zu cells)\n",
+         spatialSparseSize / (1024.0 * 1024.0), spatialGridCells);
+  printf("Mesh Data: %.2f MB\n", meshDataSize / (1024.0 * 1024.0));
+  printf("Total Permanent Arena: %.2f MB\n",
+         permanentArenaSize / (1024.0 * 1024.0));
+  printf("Total Required: %.2f MB\n", totalRequired / (1024.0 * 1024.0));
+  printf("Total Available: %.2f MB\n",
+         gameMemory->permanentMemorySize / (1024.0 * 1024.0));
+  printf("========================\n");
+  Assert(totalRequired <= gameMemory->permanentMemorySize);
+
+  gameState->minBounds = (Vector3){0, 0, 0};
+  gameState->maxBounds = (Vector3){100, 100, 0};
+
+  // Initialize arenas
+  void *permanentArenaBase =
+      (char *)gameMemory->permamentMemory + gameStateSize;
+  arena_init(&gameState->permanentArena, permanentArenaBase,
+             permanentArenaSize);
+  arena_init(&gameState->transientArena, gameMemory->transientMemory,
+             gameMemory->transientMemorySize);
+  gameState->permanentAllocator =
+      create_arena_allocator(&gameState->permanentArena);
+  gameState->transientAllocator =
+      create_arena_allocator(&gameState->transientArena);
+
+  size_t entityCapacity = 10000;
+  // Use the stored allocators
+  EntityPoolAllocator poolAllocator = {arena_alloc, &gameState->permanentArena};
+
+  // Mesh generation
+  gameState->instancedMesh =
+      GenMeshCube(&gameState->permanentAllocator, 1.0f, 1.0f, 1.0f);
+  gameState->instancedMeshUpdated = true;
+
+  // ENTITY POOL
+  gameState->entityPool = entityPool_InitInArena(poolAllocator, entityCapacity);
+
+  // SPATIAL GRID
+  int cellSpacing = 25;
+  int numCellsX =
+      (int)(gameState->maxBounds.x - gameState->minBounds.x) / cellSpacing;
+  int numCellsY =
+      (int)(gameState->maxBounds.y - gameState->minBounds.y) / cellSpacing;
+
+  gameState->sGrid = spatialGrid_create_with_dimensions(
+      gameState->permanentAllocator, gameState->minBounds, gameState->maxBounds,
+      25, entityCapacity);
+
+  for (int cy = 0; cy < numCellsY; cy++) {
+    for (int cx = 0; cx < numCellsX; cx++) {
+      Vector3 cellPos = {.x = gameState->minBounds.x + (cx * cellSpacing) +
+                              (cellSpacing / 2.0f),
+                         .y = gameState->minBounds.y + (cy * cellSpacing) +
+                              (cellSpacing / 2.0f),
+                         .z = 0.0f};
+
+      Entity testEntity =
+          entity_create_physics_particle(cellPos, (Vector3){0, 0, 0});
+      testEntity.c_transform.a = (Vector3){0, 0, 0}; // No acceleration
+      testEntity.c_render.color =
+          (Color){100, 100, 255, 200}; // Blue for test entities
+
+      if (cx == 0 && cy == 0) {
+
+        entityPool_push(gameState->entityPool, testEntity);
+        entityPool_push(gameState->entityPool, testEntity);
+        entityPool_push(gameState->entityPool, testEntity);
+        entityPool_push(gameState->entityPool, testEntity);
+      }
+      if (cx == 0 && cy == 1) {
+        entityPool_push(gameState->entityPool, testEntity);
+        entityPool_push(gameState->entityPool, testEntity);
+      }
+    }
+  }
+
+  // Entity player =
+  //     entity_create_physics_particle((Vector3){0, 0, 0}, (Vector3){0, 0,
+  //     0});
+  // player.followMouse = true;
+  // entityPool_push(gameState->entityPool, player);
+  Entity spawner = entity_create_spawner_entity();
+  entityPool_push(gameState->entityPool, spawner);
+  gameMemory->isInitialized = true;
+}
 Entity entity_create_physics_particle(Vector3 pos, Vector3 velocity) {
   Entity e = {0};
   e.flags = ENTITY_FLAG_ACTIVE | ENTITY_FLAG_VISIBLE | ENTITY_FLAG_COLLIDING |
@@ -244,13 +346,13 @@ Entity entity_create_physics_particle(Vector3 pos, Vector3 velocity) {
                                 .a = {.x = 0, .y = 0, .z = 0},
                                 .restitution = 0.90f};
 
-  e.c_collision = (c_Collision){.radius = 25.0f,
+  e.c_collision = (c_Collision){.radius = 1.0f,
                                 .mass = 1.0f,
                                 .inverseMass = 1.0f,
                                 .collisionCount = 0,
                                 .searchCount = 0};
 
-  e.c_render = (c_Render){.renderRadius = 24.0f,
+  e.c_render = (c_Render){.renderRadius = 1.0f,
                           .color = {.r = 255, .b = 0, .g = 0, .a = 200}};
 
   // e.followMouse = true;
@@ -263,14 +365,14 @@ Entity entity_create_spawner_entity() {
             ENTITY_FLAG_HAS_TRANSFORM | ENTITY_FLAG_HAS_RENDER |
             ENTITY_FLAG_VISIBLE;
 
-  e.spawnRate = 1.0f;
+  e.spawnRate = 10.0f;
   e.clock = 0;
   // e.followMouse = true;
-  e.c_render = (c_Render){.renderRadius = 24.0f,
+  e.c_render = (c_Render){.renderRadius = 1.5f,
                           .color = {.r = 0, .b = 255, .g = 0, .a = 200}};
-  e.spawnCount = 1;
+  e.spawnCount = 2;
   e.c_transform = (c_Transform){.pos = {.x = 0, .y = 0, .z = 0},
-                                .v = {.x = 50, .y = 50, .z = 50},
+                                .v = {.x = 5, .y = 5, .z = 0},
                                 .a = {.x = 0, .y = 9.81, .z = 0},
                                 .restitution = 0.90f};
   e.spawnEntity = malloc(sizeof(Entity));

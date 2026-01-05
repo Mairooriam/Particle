@@ -179,7 +179,7 @@ int main() {
 #endif
 
   GameMemory gameMemory = {0};
-  gameMemory.permanentMemorySize = MegaBytes(64);
+  gameMemory.permanentMemorySize = MegaBytes(256);
   gameMemory.transientMemorySize = GigaBytes((uint64_t)4);
 
   uint64_t totalSize =

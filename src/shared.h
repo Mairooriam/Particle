@@ -1,6 +1,7 @@
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
+#include <math.h>
 #define Assert(Expression)                                                     \
   if (!(Expression)) {                                                         \
     *(int *)0 = 0;                                                             \
@@ -9,8 +10,6 @@
 #define MegaBytes(value) ((KiloBytes(value)) * 1024)
 #define GigaBytes(value) ((MegaBytes(value)) * 1024)
 #define TeraBytes(value) ((GigaBytes(value)) * 1024)
-
-
 
 // to not clash with raylib when included in main.c
 #ifndef RAYLIB_H
@@ -162,8 +161,8 @@ static Matrix MatrixMultiply(Matrix left, Matrix right) {
 
   return result;
 }
-#endif
 
+#endif
 
 typedef enum {
   RENDER_RECTANGLE,
@@ -215,7 +214,7 @@ typedef struct {
 #define MAX_RENDER_COMMANDS 1000000
 typedef struct {
   bool isMeshReloadRequired;
-  Mesh* instanceMesh;
+  Mesh *instanceMesh;
   RenderCommand commands[MAX_RENDER_COMMANDS];
   int count;
 } RenderQueue;
