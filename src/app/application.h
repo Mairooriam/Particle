@@ -14,16 +14,8 @@
 #include "entityPool.h"
 // application.c
 
-static inline Vector3 Vector3Add(Vector3 v1, Vector3 v2) {
-  return (Vector3){v1.x + v2.x, v1.y + v2.y, v1.z + v2.z};
-}
-
 static inline Vector2 Vector2Subtract(Vector2 v1, Vector2 v2) {
   return (Vector2){v1.x - v2.x, v1.y - v2.y};
-}
-
-static inline Vector3 Vector3Scale(Vector3 v, float scale) {
-  return (Vector3){v.x * scale, v.y * scale, v.z * scale};
 }
 
 static inline float Lerp(float start, float end, float amount) {
@@ -44,7 +36,182 @@ static inline Vector3 Vector3Lerp(Vector3 v1, Vector3 v2, float amount) {
 
   return result;
 }
+bool CheckCollisionCircles(Vector2 center1, float radius1, Vector2 center2,
+                           float radius2) {
+  bool collision = false;
 
+  float dx = center2.x - center1.x; // X distance between centers
+  float dy = center2.y - center1.y; // Y distance between centers
+
+  float distanceSquared = dx * dx + dy * dy; // Distance between centers squared
+  float radiusSum = radius1 + radius2;
+
+  collision = (distanceSquared <= (radiusSum * radiusSum));
+
+  return collision;
+}
+Vector3 Vector3Zero(void) {
+  Vector3 result = {0.0f, 0.0f, 0.0f};
+
+  return result;
+}
+
+// Vector with components value 1.0f
+Vector3 Vector3One(void) {
+  Vector3 result = {1.0f, 1.0f, 1.0f};
+
+  return result;
+}
+
+// Add two vectors
+Vector3 Vector3Add(Vector3 v1, Vector3 v2) {
+  Vector3 result = {v1.x + v2.x, v1.y + v2.y, v1.z + v2.z};
+
+  return result;
+}
+
+// Add vector and float value
+Vector3 Vector3AddValue(Vector3 v, float add) {
+  Vector3 result = {v.x + add, v.y + add, v.z + add};
+
+  return result;
+}
+
+// Subtract two vectors
+Vector3 Vector3Subtract(Vector3 v1, Vector3 v2) {
+  Vector3 result = {v1.x - v2.x, v1.y - v2.y, v1.z - v2.z};
+
+  return result;
+}
+
+// Subtract vector by float value
+Vector3 Vector3SubtractValue(Vector3 v, float sub) {
+  Vector3 result = {v.x - sub, v.y - sub, v.z - sub};
+
+  return result;
+}
+
+// Multiply vector by scalar
+Vector3 Vector3Scale(Vector3 v, float scalar) {
+  Vector3 result = {v.x * scalar, v.y * scalar, v.z * scalar};
+
+  return result;
+}
+
+// Multiply vector by vector
+Vector3 Vector3Multiply(Vector3 v1, Vector3 v2) {
+  Vector3 result = {v1.x * v2.x, v1.y * v2.y, v1.z * v2.z};
+
+  return result;
+}
+
+// Calculate two vectors cross product
+Vector3 Vector3CrossProduct(Vector3 v1, Vector3 v2) {
+  Vector3 result = {v1.y * v2.z - v1.z * v2.y, v1.z * v2.x - v1.x * v2.z,
+                    v1.x * v2.y - v1.y * v2.x};
+
+  return result;
+}
+
+// Calculate one vector perpendicular vector
+Vector3 Vector3Perpendicular(Vector3 v) {
+  Vector3 result = {0};
+
+  float min = fabsf(v.x);
+  Vector3 cardinalAxis = {1.0f, 0.0f, 0.0f};
+
+  if (fabsf(v.y) < min) {
+    min = fabsf(v.y);
+    Vector3 tmp = {0.0f, 1.0f, 0.0f};
+    cardinalAxis = tmp;
+  }
+
+  if (fabsf(v.z) < min) {
+    Vector3 tmp = {0.0f, 0.0f, 1.0f};
+    cardinalAxis = tmp;
+  }
+
+  // Cross product between vectors
+  result.x = v.y * cardinalAxis.z - v.z * cardinalAxis.y;
+  result.y = v.z * cardinalAxis.x - v.x * cardinalAxis.z;
+  result.z = v.x * cardinalAxis.y - v.y * cardinalAxis.x;
+
+  return result;
+}
+
+// Calculate vector length
+float Vector3Length(const Vector3 v) {
+  float result = sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
+
+  return result;
+}
+
+// Calculate vector square length
+float Vector3LengthSqr(const Vector3 v) {
+  float result = v.x * v.x + v.y * v.y + v.z * v.z;
+
+  return result;
+}
+
+// Calculate two vectors dot product
+float Vector3DotProduct(Vector3 v1, Vector3 v2) {
+  float result = (v1.x * v2.x + v1.y * v2.y + v1.z * v2.z);
+
+  return result;
+}
+
+// Calculate distance between two vectors
+float Vector3Distance(Vector3 v1, Vector3 v2) {
+  float result = 0.0f;
+
+  float dx = v2.x - v1.x;
+  float dy = v2.y - v1.y;
+  float dz = v2.z - v1.z;
+  result = sqrtf(dx * dx + dy * dy + dz * dz);
+
+  return result;
+}
+
+// Calculate square distance between two vectors
+float Vector3DistanceSqr(Vector3 v1, Vector3 v2) {
+  float result = 0.0f;
+
+  float dx = v2.x - v1.x;
+  float dy = v2.y - v1.y;
+  float dz = v2.z - v1.z;
+  result = dx * dx + dy * dy + dz * dz;
+
+  return result;
+}
+// Negate provided vector (invert direction)
+Vector3 Vector3Negate(Vector3 v) {
+  Vector3 result = {-v.x, -v.y, -v.z};
+
+  return result;
+}
+
+// Divide vector by vector
+Vector3 Vector3Divide(Vector3 v1, Vector3 v2) {
+  Vector3 result = {v1.x / v2.x, v1.y / v2.y, v1.z / v2.z};
+
+  return result;
+}
+
+// Normalize provided vector
+Vector3 Vector3Normalize(Vector3 v) {
+  Vector3 result = v;
+
+  float length = sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
+  if (length != 0.0f) {
+    float ilength = 1.0f / length;
+
+    result.x *= ilength;
+    result.y *= ilength;
+    result.z *= ilength;
+  }
+
+  return result;
+}
 void update_entity_position(Entity *e, float frameTime,
                             Vector2 mouseWorldPosition);
 void update_entity_boundaries(Entity *e, float x_bound, float x_bound_min,
@@ -245,11 +412,13 @@ spatialGrid_get_entry_cell_index(const SpatialGrid *sGrid,
 static void _spatialGrid_populate(SpatialGrid *sGrid, arr_vec3f *positions,
                                   arr_size_t *ids) {
   size_t numY = sGrid->numY;
-  
-    sGrid->spatialDense.count = 0;
-  memset(sGrid->spatialSparse.items, 0, sizeof(size_t) * sGrid->spatialSparse.capacity);
+
+  sGrid->spatialDense.count = 0;
+  memset(sGrid->spatialSparse.items, 0,
+         sizeof(size_t) * sGrid->spatialSparse.capacity);
   if (sGrid->cellCounts.items) {
-    memset(sGrid->cellCounts.items, 0, sizeof(size_t) * sGrid->cellCounts.capacity);
+    memset(sGrid->cellCounts.items, 0,
+           sizeof(size_t) * sGrid->cellCounts.capacity);
   }
 
   // PART ONE: fill sparse with the entitie counts AND push into dense
@@ -337,11 +506,10 @@ void render(GameMemory *gameMemory, GameState *gameState) {
     Entity *e = &gameState->entityPool->entities_dense.items[i];
     if ((e->flags & ENTITY_FLAG_VISIBLE) &&
         (e->flags & ENTITY_FLAG_HAS_RENDER)) {
-      // Collect transform for instanced drawing
       Matrix t = MatrixTranslate(e->c_transform.pos.x, e->c_transform.pos.y,
                                  e->c_transform.pos.z);
-      Matrix s =
-          MatrixScale(1.1f, 1.1f, 1.1f); // Change 2.0f to your desired scale
+      float scaleFactor = e->c_render.renderRadius * 2.0f;  
+      Matrix s = MatrixScale(scaleFactor, scaleFactor, scaleFactor);
       sphereTransforms[sphereCount++] = MatrixMultiply(s, t);
     }
   }
@@ -350,7 +518,8 @@ void render(GameMemory *gameMemory, GameState *gameState) {
     renderQueue->instanceMesh = &gameState->instancedMesh;
     // TODO: workaround. sometimes intanceMesh VAO etc is 0
     //  not sure why.
-    if (gameState->instancedMeshUpdated || gameState->instancedMesh.vaoId == 0) {
+    if (gameState->instancedMeshUpdated ||
+        gameState->instancedMesh.vaoId == 0) {
       renderQueue->isMeshReloadRequired = true;
       gameState->instancedMeshUpdated = false;
     }
@@ -496,6 +665,10 @@ void render(GameMemory *gameMemory, GameState *gameState) {
     }
   }
 }
+void handle_input(GameState *gameState, Input *input);
+void handle_update(GameState *gameState, float frameTime, Input *input);
+void handle_init(GameMemory *gameMemory, GameState *gameState);
+void update_collision(GameState *gameState, float frameTime);
 
 #define KEY_SPACE 32
 #define KEY_ENTER 257
