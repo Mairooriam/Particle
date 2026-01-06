@@ -13,11 +13,18 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <vulkan/vulkan_core.h>
 #include <winnt.h>
-
+#include "glfw3.h"
+#include "utils.h"
+#include "vulkan/vulkan.h"
+#include "cglm/cglm.h"
 // TODO: fix timestep https://gafferongames.com/post/fix_your_timestep/
 // TODO: Clean up hotloop code
 // TODO: clean up this pile of code
+
+// TODO: make proper utils.h not spread around utls and other files
+#define ARR_COUNT(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 static FILETIME getFileLastWriteTime(const char *filename) {
   FILETIME result;
@@ -141,7 +148,140 @@ static void save_input_to_file(HANDLE h, Input *input) {
   Assert(result != 0);
 }
 
-int main() {
+// just example of how to do custom validaiton by docs? is this even needed?
+typedef struct {
+  PFN_vkCreateInstance real_vkCreateInstance;
+  PFN_vkCreateDebugUtilsMessengerEXT createDebugUtils;
+  PFN_vkDestroyDebugUtilsMessengerEXT destroyDebugUtils;
+} vulkanCtx;
+vulkanCtx vCtx = {0};
+VkDebugUtilsMessengerEXT debugMessenger;
+bool checkValidationLayerSupport(const char **requiredLayers,
+                                 uint32_t requiredCount) {
+  uint32_t layerCount;
+  vkEnumerateInstanceLayerProperties(&layerCount, NULL);
+
+  VkLayerProperties *availableLayers =
+      malloc(layerCount * sizeof(VkLayerProperties));
+  if (!availableLayers) {
+    assert(0 && "lol malloc failed");
+    return false;
+  }
+  vkEnumerateInstanceLayerProperties(&layerCount, availableLayers);
+
+  for (uint32_t i = 0; i < requiredCount; ++i) {
+    bool layerFound = false;
+    for (uint32_t j = 0; j < layerCount; ++j) {
+      if (strcmp(requiredLayers[i], availableLayers[j].layerName) == 0) {
+        layerFound = true;
+        break;
+      }
+    }
+    if (!layerFound) {
+      free(availableLayers);
+      return false;
+    }
+  }
+
+  free(availableLayers);
+  return true;
+}
+
+int getRequiredExtensions(arr_cstr *extensions, bool enableValidationLayers) {
+  if (!extensions)
+    return 0;
+
+  uint32_t glfwExtensionCount = 0;
+  const char **glfwExtensions;
+  glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+  for (uint32_t i = 0; i < glfwExtensionCount; ++i) {
+    nob_da_append(extensions, glfwExtensions[i]);
+  }
+
+  if (enableValidationLayers) {
+    nob_da_append(extensions, VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+  }
+
+  return extensions->count;
+}
+
+static VKAPI_ATTR VkBool32 VKAPI_CALL
+debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+              VkDebugUtilsMessageTypeFlagsEXT messageType,
+              const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+              void *pUserData) {
+
+  fprintf(stderr, "%s\n", pCallbackData->pMessage);
+  if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+    printf("Hello world this is higer error %s\n", pCallbackData->pMessage);
+  }
+
+  return VK_FALSE;
+}
+VkResult CreateDebugUtilsMessengerEXT(
+    VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
+    const VkAllocationCallbacks *pAllocator,
+    VkDebugUtilsMessengerEXT *pDebugMessenger) {
+  vCtx.createDebugUtils =
+      (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
+          instance, "vkCreateDebugUtilsMessengerEXT");
+  if (vCtx.createDebugUtils != NULL) {
+    return vCtx.createDebugUtils(instance, pCreateInfo, pAllocator,
+                                 pDebugMessenger);
+  } else {
+    return VK_ERROR_EXTENSION_NOT_PRESENT;
+  }
+}
+
+void DestroyDebugUtilsMessengerEXT(VkInstance instance,
+                                   VkDebugUtilsMessengerEXT debugMessenger,
+                                   const VkAllocationCallbacks *pAllocator) {
+  vCtx.destroyDebugUtils =
+      (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
+          instance, "vkDestroyDebugUtilsMessengerEXT");
+  if (vCtx.destroyDebugUtils != NULL) {
+    vCtx.destroyDebugUtils(instance, debugMessenger, pAllocator);
+  }
+}
+void populateDebugMessengerCreateInfo(
+    VkDebugUtilsMessengerCreateInfoEXT *createInfo) {
+  // TODO: tutorial zero intialized createInfo. if problems do that
+  createInfo->sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+  createInfo->messageSeverity =
+      VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+      VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+      VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+  createInfo->messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+  createInfo->pfnUserCallback = debugCallback;
+}
+
+void setupDebugMessenger(VkInstance instance, bool enableValidationLayers) {
+  if (!enableValidationLayers)
+    return;
+
+  VkDebugUtilsMessengerCreateInfoEXT createInfo = {0};
+  populateDebugMessengerCreateInfo(&createInfo);
+
+  if (CreateDebugUtilsMessengerEXT(instance, &createInfo, NULL,
+                                   &debugMessenger) != VK_SUCCESS) {
+    fprintf(stderr, "Failed to setup debug messenger!\n");
+    assert(0 && "Failed to setup debug messenger!");
+  }
+}
+
+int main(void) {
+
+  vCtx.real_vkCreateInstance =
+      (PFN_vkCreateInstance)vkGetInstanceProcAddr(NULL, "vkCreateInstance");
+  if (!vCtx.real_vkCreateInstance) {
+    fprintf(stderr, "Failed to load vkCreateInstance!\n");
+    assert(0 && "failed to load vkCreateInstance");
+    exit(1);
+  }
+
   char EXEDirPath[MAX_PATH];
   DWORD SizeOfFilename = GetModuleFileNameA(0, EXEDirPath, sizeof(EXEDirPath));
   (void)SizeOfFilename;
@@ -170,8 +310,6 @@ int main() {
   code.reloadDLLRequested = false;
   code.reloadDLLDelay = 0.0f;
 
-  InitWindow(800, 600, "Hot-reload Example");
-
 #if INTERNAL_BUILD
   LPVOID baseAddress = (LPVOID)TeraBytes((uint64_t)2);
 #else
@@ -195,282 +333,145 @@ int main() {
   if (!gameMemory.transientMemory) {
     LOG("FAILED TO ALLOC TRANSIENT MEMORY");
   }
-  Input input = {0};
-  SetTargetFPS(60);
 
-  // TODO: 3D CODE move out of here in future
-  Camera3D camera = {.position = (Vector3){100, 100, 100},
-                     .target = (Vector3){50, 50, 0},
-                     .up = (Vector3){0, 1, 0},
-                     .fovy = 45,
-                     .projection = CAMERA_PERSPECTIVE};
-  // Camera3D camera = {0};
-  // camera.position = (Vector3){50, 50, 100}; // Above the center, looking down
-  // camera.target = (Vector3){50, 50, 0};     // Looking at the center
-  // camera.up = (Vector3){0, 1, 0};
-  // camera.fovy = 100; // This value is ignored for orthographic
-  // camera.projection = CAMERA_ORTHOGRAPHIC;
-  input.camera = camera;
-  Shader shader = LoadShader("lighting_instancing.vs", "lighting.fs");
-  Material matinstances = LoadMaterialDefault();
-  shader.locs[SHADER_LOC_MATRIX_MVP] = GetShaderLocation(shader, "mvp");
-  shader.locs[SHADER_LOC_VECTOR_VIEW] = GetShaderLocation(shader, "viewPos");
-  int ambientLoc = GetShaderLocation(shader, "ambient");
-  SetShaderValue(shader, ambientLoc, (float[4]){0.2f, 0.2f, 0.2f, 1.0f},
-                 SHADER_UNIFORM_VEC4);
-  matinstances.shader = shader;
-  matinstances.maps[MATERIAL_MAP_DIFFUSE].color = RED;
-  // END OF 3D SHIT
-  bool isCursorDisabled = true;
-  bool recordingInput = false;
-  bool playBackOn = false;
-  HANDLE inputFileHandle = NULL;
-  Input loadedInput = {0};
-  DisableCursor();
+  // ==================== INIT WINDOW ====================
+  const uint32_t WIDTH = 800;
+  const uint32_t HEIGHT = 600;
 
-  double t = 0.0;
-  const double dt = 1.0 / 40.0;
-  double currentTime = GetTime();
-  double accumulator = 0.0;
-  Camera3D previousCamera = input.camera;
-  Camera3D currentCamera = input.camera;
+  glfwInit();
+  glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+  glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+  GLFWwindow *window =
+      glfwCreateWindow(WIDTH, HEIGHT, "Vulkan window", NULL, NULL);
 
-  while (!WindowShouldClose()) {
-    double newTime = GetTime();
-    double frameTime = newTime - currentTime;
-    if (frameTime > 0.25)
-      frameTime = 0.25;
-    currentTime = newTime;
-    accumulator += frameTime;
+  // ==================== INIT VULKAN ====================
+  uint32_t extensionCount = 0;
+  vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
+  VkInstance vkInstance;
+  VkApplicationInfo appInfo = {0};
+  appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+  appInfo.pApplicationName = "Hello Triangle";
+  appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+  appInfo.pEngineName = "No Engine";
+  appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+  appInfo.apiVersion = VK_API_VERSION_1_0;
 
-    previousCamera = currentCamera;
-    Vector3 oldPosition = input.camera.position;
+#ifdef SLOW_CODE_ALLOWED
+  const int enableValidationLayers = 1;
+#else
+  const int enableValidationLayers = 0;
+#endif
 
-    // --- 2D-style orthographic camera controls ---
-    // float panSpeed = 2.0f;
-    // float zoomSpeed = 4.0f;
-    //
-    // if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D))
-    //   input.camera.position.x += panSpeed;
-    // if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))
-    //   input.camera.position.x -= panSpeed;
-    // if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W))
-    //   input.camera.position.y += panSpeed;
-    // if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S))
-    //   input.camera.position.y -= panSpeed;
-    //
-    // input.camera.target.x = input.camera.position.x;
-    // input.camera.target.y = input.camera.position.y;
-    //
-    // float wheel = GetMouseWheelMove();
-    // if (wheel != 0) {
-    //   float zoomFactor = 1.15f;
-    //   if (wheel > 0) {
-    //     input.camera.fovy /= powf(zoomFactor, wheel);
-    //   } else {
-    //     input.camera.fovy *= powf(zoomFactor, -wheel);
-    //   }
-    //   if (input.camera.fovy < 5)
-    //     input.camera.fovy = 5;
-    //   if (input.camera.fovy > 1000)
-    //     input.camera.fovy = 1000;
-    // }
-    // --- end 2D-style camera controls ---
-    if (isCursorDisabled) {
-      UpdateCamera(&input.camera, CAMERA_FREE);
-      Vector3 positionDelta =
-          Vector3Subtract(input.camera.position, oldPosition);
-      float speedMultiplier = 5.0f;
-      input.camera.position =
-          Vector3Add(oldPosition, Vector3Scale(positionDelta, speedMultiplier));
-    }
-    currentCamera = input.camera;
-
-    if (playBackOn) {
-      printf("playing back input\n");
-      DWORD bytesRead;
-      BOOL result = ReadFile(inputFileHandle, &loadedInput, sizeof(Input),
-                             &bytesRead, NULL);
-      if (!result || bytesRead != sizeof(Input)) {
-        loadGameMemory("test.tmp", &gameMemory);
-        SetFilePointer(inputFileHandle, 0, NULL, FILE_BEGIN);
-      } else {
-        input = loadedInput;
-      }
-    } else {
-      collect_input(&input);
-    }
-    if (playBackOn) {
-      input = loadedInput;
-    }
-
-    if (code.reloadDLLRequested) {
-      code.clock += frameTime;
-    }
-
-    if (IsKeyPressed(KEY_F1)) {
-      if (isCursorDisabled) {
-        EnableCursor();
-      } else {
-        DisableCursor();
-      }
-      isCursorDisabled = !isCursorDisabled;
-    }
-    if (IsKeyPressed(KEY_F2)) {
-      recordingInput = recordingInput ? false : true;
-      if (recordingInput == true) {
-        CloseHandle(inputFileHandle);
-        saveGameMemory("test.tmp", &gameMemory);
-        inputFileHandle =
-            CreateFileA("input.tmp", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
-                        FILE_ATTRIBUTE_NORMAL, NULL);
-
-      } else {
-        if (inputFileHandle) {
-          CloseHandle(inputFileHandle);
-          inputFileHandle =
-              CreateFileA("input.tmp", GENERIC_READ, 0, NULL, OPEN_EXISTING,
-                          FILE_ATTRIBUTE_NORMAL, NULL);
-        }
-      }
-    }
-    if (IsKeyPressed(KEY_F7)) {
-      saveGameMemory("test.tmp", &gameMemory);
-    }
-
-    if (IsKeyPressed(KEY_F8)) {
-      loadGameMemory("test.tmp", &gameMemory);
-    }
-    if (IsKeyPressed(KEY_F4)) {
-      playBackOn = playBackOn ? false : true;
-      if (playBackOn) {
-        // Reset file position to beginning for playback
-        if (inputFileHandle) {
-          SetFilePointer(inputFileHandle, 0, NULL, FILE_BEGIN);
-        }
-      }
-    }
-    if (recordingInput) {
-      printf("saving input each frame\n");
-      save_input_to_file(inputFileHandle, &input);
-    }
-
-    if (code.reloadDLLRequested && (code.clock >= code.reloadDLLDelay)) {
-      LOG("Reloading DLLs.");
-      unloadGameCode(&code);
-      code = loadGameCode(sourceDLLfilepath, tempDLLfilepath);
-      code.reloadDLLRequested = false;
-      code.clock = 0;
-    }
-
-    FILETIME time = getFileLastWriteTime(sourceDLLfilepath);
-    if (CompareFileTime(&time, &code.currentDLLtimestamp) != 0) {
-      code.reloadDLLRequested = true;
-    }
-
-    // https://gafferongames.com/post/fix_your_timestep/
-    // NOt sure how to add interpolation to my "state" because of the
-    // hotreload stuff....
-    while (accumulator >= dt) {
-      code.update(&gameMemory, &input, dt);
-      accumulator -= dt;
-      t += dt;
-    }
-
-    const double alpha = accumulator / dt;
-    Camera3D renderCamera = currentCamera;
-    renderCamera.position =
-        Vector3Lerp(previousCamera.position, currentCamera.position, alpha);
-    renderCamera.target =
-        Vector3Lerp(previousCamera.target, currentCamera.target, alpha);
-
-    BeginDrawing();
-    ClearBackground(RAYWHITE);
-    BeginMode3D(renderCamera);
-    RenderQueue *renderQueue = gameMemory.renderQueue;
-    // No render queue available yet, skip rendering
-    if (!renderQueue) {
-      EndMode3D();
-      DrawFPS(10, 10);
-      EndDrawing();
-      flush_logs();
-      continue;
-    }
-    if (renderQueue->isMeshReloadRequired) {
-      UploadMesh(renderQueue->instanceMesh, false);
-      renderQueue->isMeshReloadRequired = false;
-    }
-
-    // FIRST PASS
-    // TODO: also consume the commands so second pass doenst have to iterate
-    // trough all of them again
-    for (int i = 0; i < renderQueue->count; i++) {
-      RenderCommand cmd = renderQueue->commands[i];
-
-      if (cmd.type == RENDER_INSTANCED) {
-        // printf("Mesh OpenGL IDs - VAO: %u, VBO: %u vertexCount:%i\n",
-        // cmd.instance.mesh->vaoId,
-        // cmd.instance.mesh->vboId ? cmd.instance.mesh->vboId[0] : 0,
-        // cmd.instance.mesh->vertexCount);
-        DrawMeshInstanced(*cmd.instance.mesh, matinstances,
-                          cmd.instance.transforms, cmd.instance.count);
-      }
-    }
-
-    // Not sure what does but works
-    rlDrawRenderBatchActive();
-
-    // SECOND PASS
-    for (int i = 0; i < renderQueue->count; i++) {
-      RenderCommand cmd = renderQueue->commands[i];
-      switch (cmd.type) {
-      case RENDER_RECTANGLE: {
-        Color color = (Color){cmd.rectangle.color.r, cmd.rectangle.color.g,
-                              cmd.rectangle.color.b, cmd.rectangle.color.a};
-        DrawRectangle(cmd.rectangle.x, cmd.rectangle.y, cmd.rectangle.width,
-                      cmd.rectangle.height, color);
-      } break;
-      case RENDER_CIRCLE: {
-        Color color = (Color){cmd.circle.color.r, cmd.circle.color.g,
-                              cmd.circle.color.b, cmd.circle.color.a};
-        DrawSphere((Vector3){cmd.circle.centerX, cmd.circle.centerY, 0},
-                   cmd.circle.radius, color);
-      } break;
-      case RENDER_INSTANCED: {
-        // Already handled in first pass - skip
-      } break;
-      case RENDER_LINE_3D: {
-        DrawLine3D(cmd.line3D.start, cmd.line3D.end, cmd.line3D.color);
-      } break;
-      case RENDER_CUBE_3D: {
-        Vector3 corner = {0, 0, 0};
-        float width = cmd.cube3D.width, height = cmd.cube3D.height,
-              depth = cmd.cube3D.depth;
-        Vector3 center = {corner.x, corner.y, corner.z};
-
-        if (cmd.cube3D.origin == 1) {
-          center = (Vector3){corner.x + width / 2, corner.y + height / 2,
-                             corner.z + depth / 2};
-        }
-
-        if (cmd.cube3D.wireFrame) {
-          DrawCubeWires(center, width, height, depth, cmd.cube3D.color);
-        } else {
-          DrawCube(center, width, height, depth, cmd.cube3D.color);
-        }
-      } break;
-      case RENDER_SPHERE_3D: {
-        DrawSphere(cmd.sphere3D.center, cmd.sphere3D.radius,
-                   cmd.sphere3D.color);
-      } break;
-      }
-    }
-    EndMode3D();
-    DrawFPS(10, 10);
-    EndDrawing();
-    flush_logs();
+  const char *validationLayers[] = {"VK_LAYER_KHRONOS_validation"};
+  const uint32_t validationLayerCount = ARR_COUNT(validationLayers);
+  if (enableValidationLayers &&
+      !checkValidationLayerSupport(validationLayers, validationLayerCount)) {
+    fprintf(stderr, "Validation layers requested, but not available!\n");
+    assert(0 && "Validation layer request but not available!");
+    exit(1);
   }
-  CloseWindow();
+
+  // ==================== SETUP INFO ====================
+  VkInstanceCreateInfo createInfo = {0};
+  createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+  createInfo.pApplicationInfo = &appInfo;
+
+  VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {0};
+  if (enableValidationLayers) {
+    createInfo.enabledLayerCount = (uint32_t)validationLayerCount;
+    createInfo.ppEnabledLayerNames = validationLayers;
+
+    populateDebugMessengerCreateInfo(&debugCreateInfo);
+    createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *)&debugCreateInfo;
+  } else {
+    createInfo.enabledLayerCount = 0;
+    createInfo.pNext = NULL;
+  }
+
+  // ==================== SETUP GLFW EXTENSION WITH VULKAN ====================
+  // if using some other windowing u need to use different stuff
+  arr_cstr *extensions = arr_cstr_create(16);
+  getRequiredExtensions(extensions, enableValidationLayers);
+  createInfo.enabledExtensionCount = (uint32_t)extensions->count;
+  createInfo.ppEnabledExtensionNames = extensions->items;
+
+  if (vkCreateInstance(&createInfo, NULL, &vkInstance) != VK_SUCCESS) {
+    fprintf(stderr, "Failed to create Vulkan instance!\n");
+    assert(0 && "Failed to create vulkan instance!\n");
+    exit(1);
+  }
+  free(extensions);
+
+  // ==================== SETUP DEBUG MESSENGER ====================
+  VkDebugUtilsMessengerCreateInfoEXT createInfoDbg = {0};
+  createInfoDbg.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+  createInfoDbg.messageSeverity =
+      VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+      VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+      VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+  createInfoDbg.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                              VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                              VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+  createInfoDbg.pfnUserCallback = debugCallback;
+  createInfoDbg.pUserData = NULL;
+  if (CreateDebugUtilsMessengerEXT(vkInstance, &createInfoDbg, NULL,
+                                   &debugMessenger) != VK_SUCCESS) {
+    fprintf(stderr, "Failed to set up debug messanger!");
+    assert(0 && "Failed to setup debug messanger!");
+  }
+
+  // ==================== PHYSICAL DEVICES ====================
+  VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+  uint32_t deviceCount = 0;
+  vkEnumeratePhysicalDevices(vkInstance, &deviceCount, NULL);
+  if (deviceCount == 0) {
+    fprintf(stderr, "Failed to find GPUs with Vulkan support!\n");
+    assert(0 && "Failed to find gpus with vulkan support!");
+  }
+
+  VkPhysicalDevice *devices = malloc(deviceCount * sizeof(VkPhysicalDevice));
+  if (!devices) {
+    fprintf(stderr, "Failed to allocate physicalDevices\n");
+    assert(0 && "failed to allocate physicalDevice");
+  }
+
+  vkEnumeratePhysicalDevices(vkInstance, &deviceCount, devices);
+  free(devices);
+
+  // things that dont go away virtual device
+  // swap chain
+  // example device
+  // https://github.com/KhronosGroup/Vulkan-Samples/blob/main/framework/core/device.h
+  // https://github.com/lonelydevil/vulkan-tutorial-C-implementation/blob/main/main.c
+  // ==================== MAIN LOOP ====================
+  while (!glfwWindowShouldClose(window)) {
+    glfwPollEvents();
+  }
+
+  // ==================== CLEAN UP ====================
+  if (enableValidationLayers) {
+    DestroyDebugUtilsMessengerEXT(vkInstance, debugMessenger, NULL);
+  }
+
+  vkDestroyInstance(vkInstance, NULL);
+
+  glfwDestroyWindow(window);
+  glfwTerminate();
 
   return 0;
+}
+
+// ==================== VULKAN HELPERS / VALIDATION ====================
+
+VkResult vkCreateInstance(const VkInstanceCreateInfo *pCreateInfo,
+                          const VkAllocationCallbacks *pAllocator,
+                          VkInstance *pInstance) {
+
+  printf("hello from debug vkCreateInstance\n");
+  if (pCreateInfo == NULL || pInstance == NULL) {
+    fprintf(stderr, "Null pointer passed to required parameter!\n");
+    return VK_ERROR_INITIALIZATION_FAILED;
+  }
+
+  return vCtx.real_vkCreateInstance(pCreateInfo, pAllocator, pInstance);
 }

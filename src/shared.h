@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <math.h>
+#include "utils.h"
 #define Assert(Expression)                                                     \
   if (!(Expression)) {                                                         \
     *(int *)0 = 0;                                                             \
@@ -244,3 +245,12 @@ static GAME_UPDATE(game_update_stub) {
   (void)frameTime;
   (void)input;
 }
+
+typedef struct {
+  const char **items;
+  size_t count;
+  size_t capacity;
+} arr_cstr;
+DA_CREATE(arr_cstr)
+DA_FREE(arr_cstr)
+DA_INIT(arr_cstr)
