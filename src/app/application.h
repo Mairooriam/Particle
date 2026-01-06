@@ -508,7 +508,7 @@ void render(GameMemory *gameMemory, GameState *gameState) {
         (e->flags & ENTITY_FLAG_HAS_RENDER)) {
       Matrix t = MatrixTranslate(e->c_transform.pos.x, e->c_transform.pos.y,
                                  e->c_transform.pos.z);
-      float scaleFactor = e->c_render.renderRadius * 2.0f;  
+      float scaleFactor = e->c_render.renderRadius * 2.0f;
       Matrix s = MatrixScale(scaleFactor, scaleFactor, scaleFactor);
       sphereTransforms[sphereCount++] = MatrixMultiply(s, t);
     }
@@ -645,24 +645,25 @@ void render(GameMemory *gameMemory, GameState *gameState) {
                           .line3D = {(Vector3){min.x, gy, max.z},
                                      (Vector3){max.x, gy, max.z}, gridColor}});
     }
-    // Cell centers
-    for (int x = 0; x < numX; x++) {
-      for (int y = 0; y < numY; y++) {
-        // CELL CENTER
-        float cellCenterX = min.x + (x + 0.5f) * spacing;
-        float cellCenterY = min.y + (y + 0.5f) * spacing;
-        float cellCenterZ = max.z;
-        float sphereRadius = 3.0f;
-        Color cellColor = (Color){(25 * x) % 255, (25 * y) % 255, 0, 200};
-
-        push_render_command(
-            renderQueue,
-            (RenderCommand){
-                RENDER_SPHERE_3D,
-                .sphere3D = {(Vector3){cellCenterX, cellCenterY, cellCenterZ},
-                             sphereRadius, cellColor}});
-      }
-    }
+    // // Cell centers
+    // for (int x = 0; x < numX; x++) {
+    //   for (int y = 0; y < numY; y++) {
+    //     // CELL CENTER
+    //     float cellCenterX = min.x + (x + 0.5f) * spacing;
+    //     float cellCenterY = min.y + (y + 0.5f) * spacing;
+    //     float cellCenterZ = max.z;
+    //     float sphereRadius = 3.0f;
+    //     Color cellColor = (Color){(25 * x) % 255, (25 * y) % 255, 0, 200};
+    //
+    //     push_render_command(
+    //         renderQueue,
+    //         (RenderCommand){
+    //             RENDER_SPHERE_3D,
+    //             .sphere3D = {(Vector3){cellCenterX, cellCenterY,
+    //             cellCenterZ},
+    //                          sphereRadius, cellColor}});
+    //   }
+    // }
   }
 }
 void handle_input(GameState *gameState, Input *input);
