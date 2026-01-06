@@ -8,11 +8,19 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic -fdiagnostics-color
 # Raylib paths
 set(RAYLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib")
 set(RAYLIB_INCLUDE_DIR "${RAYLIB_DIR}/include")
+
 set(RAYLIB_LIB_DIR "${RAYLIB_DIR}")
 # Entity Pool static library
 add_library(entity_lib STATIC
     entity/pool/entityPool.c
 )
+
+find_path(GLFW_INCLUDE_DIR glfw3.h PATHS C:/lib/glfw/include/GLFW REQUIRED)
+find_library(GLFW_LIBRARY glfw3 PATHS C:/bin REQUIRED)
+set(CGLM "$ENV{libDir}/cglm/include")
+message(STATUS "CGLM include path: ${CGLM}")
+
+find_package(Vulkan REQUIRED)
 
 target_include_directories(entity_lib PUBLIC 
 ${CMAKE_CURRENT_SOURCE_DIR} # REMOVE THIS LATER. NOT NICE
@@ -20,17 +28,13 @@ ${CMAKE_CURRENT_SOURCE_DIR} # REMOVE THIS LATER. NOT NICE
     ${CMAKE_CURRENT_SOURCE_DIR}/entity/pool
 )
 
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_definitions(entity_lib PRIVATE SLOW_CODE_ALLOWED)
-    target_compile_definitions(entity_lib PRIVATE ENTITY_POOL_DEVELOPMENT)
-endif()
 
 
 # Engine executable
 add_executable(engine engine/raylib_platform.c)
-target_include_directories(engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${RAYLIB_INCLUDE_DIR})
-target_link_directories(engine PRIVATE ${RAYLIB_LIB_DIR})
-target_link_libraries(engine PRIVATE raylib winmm)
+target_include_directories(engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${RAYLIB_INCLUDE_DIR} ${GLFW_INCLUDE_DIR} ${CGLM} $ENV{VULKAN_SDK}/Include)
+target_link_directories(engine PRIVATE ${RAYLIB_LIB_DIR} ${GLFW_LIBRARY} winmm Vulkan::Vulkan)
+target_link_libraries(engine PRIVATE raylib winmm Vulkan::Vulkan)
 
 
 # DLL
@@ -41,7 +45,7 @@ target_link_libraries(application PRIVATE entity_lib)
 
 # Shared interface
 target_include_directories(engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(application PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(application PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CGLM})
 target_include_directories(application PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib/include)
 # Set output name for DLL to match LoadLibraryA("application.dll")
 set_target_properties(application PROPERTIES OUTPUT_NAME "application_being_written")
@@ -49,6 +53,15 @@ set_target_properties(application PROPERTIES OUTPUT_NAME "application_being_writ
 
 target_compile_definitions(application PRIVATE INTERNAL_BUILD)
 target_compile_definitions(engine PRIVATE INTERNAL_BUILD)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_definitions(entity_lib PRIVATE SLOW_CODE_ALLOWED)
+    target_compile_definitions(entity_lib PRIVATE ENTITY_POOL_DEVELOPMENT)
+    target_compile_definitions(engine PRIVATE SLOW_CODE_ALLOWED)
+    target_compile_definitions(application PRIVATE SLOW_CODE_ALLOWED)
+endif()
+
+
 
 add_custom_command(TARGET application POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy libapplication_being_written.dll application.dll
