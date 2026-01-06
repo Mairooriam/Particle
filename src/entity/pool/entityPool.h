@@ -20,6 +20,7 @@ void entityPool_remove(EntityPool *pool, en_id idx);
 void entityPool_insert(EntityPool *pool, Entity entity);
 void entityPool_push(EntityPool *pool, Entity entity);
 Entity *entityPool_allocate_batch(EntityPool *pool, size_t count);
+Entity *entityPool_get(EntityPool *pool, en_id id);
 #ifdef ENTITY_POOL_DEVELOPMENT
 en_id _entityPool_GetNextId(EntityPool *pool);
 en_id _entityPool_PeekNextId(EntityPool *pool);

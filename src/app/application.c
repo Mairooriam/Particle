@@ -1,5 +1,6 @@
 // application.c
 #include "application.h"
+#include "app/application_types.h"
 #include "entityPool_types.h"
 #include "entity_types.h"
 #include "shared.h"
@@ -143,7 +144,7 @@ void handle_update(GameState *gameState, float frameTime, Input *input) {
     Entity *e = &entityPool->entities_dense.items[i];
     if (e->flags & ENTITY_FLAG_ACTIVE) {
       if (e->flags & ENTITY_FLAG_HAS_TRANSFORM) {
-        e->c_transform.a = (Vector3){0, -9.81, 0};
+        // e->c_transform.a = (Vector3){0, -9.81, 0};
         update_entity_position(e, frameTime, input->mousePos);
         update_entity_boundaries(e, gameState->maxBounds.x,
                                  gameState->minBounds.x, gameState->maxBounds.y,
@@ -151,9 +152,9 @@ void handle_update(GameState *gameState, float frameTime, Input *input) {
                                  gameState->minBounds.z);
       }
       if (e->flags & ENTITY_FLAG_HAS_SPAWNER) {
-        // e->c_transform.v = (Vector3){0, 0, 0};
-        e->c_transform.v =
-            Vector3Add(e->c_transform.v, (Vector3){1, 2.0f, 0.5f});
+        // e->c_transform.v = (Vector3){10, 10, 0};
+        // e->c_transform.v =
+        //     Vector3Add(e->c_transform.v, (Vector3){1, 2.0f, 0.5f});
         update_spawners(frameTime, e, entityPool);
       }
     }
@@ -164,81 +165,187 @@ void handle_update(GameState *gameState, float frameTime, Input *input) {
 }
 void update_collision(GameState *gameState, float frameTime) {
   EntityPool *ePool = gameState->entityPool;
-  for (size_t i = 0; i < ePool->entities_dense.count; i++) {
-    Entity *e = &ePool->entities_dense.items[i];
-    c_Transform *cTp1 = &e->c_transform;
-    c_Collision *cCp1 = &e->c_collision;
+  SpatialGrid *sGrid = gameState->sGrid;
 
-    for (size_t j = 0; j < ePool->entities_dense.count; j++) {
-      if (i == j)
-        continue;
-      Entity *e2 = &ePool->entities_dense.items[j];
-      c_Transform *cTp2 = &e2->c_transform;
-      c_Collision *cCp2 = &e2->c_collision;
+  for (size_t i = 0; i < sGrid->spatialDense.count; i++) {
+    SpatialEntry *entry = &sGrid->spatialDense.items[i];
+    Vector3 eP1 = entry->position;
+    int cellX = (int)(eP1.x / sGrid->spacing);
+    int cellY = (int)(eP1.y / sGrid->spacing);
 
-      if (CheckCollisionCircles(
-              (Vector2){cTp1->pos.x, cTp1->pos.y}, cCp1->radius,
-              (Vector2){cTp2->pos.x, cTp2->pos.y}, cCp2->radius)) {
-        Vector3 delta = Vector3Subtract(cTp1->pos, cTp2->pos);
-        float distance = Vector3Length(delta);
-        Vector3 n12 = Vector3Normalize(delta);
-        // If objects are spawned on top of each other delta is 0.0.
-        if (distance == 0.0f) {
-          n12 = (Vector3){0.0f, 1.0f, 0.0f}; // YODO: test other kinds of forces
-        } else {
-          n12 = Vector3Normalize(delta);
+    if (cellX < 0 || cellX >= (int)sGrid->numX || cellY < 0 ||
+        cellY >= (int)sGrid->numY) {
+      continue;
+    }
+    // spatialGrid_get_entry_cell_index(const SpatialGrid *sGrid, const
+    // SpatialEntry *entry)
+
+    // TODO: does this check against its own cell if cellx and celly at 0
+    for (int dx = -1; dx <= 1; dx++) {
+      for (int dy = -1; dy <= 1; dy++) {
+        int nX = cellX + dx;
+        int nY = cellY + dy;
+
+        // Check all bounds
+        if (nX < 0 || nX >= (int)sGrid->numX || nY < 0 ||
+            nY >= (int)sGrid->numY) {
+          continue;
         }
-        float overlap = (cCp1->radius + cCp2->radius) - distance;
-        float totalInverseMass = cCp1->inverseMass + cCp2->inverseMass;
-        if (totalInverseMass <= 0)
-          break; // infinite mass impulses have no effect
 
-        if (totalInverseMass >
-            0) { // Only separate if at least one has finite mass
-          Vector3 separation1 =
-              Vector3Scale(n12, overlap * cCp2->inverseMass / totalInverseMass);
-          Vector3 separation2 = Vector3Scale(n12, -overlap * cCp1->inverseMass /
-                                                      totalInverseMass);
-          cTp1->pos = Vector3Add(cTp1->pos, separation1);
-          cTp2->pos = Vector3Add(cTp2->pos, separation2);
-        } else {
-          // Both infinite mass: don't separate (or handle as static)
+        size_t sparseGridID = nY * sGrid->numX + nX;
+        size_t idxInDense = sGrid->spatialSparse.items[sparseGridID];
+        size_t nextIdx = (sparseGridID + 1 < sGrid->spatialSparse.capacity)
+                             ? sGrid->spatialSparse.items[sparseGridID + 1]
+                             : sGrid->spatialDense.count;
+        size_t amountOfEntitiesInThatCell = nextIdx - idxInDense;
+
+        // Iterate through all entities in this neighboring cell
+        for (size_t k = idxInDense; k < idxInDense + amountOfEntitiesInThatCell;
+             k++) {
+          SpatialEntry *otherEntry = &sGrid->spatialDense.items[k];
+
+          // Skip self-collision
+          if (entry->entityId == otherEntry->entityId) {
+            continue;
+          }
+
+          // Get entities from pool
+          Entity *e1 = entityPool_get(ePool, entry->entityId);
+          Entity *e2 = entityPool_get(ePool, otherEntry->entityId);
+
+          if (!e1 || !e2)
+            continue;
+
+          c_Transform *cTp1 = &e1->c_transform;
+          c_Transform *cTp2 = &e2->c_transform;
+          c_Collision *cCp1 = &e1->c_collision;
+          c_Collision *cCp2 = &e2->c_collision;
+
+          // Collision detection
+          if (CheckCollisionCircles(
+                  (Vector2){cTp1->pos.x, cTp1->pos.y}, cCp1->radius,
+                  (Vector2){cTp2->pos.x, cTp2->pos.y}, cCp2->radius)) {
+
+            // Collision response (same as your original code)
+            Vector3 delta = Vector3Subtract(cTp1->pos, cTp2->pos);
+            float distance = Vector3Length(delta);
+            Vector3 n12 = (distance == 0.0f) ? (Vector3){0.0f, 1.0f, 0.0f}
+                                             : Vector3Normalize(delta);
+
+            float overlap = (cCp1->radius + cCp2->radius) - distance;
+            float totalInverseMass = cCp1->inverseMass + cCp2->inverseMass;
+
+            if (totalInverseMass > 0) {
+              Vector3 separation1 = Vector3Scale(
+                  n12, overlap * cCp2->inverseMass / totalInverseMass);
+              Vector3 separation2 = Vector3Scale(
+                  n12, -overlap * cCp1->inverseMass / totalInverseMass);
+              cTp1->pos = Vector3Add(cTp1->pos, separation1);
+              cTp2->pos = Vector3Add(cTp2->pos, separation2);
+            }
+
+            cCp1->collisionCount++;
+            Vector3 dV12 = Vector3Subtract(cTp1->v, cTp2->v);
+            float Vs = Vector3DotProduct(dV12, n12);
+
+            if (Vs <= 0) {
+              float nVs = -Vs * cTp1->restitution;
+              float deltaV = nVs - Vs;
+              float impulse = deltaV / totalInverseMass;
+              Vector3 impulsePerIMass = Vector3Scale(n12, impulse);
+
+              cTp1->v = Vector3Add(
+                  cTp1->v, Vector3Scale(impulsePerIMass, cCp1->inverseMass));
+              cTp2->v = Vector3Subtract(
+                  cTp2->v, Vector3Scale(impulsePerIMass, cCp2->inverseMass));
+            }
+          }
         }
-        cCp1->collisionCount++;
-        Vector3 dV12 = Vector3Subtract(cTp1->v, cTp2->v);
-        float Vs = Vector3DotProduct(dV12, n12); // separation velocity
-
-        if (Vs > 0) {
-          break; // contact is either separating or stationary no impulse
-                 // needed
-        }
-        float nVs =
-            -Vs * cTp1->restitution; // New separation velocity with restitution
-        float deltaV = nVs - Vs;
-
-        // TODO: not checking if no particle -> colliding with wall? etc? in
-        // example there is
-
-        float impulse = deltaV / totalInverseMass;
-
-        Vector3 impulsePerIMass = Vector3Scale(n12, impulse);
-
-        cTp1->v = Vector3Add(cTp1->v,
-                             Vector3Scale(impulsePerIMass, cCp1->inverseMass));
-        cTp2->v = Vector3Subtract(
-            cTp2->v, Vector3Scale(impulsePerIMass, cCp2->inverseMass));
       }
     }
+
+    // for (size_t i = 0; i < ePool->entities_dense.count; i++) {
+    //   Entity *e = &ePool->entities_dense.items[i];
+    //   c_Transform *cTp1 = &e->c_transform;
+    //   c_Collision *cCp1 = &e->c_collision;
+    //
+    //   for (size_t j = 0; j < ePool->entities_dense.count; j++) {
+    //     if (i == j)
+    //       continue;
+    //     Entity *e2 = &ePool->entities_dense.items[j];
+    //     c_Transform *cTp2 = &e2->c_transform;
+    //     c_Collision *cCp2 = &e2->c_collision;
+    //
+    //     if (CheckCollisionCircles(
+    //             (Vector2){cTp1->pos.x, cTp1->pos.y}, cCp1->radius,
+    //             (Vector2){cTp2->pos.x, cTp2->pos.y}, cCp2->radius)) {
+    //       Vector3 delta = Vector3Subtract(cTp1->pos, cTp2->pos);
+    //       float distance = Vector3Length(delta);
+    //       Vector3 n12 = Vector3Normalize(delta);
+    //       // If objects are spawned on top of each other delta is 0.0.
+    //       if (distance == 0.0f) {
+    //         n12 = (Vector3){0.0f, 1.0f, 0.0f}; // YODO: test other kinds of
+    //         forces
+    //       } else {
+    //         n12 = Vector3Normalize(delta);
+    //       }
+    //       float overlap = (cCp1->radius + cCp2->radius) - distance;
+    //       float totalInverseMass = cCp1->inverseMass + cCp2->inverseMass;
+    //       if (totalInverseMass <= 0)
+    //         break; // infinite mass impulses have no effect
+    //
+    //       if (totalInverseMass >
+    //           0) { // Only separate if at least one has finite mass
+    //         Vector3 separation1 =
+    //             Vector3Scale(n12, overlap * cCp2->inverseMass /
+    //             totalInverseMass);
+    //         Vector3 separation2 = Vector3Scale(n12, -overlap *
+    //         cCp1->inverseMass /
+    //                                                     totalInverseMass);
+    //         cTp1->pos = Vector3Add(cTp1->pos, separation1);
+    //         cTp2->pos = Vector3Add(cTp2->pos, separation2);
+    //       } else {
+    //         // Both infinite mass: don't separate (or handle as static)
+    //       }
+    //       cCp1->collisionCount++;
+    //       Vector3 dV12 = Vector3Subtract(cTp1->v, cTp2->v);
+    //       float Vs = Vector3DotProduct(dV12, n12); // separation velocity
+    //
+    //       if (Vs > 0) {
+    //         break; // contact is either separating or stationary no impulse
+    //                // needed
+    //       }
+    //       float nVs =
+    //           -Vs * cTp1->restitution; // New separation velocity with
+    //           restitution
+    //       float deltaV = nVs - Vs;
+    //
+    //       // TODO: not checking if no particle -> colliding with wall? etc?
+    //       in
+    //       // example there is
+    //
+    //       float impulse = deltaV / totalInverseMass;
+    //
+    //       Vector3 impulsePerIMass = Vector3Scale(n12, impulse);
+    //
+    //       cTp1->v = Vector3Add(cTp1->v,
+    //                            Vector3Scale(impulsePerIMass,
+    //                            cCp1->inverseMass));
+    //       cTp2->v = Vector3Subtract(
+    //           cTp2->v, Vector3Scale(impulsePerIMass, cCp2->inverseMass));
+    //     }
+    //   }
+    // }
   }
 }
 
 void handle_init(GameMemory *gameMemory, GameState *gameState) {
   size_t gameStateSize = sizeof(GameState);
   size_t maxEntities = 1000000;
-
+  int cellSpacing = 5;
   size_t entityPoolSize = maxEntities * sizeof(Entity);
   size_t spatialGridSize = maxEntities * sizeof(SpatialEntry);
-  size_t spatialGridCells = (100 / 25) * (100 / 25);
+  size_t spatialGridCells = (100 / cellSpacing) * (100 / cellSpacing);
   size_t spatialSparseSize = spatialGridCells * sizeof(size_t) * 2;
   size_t meshDataSize = 1024 * 1024;
 
@@ -289,7 +396,7 @@ void handle_init(GameMemory *gameMemory, GameState *gameState) {
   gameState->entityPool = entityPool_InitInArena(poolAllocator, entityCapacity);
 
   // SPATIAL GRID
-  int cellSpacing = 25;
+
   int numCellsX =
       (int)(gameState->maxBounds.x - gameState->minBounds.x) / cellSpacing;
   int numCellsY =
@@ -297,7 +404,7 @@ void handle_init(GameMemory *gameMemory, GameState *gameState) {
 
   gameState->sGrid = spatialGrid_create_with_dimensions(
       gameState->permanentAllocator, gameState->minBounds, gameState->maxBounds,
-      25, entityCapacity);
+      cellSpacing, entityCapacity);
 
   for (int cy = 0; cy < numCellsY; cy++) {
     for (int cx = 0; cx < numCellsX; cx++) {
@@ -307,21 +414,24 @@ void handle_init(GameMemory *gameMemory, GameState *gameState) {
                               (cellSpacing / 2.0f),
                          .z = 0.0f};
 
-      Entity testEntity =
-          entity_create_physics_particle(cellPos, (Vector3){0, 0, 0});
-      testEntity.c_transform.a = (Vector3){0, 0, 0}; // No acceleration
-      testEntity.c_render.color =
-          (Color){100, 100, 255, 200}; // Blue for test entities
-
       if (cx == 0 && cy == 0) {
-
-        entityPool_push(gameState->entityPool, testEntity);
-        entityPool_push(gameState->entityPool, testEntity);
-        entityPool_push(gameState->entityPool, testEntity);
+        Entity testEntity =
+            entity_create_physics_particle(cellPos, (Vector3){10, 10, 0});
+        testEntity.c_transform.a = (Vector3){0, 0, 0}; // No acceleration
+        testEntity.c_render.color =
+            (Color){100, 100, 255, 200}; // Blue for test entities
+        // entityPool_push(gameState->entityPool, testEntity);
+        // entityPool_push(gameState->entityPool, testEntity);
+        // entityPool_push(gameState->entityPool, testEntity);
         entityPool_push(gameState->entityPool, testEntity);
       }
-      if (cx == 0 && cy == 1) {
-        entityPool_push(gameState->entityPool, testEntity);
+      if (cx == 15 && cy == 15) {
+        Entity testEntity =
+            entity_create_physics_particle(cellPos, (Vector3){-10, -10, 0});
+        testEntity.c_transform.a = (Vector3){0, 0, 0}; // No acceleration
+        testEntity.c_render.color =
+            (Color){100, 100, 255, 200}; // Blue for test entities
+        // entityPool_push(gameState->entityPool, testEntity);
         entityPool_push(gameState->entityPool, testEntity);
       }
     }
@@ -332,8 +442,9 @@ void handle_init(GameMemory *gameMemory, GameState *gameState) {
   //     0});
   // player.followMouse = true;
   // entityPool_push(gameState->entityPool, player);
-  Entity spawner = entity_create_spawner_entity();
-  entityPool_push(gameState->entityPool, spawner);
+  // Entity spawner = entity_create_spawner_entity();
+  // spawner.c_transform.pos = (Vector3){50, 50, 0};
+  // entityPool_push(gameState->entityPool, spawner);
   gameMemory->isInitialized = true;
 }
 Entity entity_create_physics_particle(Vector3 pos, Vector3 velocity) {

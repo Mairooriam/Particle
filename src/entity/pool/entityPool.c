@@ -243,3 +243,16 @@ Entity *entityPool_allocate_batch(EntityPool *pool, size_t count) {
   pool->entities_dense.count += count;
   return first;
 }
+Entity *entityPool_get(EntityPool *pool, en_id id) {
+  if (id == 0 || id >= pool->entities_sparse.capacity) {
+    return NULL;
+  }
+  
+  size_t dense_idx = pool->entities_sparse.items[id];
+  
+  if (dense_idx == 0 || dense_idx > pool->entities_dense.count) {
+    return NULL; 
+  }
+  
+  return &pool->entities_dense.items[dense_idx - 1];
+}
