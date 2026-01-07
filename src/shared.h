@@ -254,3 +254,12 @@ typedef struct {
 DA_CREATE(arr_cstr)
 DA_FREE(arr_cstr)
 DA_INIT(arr_cstr)
+
+typedef struct {
+  uint32_t *items;
+  size_t count;
+  size_t capacity;
+} arr_uint32_t;
+DA_CREATE(arr_uint32_t)
+DA_FREE(arr_uint32_t)
+DA_INIT(arr_uint32_t)
