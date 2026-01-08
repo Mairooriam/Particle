@@ -144,7 +144,7 @@ void handle_update(GameState *gameState, float frameTime, Input *input) {
     Entity *e = &entityPool->entities_dense.items[i];
     if (e->flags & ENTITY_FLAG_ACTIVE) {
       if (e->flags & ENTITY_FLAG_HAS_TRANSFORM) {
-        // e->c_transform.a = (Vector3){0, -9.81, 0};
+        e->c_transform.a = (Vector3){0, 9.81, 0};
         update_entity_position(e, frameTime, input->mousePos);
         update_entity_boundaries(e, gameState->maxBounds.x,
                                  gameState->minBounds.x, gameState->maxBounds.y,
