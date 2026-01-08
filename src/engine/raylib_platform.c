@@ -1103,7 +1103,7 @@ int main(void) {
   colorBlending.blendConstants[2] = 0.0f; // Optional
   colorBlending.blendConstants[3] = 0.0f; // Optional
 
-  VkPipelineLayout pipelineLayout;
+  VkPipelineLayout pipelineLayout = {0};
   VkPipelineLayoutCreateInfo pipelineLayoutInfo = {0};
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   pipelineLayoutInfo.setLayoutCount = 0;         // Optional
@@ -1117,9 +1117,7 @@ int main(void) {
     assert(0 && "failed to create pipeline layout!");
   }
 
-  vkDestroyPipelineLayout(logicalDevice, pipelineLayout, NULL);
-  vkDestroyShaderModule(logicalDevice, fragShaderModule, NULL);
-  vkDestroyShaderModule(logicalDevice, vertShaderModule, NULL);
+
 
   // ==================== RENDER PASSES ====================
   VkAttachmentDescription colorAttachment = {0};
@@ -1330,6 +1328,9 @@ int main(void) {
   }
 
   free(swapChainImageViews);
+  vkDestroyPipelineLayout(logicalDevice, pipelineLayout, NULL);
+  vkDestroyShaderModule(logicalDevice, fragShaderModule, NULL);
+  vkDestroyShaderModule(logicalDevice, vertShaderModule, NULL);
   vkDestroySemaphore(logicalDevice, imageAvailableSemaphore, NULL);
   vkDestroySemaphore(logicalDevice, renderFinishedSemaphore, NULL);
   vkDestroyFence(logicalDevice, inFlightFence, NULL);
