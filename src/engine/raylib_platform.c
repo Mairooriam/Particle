@@ -461,26 +461,6 @@ bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface,
 
 #define CLAMP(val, min, max)                                                   \
   ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
-VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR *capabilities,
-                            GLFWwindow *window) {
-  if (capabilities->currentExtent.width != UINT32_MAX) {
-    return capabilities->currentExtent;
-  } else {
-    int width, height;
-    glfwGetFramebufferSize(window, &width, &height);
-
-    VkExtent2D actualExtent = {(uint32_t)(width), (uint32_t)(height)};
-
-    actualExtent.width =
-        CLAMP(actualExtent.width, capabilities->minImageExtent.width,
-              capabilities->maxImageExtent.width);
-    actualExtent.height =
-        CLAMP(actualExtent.height, capabilities->minImageExtent.height,
-              capabilities->maxImageExtent.height);
-
-    return actualExtent;
-  }
-}
 
 typedef struct {
   uint32_t *code;
