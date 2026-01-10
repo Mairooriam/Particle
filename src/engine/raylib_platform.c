@@ -1117,8 +1117,6 @@ int main(void) {
     assert(0 && "failed to create pipeline layout!");
   }
 
-
-
   // ==================== RENDER PASSES ====================
   VkAttachmentDescription colorAttachment = {0};
   colorAttachment.format = swapChainSurfaceFormat.format;
@@ -1316,10 +1314,11 @@ int main(void) {
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.pResults = NULL; // Optional
     vkQueuePresentKHR(presentQueue, &presentInfo);
+
+    vkDeviceWaitIdle(logicalDevice);
   }
 
   // ==================== CLEAN UP ====================
-  vkDeviceWaitIdle(logicalDevice);
   if (enableValidationLayers) {
     DestroyDebugUtilsMessengerEXT(vkInstance, debugMessenger, NULL);
   }
@@ -1337,9 +1336,7 @@ int main(void) {
   vkDestroyFence(logicalDevice, inFlightFence, NULL);
   vkDestroyCommandPool(logicalDevice, commandPool, NULL);
   vkDestroyPipeline(logicalDevice, graphicsPipeline, NULL);
-  vkDestroyPipelineLayout(logicalDevice, pipelineLayout, NULL);
   vkDestroyRenderPass(logicalDevice, renderPass, NULL);
-
   vkDestroySwapchainKHR(logicalDevice, swapChain, NULL);
   vkDestroySurfaceKHR(vkInstance, surface, NULL);
   vkDestroyDevice(logicalDevice, NULL);
