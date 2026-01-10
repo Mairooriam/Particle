@@ -458,17 +458,7 @@ bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface,
 
   return indicies.isComplete && extensionsSupported && swapChainAdequate;
 }
-VkSurfaceFormatKHR
-chooseSwapSurfaceFormat(const VkSurfaceFormatKHR *availableFormats,
-                        uint32_t availableFormatsCount) {
-  for (size_t i = 0; i < availableFormatsCount; i++) {
-    if (availableFormats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
-        availableFormats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
-      return availableFormats[i];
-    }
-  }
-  return availableFormats[0];
-}
+
 VkPresentModeKHR
 chooseSwapPresentMode(const VkPresentModeKHR *availablePresentModes,
                       uint32_t availablePresentModescount) {
@@ -884,8 +874,17 @@ int main(void) {
   SwapChainSupportDetails swapChainSupport =
       querySwapChainSupport(physicalDevice, surface);
 
-  VkSurfaceFormatKHR swapChainSurfaceFormat = chooseSwapSurfaceFormat(
-      swapChainSupport.formats, swapChainSupport.formatsCount);
+  // CHOOSE SWAP SURFACE FORMAT
+  VkSurfaceFormatKHR swapChainSurfaceFormat;
+  for (size_t i = 0; i < swapChainSupport.formatsCount; i++) {
+    if (swapChainSupport.formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
+        swapChainSupport.formats[i].colorSpace ==
+            VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+      swapChainSurfaceFormat = swapChainSupport.formats[i];
+    }
+  }
+  swapChainSurfaceFormat = swapChainSupport.formats[0];
+
   VkPresentModeKHR presentMode = chooseSwapPresentMode(
       swapChainSupport.presentModes, swapChainSupport.presentModesCount);
   VkExtent2D swapChainExtent =
