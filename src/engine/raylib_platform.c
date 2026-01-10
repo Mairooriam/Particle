@@ -459,18 +459,6 @@ bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface,
   return indicies.isComplete && extensionsSupported && swapChainAdequate;
 }
 
-VkPresentModeKHR
-chooseSwapPresentMode(const VkPresentModeKHR *availablePresentModes,
-                      uint32_t availablePresentModescount) {
-  for (size_t i = 0; i < availablePresentModescount; i++) {
-    if (availablePresentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
-      return availablePresentModes[i];
-    }
-  }
-
-  return VK_PRESENT_MODE_FIFO_KHR;
-}
-
 #define CLAMP(val, min, max)                                                   \
   ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR *capabilities,
@@ -874,7 +862,7 @@ int main(void) {
   SwapChainSupportDetails swapChainSupport =
       querySwapChainSupport(physicalDevice, surface);
 
-  // CHOOSE SWAP SURFACE FORMAT
+  // ==================== CHOOSE SWAP CHAIN SURFACE FORMAT ====================
   VkSurfaceFormatKHR swapChainSurfaceFormat;
   for (size_t i = 0; i < swapChainSupport.formatsCount; i++) {
     if (swapChainSupport.formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
@@ -885,10 +873,35 @@ int main(void) {
   }
   swapChainSurfaceFormat = swapChainSupport.formats[0];
 
-  VkPresentModeKHR presentMode = chooseSwapPresentMode(
-      swapChainSupport.presentModes, swapChainSupport.presentModesCount);
-  VkExtent2D swapChainExtent =
-      chooseSwapExtent(&swapChainSupport.capabilities, window);
+  VkPresentModeKHR presentMode;
+  for (size_t i = 0; i < swapChainSupport.presentModesCount; i++) {
+    if (swapChainSupport.presentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
+      presentMode = swapChainSupport.presentModes[i];
+    }
+  }
+  presentMode = VK_PRESENT_MODE_FIFO_KHR;
+
+  // ==================== CHOOSE SWAP CHAIN EXTENT ====================
+  VkExtent2D swapChainExtent;
+  if (swapChainSupport.capabilities.currentExtent.width != UINT32_MAX) {
+    swapChainExtent = swapChainSupport.capabilities.currentExtent;
+  } else {
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
+
+    VkExtent2D actualExtent = {(uint32_t)(width), (uint32_t)(height)};
+
+    actualExtent.width = CLAMP(
+        actualExtent.width, swapChainSupport.capabilities.minImageExtent.width,
+        swapChainSupport.capabilities.maxImageExtent.width);
+    actualExtent.height =
+        CLAMP(actualExtent.height,
+              swapChainSupport.capabilities.minImageExtent.height,
+              swapChainSupport.capabilities.maxImageExtent.height);
+
+    swapChainExtent = actualExtent;
+  }
+
   uint32_t swapChainImageCount =
       swapChainSupport.capabilities.minImageCount + 1;
 
