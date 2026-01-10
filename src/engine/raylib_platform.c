@@ -1319,6 +1319,7 @@ int main(void) {
   }
 
   // ==================== CLEAN UP ====================
+  vkDeviceWaitIdle(logicalDevice);
   if (enableValidationLayers) {
     DestroyDebugUtilsMessengerEXT(vkInstance, debugMessenger, NULL);
   }
@@ -1326,8 +1327,8 @@ int main(void) {
     vkDestroyImageView(logicalDevice, swapChainImageViews[i], NULL);
     vkDestroyFramebuffer(logicalDevice, swapChainFramebuffers[i], NULL);
   }
-
   free(swapChainImageViews);
+  free(swapChainFramebuffers);
   vkDestroyPipelineLayout(logicalDevice, pipelineLayout, NULL);
   vkDestroyShaderModule(logicalDevice, fragShaderModule, NULL);
   vkDestroyShaderModule(logicalDevice, vertShaderModule, NULL);
