@@ -1,10 +1,21 @@
 cmake_minimum_required(VERSION 3.10)
+
+set(CMAKE_C_COMPILER "clang")
+set(CMAKE_CXX_COMPILER "clang++")
+
 project(hotreload_testing C)
+if(CMAKE_GENERATOR STREQUAL "Ninja")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fcolor-diagnostics")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcolor-diagnostics")
+    set(CMAKE_COLOR_DIAGNOSTICS ON)
+endif()
 
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic -fdiagnostics-color=always")
-
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-gnu-zero-variadic-macro-arguments")  # Suppress ##__VA_ARGS__ warning
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-newline-eof")               # Suppress newline at EOF warnings
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-function")           # Suppress unused function warnings
 # Raylib paths
 set(RAYLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib")
 set(RAYLIB_INCLUDE_DIR "${RAYLIB_DIR}/include")

@@ -51,7 +51,7 @@ static GameCode loadGameCode(char *sourceDLLfilepath, char *tempDLLfilepath) {
   LOG("Trying to load .dlls");
   if (result.gameCodeDLL) {
     result.update =
-        (GameUpdate *)GetProcAddress(result.gameCodeDLL, "game_update");
+        (GameUpdate *)(void *)GetProcAddress(result.gameCodeDLL, "game_update");
     if (result.update) {
       result.isvalid = true;
       LOG("Loading .dlls was succesfull");
@@ -146,9 +146,13 @@ static void save_input_to_file(HANDLE h, Input *input) {
   Assert(result != 0);
 }
 
-// void drawFrame(VkDevice device, const VkFence *inFlightFence, ) {
-//  }
-
+void window_size_callback(GLFWwindow *window, int width, int height) {
+  (void)width;
+  (void)height;
+  printf("hello from callback\n");
+  vulkanContext *app = (vulkanContext *)(glfwGetWindowUserPointer(window));
+  app->framebufferResized = true;
+}
 int main(void) {
 
   vCtx.real_vkCreateInstance =
@@ -221,9 +225,10 @@ int main(void) {
 
   glfwInit();
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-  glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+  glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
   GLFWwindow *window =
       glfwCreateWindow(WIDTH, HEIGHT, "Vulkan window", NULL, NULL);
+  glfwSetWindowSizeCallback(window, window_size_callback);
 
   // TODO: make it proper just placeholder currently
   vulkanContext vkCtx = {0};
