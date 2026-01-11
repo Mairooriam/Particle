@@ -1174,6 +1174,8 @@ void vkDrawFrame(vulkanContext *ctx) {
     assert(0 && "failed to acquire swapchain image!");
   }
 
+  vkDeviceWaitIdle(ctx->lDevice);
+
   ctx->currentFrame = (ctx->currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
