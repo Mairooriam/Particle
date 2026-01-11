@@ -247,15 +247,6 @@ static GAME_UPDATE(game_update_stub) {
 }
 
 typedef struct {
-  const char **items;
-  size_t count;
-  size_t capacity;
-} arr_cstr;
-DA_CREATE(arr_cstr)
-DA_FREE(arr_cstr)
-DA_INIT(arr_cstr)
-
-typedef struct {
   uint32_t *items;
   size_t count;
   size_t capacity;
