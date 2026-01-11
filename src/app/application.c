@@ -164,6 +164,7 @@ void handle_update(GameState *gameState, float frameTime, Input *input) {
                    &gameState->transientAllocator);
 }
 void update_collision(GameState *gameState, float frameTime) {
+  (void)frameTime;
   EntityPool *ePool = gameState->entityPool;
   SpatialGrid *sGrid = gameState->sGrid;
 
@@ -470,7 +471,7 @@ Entity entity_create_physics_particle(Vector3 pos, Vector3 velocity) {
   return e;
 }
 
-Entity entity_create_spawner_entity() {
+Entity entity_create_spawner_entity(void) {
   Entity e = {0};
   e.flags = ENTITY_FLAG_HAS_SPAWNER | ENTITY_FLAG_ACTIVE |
             ENTITY_FLAG_HAS_TRANSFORM | ENTITY_FLAG_HAS_RENDER |

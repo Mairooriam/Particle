@@ -27,7 +27,7 @@ static void set_log_prefix(const char *prefix) {
   log_prefix[sizeof(log_prefix) - 1] = '\0';
 }
 
-static void flush_logs() {
+static void flush_logs(void) {
   if (log_buffer[0]) {
     printf("%s", log_buffer);
     log_buffer[0] = '\0';

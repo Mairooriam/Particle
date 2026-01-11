@@ -218,7 +218,7 @@ void update_entity_boundaries(Entity *e, float x_bound, float x_bound_min,
                               float y_bound, float y_bound_min, float z_bound,
                               float z_bound_min);
 Entity entity_create_physics_particle(Vector3 pos, Vector3 velocity);
-Entity entity_create_spawner_entity();
+Entity entity_create_spawner_entity(void);
 
 void push_render_command(RenderQueue *queue, RenderCommand cmd);
 

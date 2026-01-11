@@ -3,9 +3,9 @@
 #include <stdint.h>
 #include <math.h>
 #include "utils.h"
-#define Assert(Expression)                                                     \
-  if (!(Expression)) {                                                         \
-    *(int *)0 = 0;                                                             \
+#define Assert(expression)                                                     \
+  if (!(expression)) {                                                         \
+    __builtin_trap();                                                          \
   }
 #define KiloBytes(value) ((value) * 1024)
 #define MegaBytes(value) ((KiloBytes(value)) * 1024)

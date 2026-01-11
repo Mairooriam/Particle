@@ -88,10 +88,12 @@ extern double g_timing_print_interval; // Print every N seconds
   }
 
 #define NOB_REALLOC realloc
-#define NOB_ASSERT(Expression)                                                 \
-  if (!(Expression)) {                                                         \
-    *(int *)0 = 0;                                                             \
-  }
+#define NOB_ASSERT(c)                                                          \
+  do {                                                                         \
+    if (!(c)) {                                                                \
+      __builtin_trap();                                                        \
+    }                                                                          \
+  } while (0)
 #ifndef NOB_DA_INIT_CAP
 #define NOB_DA_INIT_CAP 256
 #endif

@@ -1,7 +1,8 @@
+#include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <vulkan/vulkan_core.h>
 #include "utils.h"
-
 #define VK_USE_PLATFORM_WIN32_KHR
 #define GLFW_INCLUDE_VULKAN
 #include <glfw3.h>
@@ -10,11 +11,31 @@
 #include "vulkan/vulkan.h"
 #include "cglm/cglm.h"
 #define MAX_FRAMES_IN_FLIGHT 2 // for command buffer count;
+#define DEFINE_OPTIONAL(Type)                                                  \
+  typedef struct {                                                             \
+    bool is;                                                                   \
+    union {                                                                    \
+      Type val;                                                                \
+    };                                                                         \
+  } optional_##Type
+DEFINE_OPTIONAL(uint32_t);
+
+typedef struct {
+  optional_uint32_t graphicsFamily;
+  optional_uint32_t presentFamily;
+  bool isComplete;
+  uint32_t queueUniqueFamilies[2];
+  uint32_t queueUniqueFamiliesCount;
+} QueueFamilyIndices;
+
 typedef struct {
   VkInstance vkInstance;
 
   GLFWwindow *window;
+  VkPhysicalDevice pDevice;
   VkDevice lDevice; // LogicalDevice
+  QueueFamilyIndices lDeviceIndices;
+
   VkSwapchainKHR swapChain;
   VkRenderPass renderPass;
   VkPipeline graphicsPipeline;
@@ -28,6 +49,10 @@ typedef struct {
   uint32_t swapChainImageCount;
   VkShaderModule vertShaderModule;
   VkShaderModule fragShaderModule;
+
+  // SWAP CHAIN
+  VkSurfaceFormatKHR swapChainSurfaceFormat;
+  bool framebufferResized;
 
   // TDOO: move all stuff used in draw frame to drawFrame ctx;
   VkQueue presentQueue;
@@ -205,23 +230,6 @@ int rateDeviceSuitability(VkPhysicalDevice device) {
   // }
   return score;
 }
-
-#define DEFINE_OPTIONAL(Type)                                                  \
-  typedef struct {                                                             \
-    bool is;                                                                   \
-    union {                                                                    \
-      Type val;                                                                \
-    };                                                                         \
-  } optional_##Type
-DEFINE_OPTIONAL(uint32_t);
-
-typedef struct {
-  optional_uint32_t graphicsFamily;
-  optional_uint32_t presentFamily;
-  bool isComplete;
-  uint32_t queueUniqueFamilies[2];
-  uint32_t queueUniqueFamiliesCount;
-} QueueFamilyIndices;
 
 QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device,
                                      VkSurfaceKHR surface) {
@@ -474,8 +482,187 @@ void recordCommandBuffer(vulkanContext *ctx, VkCommandBuffer cmdBuffer,
   }
 }
 
+void createSwapChain_and_imageviews(vulkanContext *ctx) {
+  // ==================== SWAP CHAIN ====================
+  SwapChainSupportDetails swapChainSupport =
+      querySwapChainSupport(ctx->pDevice, ctx->surface);
+
+  // ==================== CHOOSE SWAP CHAIN SURFACE FORMAT ====================
+  for (size_t i = 0; i < swapChainSupport.formatsCount; i++) {
+    if (swapChainSupport.formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
+        swapChainSupport.formats[i].colorSpace ==
+            VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+      ctx->swapChainSurfaceFormat = swapChainSupport.formats[i];
+    }
+  }
+  ctx->swapChainSurfaceFormat = swapChainSupport.formats[0];
+
+  VkPresentModeKHR presentMode;
+  for (size_t i = 0; i < swapChainSupport.presentModesCount; i++) {
+    if (swapChainSupport.presentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
+      presentMode = swapChainSupport.presentModes[i];
+    }
+  }
+  presentMode = VK_PRESENT_MODE_FIFO_KHR;
+
+  // ==================== CHOOSE SWAP CHAIN EXTENT ====================
+  if (swapChainSupport.capabilities.currentExtent.width != UINT32_MAX) {
+    ctx->swapChainExtent = swapChainSupport.capabilities.currentExtent;
+  } else {
+    int width, height;
+    glfwGetFramebufferSize(ctx->window, &width, &height);
+
+    VkExtent2D actualExtent = {(uint32_t)(width), (uint32_t)(height)};
+
+    actualExtent.width = CLAMP(
+        actualExtent.width, swapChainSupport.capabilities.minImageExtent.width,
+        swapChainSupport.capabilities.maxImageExtent.width);
+    actualExtent.height =
+        CLAMP(actualExtent.height,
+              swapChainSupport.capabilities.minImageExtent.height,
+              swapChainSupport.capabilities.maxImageExtent.height);
+
+    ctx->swapChainExtent = actualExtent;
+  }
+
+  ctx->swapChainImageCount = swapChainSupport.capabilities.minImageCount + 1;
+
+  if (swapChainSupport.capabilities.maxImageCount > 0 &&
+      ctx->swapChainImageCount > swapChainSupport.capabilities.maxImageCount) {
+    ctx->swapChainImageCount = swapChainSupport.capabilities.maxImageCount;
+  }
+
+  VkSwapchainCreateInfoKHR swapChainCreateInfo = {0};
+  swapChainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+  swapChainCreateInfo.surface = ctx->surface;
+  swapChainCreateInfo.minImageCount = ctx->swapChainImageCount;
+  swapChainCreateInfo.imageFormat = ctx->swapChainSurfaceFormat.format;
+  swapChainCreateInfo.imageColorSpace = ctx->swapChainSurfaceFormat.colorSpace;
+  swapChainCreateInfo.imageExtent = ctx->swapChainExtent;
+  swapChainCreateInfo.imageArrayLayers = 1;
+  swapChainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+  uint32_t queueFamilyIndices[] = {ctx->lDeviceIndices.graphicsFamily.val,
+                                   ctx->lDeviceIndices.presentFamily.val};
+  if (ctx->lDeviceIndices.graphicsFamily.val !=
+      ctx->lDeviceIndices.presentFamily.val) {
+    swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+    swapChainCreateInfo.queueFamilyIndexCount = 2;
+    swapChainCreateInfo.pQueueFamilyIndices = queueFamilyIndices;
+  } else {
+    swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    swapChainCreateInfo.queueFamilyIndexCount = 0;
+    swapChainCreateInfo.pQueueFamilyIndices = NULL;
+  }
+
+  swapChainCreateInfo.preTransform =
+      swapChainSupport.capabilities.currentTransform;
+  swapChainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+  swapChainCreateInfo.presentMode = presentMode;
+  swapChainCreateInfo.clipped = VK_TRUE;
+  swapChainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+
+  if (vkCreateSwapchainKHR(ctx->lDevice, &swapChainCreateInfo, NULL,
+                           &ctx->swapChain) != VK_SUCCESS) {
+    fprintf(stderr, "Failed to create swap chain!\n");
+    assert(0 && "Failed to create swap chain!");
+  }
+
+  vkGetSwapchainImagesKHR(ctx->lDevice, ctx->swapChain,
+                          &ctx->swapChainImageCount, NULL);
+  VkImage *swapChainImages = malloc(sizeof(VkImage) * ctx->swapChainImageCount);
+  if (!swapChainImages) {
+    assert(0 && "Lol malloc failed gl");
+  }
+  vkGetSwapchainImagesKHR(ctx->lDevice, ctx->swapChain,
+                          &ctx->swapChainImageCount, swapChainImages);
+  // ==================== IMAGE VIEWS ====================
+  ctx->swapChainImageViews =
+      malloc(sizeof(VkImageView) * ctx->swapChainImageCount);
+
+  for (size_t i = 0; i < ctx->swapChainImageCount; i++) {
+    VkImageViewCreateInfo ImageViewCreateInfo = {0};
+    ImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    ImageViewCreateInfo.image = swapChainImages[i];
+    ImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    ImageViewCreateInfo.format = ctx->swapChainSurfaceFormat.format;
+    ImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+    ImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+    ImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+    ImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+    ImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    ImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+    ImageViewCreateInfo.subresourceRange.levelCount = 1;
+    ImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    ImageViewCreateInfo.subresourceRange.layerCount = 1;
+    if (vkCreateImageView(ctx->lDevice, &ImageViewCreateInfo, NULL,
+                          &ctx->swapChainImageViews[i]) != VK_SUCCESS) {
+      fprintf(stderr, "failed to create image views!");
+      assert(0 && "failed to create image views!");
+    }
+  }
+
+  free(swapChainImages);
+}
+
+void createFrameBuffers(vulkanContext *ctx) {
+  // ==================== FRAMEBUFFERS ====================
+
+  ctx->swapChainFramebuffers =
+      malloc(sizeof(VkFramebuffer) * ctx->swapChainImageCount);
+  for (size_t i = 0; i < ctx->swapChainImageCount; i++) {
+    VkImageView attachments[] = {ctx->swapChainImageViews[i]};
+
+    VkFramebufferCreateInfo framebufferInfo = {0};
+    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    framebufferInfo.renderPass = ctx->renderPass;
+    framebufferInfo.attachmentCount = 1;
+    framebufferInfo.pAttachments = attachments;
+    framebufferInfo.width = ctx->swapChainExtent.width;
+    framebufferInfo.height = ctx->swapChainExtent.height;
+    framebufferInfo.layers = 1;
+
+    if (vkCreateFramebuffer(ctx->lDevice, &framebufferInfo, NULL,
+                            &ctx->swapChainFramebuffers[i]) != VK_SUCCESS) {
+      fprintf(stderr, "failed to create framebuffer");
+      assert(0 && "failed to create framebuffer!");
+    }
+  }
+}
+void cleanupSwapChain(vulkanContext *ctx) {
+  for (size_t i = 0; i < ctx->swapChainImageCount; i++) {
+    vkDestroyFramebuffer(ctx->lDevice, ctx->swapChainFramebuffers[i], NULL);
+  }
+
+  for (size_t i = 0; i < ctx->swapChainImageCount; i++) {
+    vkDestroyImageView(ctx->lDevice, ctx->swapChainImageViews[i], NULL);
+  }
+
+  vkDestroySwapchainKHR(ctx->lDevice, ctx->swapChain, NULL);
+
+  free(ctx->swapChainImageViews);
+  free(ctx->swapChainFramebuffers);
+}
+
+void recreateSwapChain(vulkanContext *ctx) {
+  int width = 0, height = 0;
+  glfwGetFramebufferSize(ctx->window, &width, &height);
+  while (width == 0 || height == 0) {
+    glfwGetFramebufferSize(ctx->window, &width, &height);
+    glfwWaitEvents();
+  }
+  vkDeviceWaitIdle(ctx->lDevice);
+
+  cleanupSwapChain(ctx);
+
+  createSwapChain_and_imageviews(ctx);
+  createFrameBuffers(ctx);
+}
+
 void vkInit(vulkanContext *ctx, GLFWwindow *_window) {
   ctx->window = _window;
+  ctx->framebufferResized = false;
+  glfwSetWindowUserPointer(_window, ctx);
 
   // ==================== INIT VULKAN ====================
   uint32_t extensionCount = 0;
@@ -547,7 +734,7 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window) {
   if (CreateDebugUtilsMessengerEXT(ctx->vkInstance, &createInfoDbg, NULL,
                                    &debugMessenger) != VK_SUCCESS) {
     fprintf(stderr, "Failed to set up debug messanger!");
-    assert(0 && "Failed to setup debug messanger!");
+    // assert(0 && "Failed to setup debug messanger!");
   }
   // ==================== SETUP SURFACE ====================
   VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {0};
@@ -560,7 +747,7 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window) {
     fprintf(stderr, "failed to create window surface!");
   }
   // ==================== PICK PHYSICAL DEVICE ====================
-  VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+  ctx->pDevice = VK_NULL_HANDLE;
   uint32_t deviceCount = 0;
   VkResult enumResult =
       vkEnumeratePhysicalDevices(ctx->vkInstance, &deviceCount, NULL);
@@ -595,11 +782,11 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window) {
     int score = rateDeviceSuitability(devices[i]);
     if (score > bestScore) {
       bestScore = score;
-      physicalDevice = devices[i];
+      ctx->pDevice = devices[i];
     }
   }
 
-  if (bestScore <= 0 || physicalDevice == VK_NULL_HANDLE) {
+  if (bestScore <= 0 || ctx->pDevice == VK_NULL_HANDLE) {
     fprintf(stderr, "Faiiled to find suitable GPU!\n");
     assert(0 && "failed to find suitable GPU!\n");
   }
@@ -608,17 +795,16 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window) {
 
   // ==================== LOGICAL DEVICE ====================
 
-  QueueFamilyIndices LogicalDeviceIndices =
-      findQueueFamilies(physicalDevice, ctx->surface);
+  ctx->lDeviceIndices = findQueueFamilies(ctx->pDevice, ctx->surface);
 
   float queuePriority = 1.0f;
   VkDeviceQueueCreateInfo
-      queueCreateInfos[LogicalDeviceIndices.queueUniqueFamiliesCount];
-  for (size_t i = 0; i < LogicalDeviceIndices.queueUniqueFamiliesCount; i++) {
+      queueCreateInfos[ctx->lDeviceIndices.queueUniqueFamiliesCount];
+  for (size_t i = 0; i < ctx->lDeviceIndices.queueUniqueFamiliesCount; i++) {
     VkDeviceQueueCreateInfo queueCreateInfo = {0};
     queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queueCreateInfo.queueFamilyIndex =
-        LogicalDeviceIndices.queueUniqueFamilies[i];
+        ctx->lDeviceIndices.queueUniqueFamilies[i];
     queueCreateInfo.queueCount = 1;
     queueCreateInfo.pQueuePriorities = &queuePriority;
     queueCreateInfos[i] = queueCreateInfo;
@@ -630,7 +816,7 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window) {
   LogigalCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
   LogigalCreateInfo.pQueueCreateInfos = queueCreateInfos;
   LogigalCreateInfo.queueCreateInfoCount =
-      LogicalDeviceIndices.queueUniqueFamiliesCount;
+      ctx->lDeviceIndices.queueUniqueFamiliesCount;
   LogigalCreateInfo.pEnabledFeatures = &deviceFeatures;
   LogigalCreateInfo.enabledExtensionCount = requiredExtensionsCount;
   LogigalCreateInfo.ppEnabledExtensionNames = requiredExtensions;
@@ -642,139 +828,18 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window) {
     LogigalCreateInfo.enabledLayerCount = 0;
   }
 
-  if (vkCreateDevice(physicalDevice, &LogigalCreateInfo, NULL, &ctx->lDevice) !=
+  if (vkCreateDevice(ctx->pDevice, &LogigalCreateInfo, NULL, &ctx->lDevice) !=
       VK_SUCCESS) {
     fprintf(stderr, "Failed to create logical device!");
     assert(0 && "Failed to create logical device");
   }
 
-  vkGetDeviceQueue(ctx->lDevice, LogicalDeviceIndices.presentFamily.val, 0,
+  vkGetDeviceQueue(ctx->lDevice, ctx->lDeviceIndices.presentFamily.val, 0,
                    &ctx->presentQueue);
-  vkGetDeviceQueue(ctx->lDevice, LogicalDeviceIndices.graphicsFamily.val, 0,
+  vkGetDeviceQueue(ctx->lDevice, ctx->lDeviceIndices.graphicsFamily.val, 0,
                    &ctx->graphicsQueue);
 
-  // ==================== SWAP CHAIN ====================
-  SwapChainSupportDetails swapChainSupport =
-      querySwapChainSupport(physicalDevice, ctx->surface);
-
-  // ==================== CHOOSE SWAP CHAIN SURFACE FORMAT ====================
-  VkSurfaceFormatKHR swapChainSurfaceFormat;
-  for (size_t i = 0; i < swapChainSupport.formatsCount; i++) {
-    if (swapChainSupport.formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
-        swapChainSupport.formats[i].colorSpace ==
-            VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
-      swapChainSurfaceFormat = swapChainSupport.formats[i];
-    }
-  }
-  swapChainSurfaceFormat = swapChainSupport.formats[0];
-
-  VkPresentModeKHR presentMode;
-  for (size_t i = 0; i < swapChainSupport.presentModesCount; i++) {
-    if (swapChainSupport.presentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
-      presentMode = swapChainSupport.presentModes[i];
-    }
-  }
-  presentMode = VK_PRESENT_MODE_FIFO_KHR;
-
-  // ==================== CHOOSE SWAP CHAIN EXTENT ====================
-  if (swapChainSupport.capabilities.currentExtent.width != UINT32_MAX) {
-    ctx->swapChainExtent = swapChainSupport.capabilities.currentExtent;
-  } else {
-    int width, height;
-    glfwGetFramebufferSize(ctx->window, &width, &height);
-
-    VkExtent2D actualExtent = {(uint32_t)(width), (uint32_t)(height)};
-
-    actualExtent.width = CLAMP(
-        actualExtent.width, swapChainSupport.capabilities.minImageExtent.width,
-        swapChainSupport.capabilities.maxImageExtent.width);
-    actualExtent.height =
-        CLAMP(actualExtent.height,
-              swapChainSupport.capabilities.minImageExtent.height,
-              swapChainSupport.capabilities.maxImageExtent.height);
-
-    ctx->swapChainExtent = actualExtent;
-  }
-
-  ctx->swapChainImageCount = swapChainSupport.capabilities.minImageCount + 1;
-
-  if (swapChainSupport.capabilities.maxImageCount > 0 &&
-      ctx->swapChainImageCount > swapChainSupport.capabilities.maxImageCount) {
-    ctx->swapChainImageCount = swapChainSupport.capabilities.maxImageCount;
-  }
-
-  VkSwapchainCreateInfoKHR swapChainCreateInfo = {0};
-  swapChainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-  swapChainCreateInfo.surface = ctx->surface;
-  swapChainCreateInfo.minImageCount = ctx->swapChainImageCount;
-  swapChainCreateInfo.imageFormat = swapChainSurfaceFormat.format;
-  swapChainCreateInfo.imageColorSpace = swapChainSurfaceFormat.colorSpace;
-  swapChainCreateInfo.imageExtent = ctx->swapChainExtent;
-  swapChainCreateInfo.imageArrayLayers = 1;
-  swapChainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-  uint32_t queueFamilyIndices[] = {LogicalDeviceIndices.graphicsFamily.val,
-                                   LogicalDeviceIndices.presentFamily.val};
-  if (LogicalDeviceIndices.graphicsFamily.val !=
-      LogicalDeviceIndices.presentFamily.val) {
-    swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-    swapChainCreateInfo.queueFamilyIndexCount = 2;
-    swapChainCreateInfo.pQueueFamilyIndices = queueFamilyIndices;
-  } else {
-    swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    swapChainCreateInfo.queueFamilyIndexCount = 0;
-    swapChainCreateInfo.pQueueFamilyIndices = NULL;
-  }
-
-  swapChainCreateInfo.preTransform =
-      swapChainSupport.capabilities.currentTransform;
-  swapChainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-  swapChainCreateInfo.presentMode = presentMode;
-  swapChainCreateInfo.clipped = VK_TRUE;
-  swapChainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
-
-  if (vkCreateSwapchainKHR(ctx->lDevice, &swapChainCreateInfo, NULL,
-                           &ctx->swapChain) != VK_SUCCESS) {
-    fprintf(stderr, "Failed to create swap chain!\n");
-    assert(0 && "Failed to create swap chain!");
-  }
-
-  vkGetSwapchainImagesKHR(ctx->lDevice, ctx->swapChain,
-                          &ctx->swapChainImageCount, NULL);
-  VkImage *swapChainImages = malloc(sizeof(VkImage) * ctx->swapChainImageCount);
-  if (!swapChainImages) {
-    assert(0 && "Lol malloc failed gl");
-  }
-  vkGetSwapchainImagesKHR(ctx->lDevice, ctx->swapChain,
-                          &ctx->swapChainImageCount, swapChainImages);
-
-  // ==================== IMAGE VIEWS ====================
-  ctx->swapChainImageViews =
-      malloc(sizeof(VkImageView) * ctx->swapChainImageCount);
-
-  for (size_t i = 0; i < ctx->swapChainImageCount; i++) {
-    VkImageViewCreateInfo ImageViewCreateInfo = {0};
-    ImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    ImageViewCreateInfo.image = swapChainImages[i];
-    ImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    ImageViewCreateInfo.format = swapChainSurfaceFormat.format;
-    ImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-    ImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-    ImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-    ImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-    ImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    ImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-    ImageViewCreateInfo.subresourceRange.levelCount = 1;
-    ImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-    ImageViewCreateInfo.subresourceRange.layerCount = 1;
-    if (vkCreateImageView(ctx->lDevice, &ImageViewCreateInfo, NULL,
-                          &ctx->swapChainImageViews[i]) != VK_SUCCESS) {
-      fprintf(stderr, "failed to create image views!");
-      assert(0 && "failed to create image views!");
-    }
-  }
-
-  free(swapChainImages);
+  createSwapChain_and_imageviews(ctx);
 
   // ==================== GRAPGICS PIPELINE - SHADERS ====================
   size_t shadersize = getFileSize("shader/vert.spv");
@@ -921,7 +986,7 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window) {
 
   // ==================== RENDER PASSES ====================
   VkAttachmentDescription colorAttachment = {0};
-  colorAttachment.format = swapChainSurfaceFormat.format;
+  colorAttachment.format = ctx->swapChainSurfaceFormat.format;
   colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
   colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
   colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -986,34 +1051,13 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window) {
     assert(0 && "failed to create graphics pipeline!");
   }
 
-  // ==================== FRAMEBUFFERS ====================
-
-  ctx->swapChainFramebuffers =
-      malloc(sizeof(VkFramebuffer) * ctx->swapChainImageCount);
-  for (size_t i = 0; i < ctx->swapChainImageCount; i++) {
-    VkImageView attachments[] = {ctx->swapChainImageViews[i]};
-
-    VkFramebufferCreateInfo framebufferInfo = {0};
-    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    framebufferInfo.renderPass = ctx->renderPass;
-    framebufferInfo.attachmentCount = 1;
-    framebufferInfo.pAttachments = attachments;
-    framebufferInfo.width = ctx->swapChainExtent.width;
-    framebufferInfo.height = ctx->swapChainExtent.height;
-    framebufferInfo.layers = 1;
-
-    if (vkCreateFramebuffer(ctx->lDevice, &framebufferInfo, NULL,
-                            &ctx->swapChainFramebuffers[i]) != VK_SUCCESS) {
-      fprintf(stderr, "failed to create framebuffer");
-      assert(0 && "failed to create framebuffer!");
-    }
-  }
+  createFrameBuffers(ctx);
 
   // ==================== COMMAND POOLS ====================
   VkCommandPoolCreateInfo poolInfo = {0};
   poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-  poolInfo.queueFamilyIndex = LogicalDeviceIndices.graphicsFamily.val;
+  poolInfo.queueFamilyIndex = ctx->lDeviceIndices.graphicsFamily.val;
 
   if (vkCreateCommandPool(ctx->lDevice, &poolInfo, NULL, &ctx->commandPool) !=
       VK_SUCCESS) {
@@ -1069,11 +1113,20 @@ void vkDrawFrame(vulkanContext *ctx) {
   // ==================== DRAW FRAME ====================
   vkWaitForFences(ctx->lDevice, 1, &ctx->inFlightFences[ctx->currentFrame],
                   VK_TRUE, UINT64_MAX);
-  vkResetFences(ctx->lDevice, 1, &ctx->inFlightFences[ctx->currentFrame]);
   uint32_t imageIndex;
-  vkAcquireNextImageKHR(ctx->lDevice, ctx->swapChain, UINT64_MAX,
-                        ctx->imageAvailableSemaphores[ctx->currentFrame],
-                        VK_NULL_HANDLE, &imageIndex);
+  VkResult result =
+      vkAcquireNextImageKHR(ctx->lDevice, ctx->swapChain, UINT64_MAX,
+                            ctx->imageAvailableSemaphores[ctx->currentFrame],
+                            VK_NULL_HANDLE, &imageIndex);
+
+  if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+    recreateSwapChain(ctx);
+    return;
+  } else if (result != VK_SUCCESS) {
+    fprintf(stderr, "failed to acquire swapchain image!\n");
+    assert(0 && "failed to acquire swapchain image!");
+  }
+  vkResetFences(ctx->lDevice, 1, &ctx->inFlightFences[ctx->currentFrame]);
 
   vkResetCommandBuffer(ctx->cmdBuffers[ctx->currentFrame], 0);
   recordCommandBuffer(ctx, ctx->cmdBuffers[ctx->currentFrame], imageIndex);
@@ -1094,6 +1147,7 @@ void vkDrawFrame(vulkanContext *ctx) {
       ctx->renderFinishedSemaphores[ctx->currentFrame]};
   submitInfo.signalSemaphoreCount = 1;
   submitInfo.pSignalSemaphores = signalSemaphores;
+
   if (vkQueueSubmit(ctx->graphicsQueue, 1, &submitInfo,
                     ctx->inFlightFences[ctx->currentFrame]) != VK_SUCCESS) {
     fprintf(stderr, "failed to submit draw command buffer!");
@@ -1108,37 +1162,46 @@ void vkDrawFrame(vulkanContext *ctx) {
   presentInfo.pSwapchains = swapChains;
   presentInfo.pImageIndices = &imageIndex;
   presentInfo.pResults = NULL; // Optional
-  vkQueuePresentKHR(ctx->presentQueue, &presentInfo);
+  VkResult presentResult = vkQueuePresentKHR(ctx->presentQueue, &presentInfo);
 
-  vkDeviceWaitIdle(ctx->lDevice);
+  if (presentResult == VK_ERROR_OUT_OF_DATE_KHR ||
+      presentResult == VK_SUBOPTIMAL_KHR || ctx->framebufferResized) {
+    ctx->framebufferResized = false;
+    recreateSwapChain(ctx);
+    return;
+  } else if (presentResult != VK_SUCCESS) {
+    fprintf(stderr, "failed to acquire swapchain image!\n");
+    assert(0 && "failed to acquire swapchain image!");
+  }
 
   ctx->currentFrame = (ctx->currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void vkCleanup(vulkanContext *ctx) {
   // ==================== CLEAN UP ====================
-  if (enableValidationLayers) {
-    DestroyDebugUtilsMessengerEXT(ctx->vkInstance, debugMessenger, NULL);
-  }
-  for (size_t i = 0; i < ctx->swapChainImageCount; i++) {
-    vkDestroyImageView(ctx->lDevice, ctx->swapChainImageViews[i], NULL);
-    vkDestroyFramebuffer(ctx->lDevice, ctx->swapChainFramebuffers[i], NULL);
-  }
-  free(ctx->swapChainImageViews);
-  free(ctx->swapChainFramebuffers);
+  cleanupSwapChain(ctx);
+  vkDestroyPipeline(ctx->lDevice, ctx->graphicsPipeline, NULL);
   vkDestroyPipelineLayout(ctx->lDevice, ctx->pipelineLayout, NULL);
-  vkDestroyShaderModule(ctx->lDevice, ctx->fragShaderModule, NULL);
-  vkDestroyShaderModule(ctx->lDevice, ctx->vertShaderModule, NULL);
+
+  vkDestroyRenderPass(ctx->lDevice, ctx->renderPass, NULL);
+
   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
     vkDestroySemaphore(ctx->lDevice, ctx->imageAvailableSemaphores[i], NULL);
     vkDestroySemaphore(ctx->lDevice, ctx->renderFinishedSemaphores[i], NULL);
     vkDestroyFence(ctx->lDevice, ctx->inFlightFences[i], NULL);
   }
+
+  // SHOULD THESWE MVOE?
+  vkDestroyShaderModule(ctx->lDevice, ctx->fragShaderModule, NULL);
+  vkDestroyShaderModule(ctx->lDevice, ctx->vertShaderModule, NULL);
+
   vkDestroyCommandPool(ctx->lDevice, ctx->commandPool, NULL);
-  vkDestroyPipeline(ctx->lDevice, ctx->graphicsPipeline, NULL);
-  vkDestroyRenderPass(ctx->lDevice, ctx->renderPass, NULL);
-  vkDestroySwapchainKHR(ctx->lDevice, ctx->swapChain, NULL);
-  vkDestroySurfaceKHR(ctx->vkInstance, ctx->surface, NULL);
   vkDestroyDevice(ctx->lDevice, NULL);
+
+  if (enableValidationLayers) {
+    DestroyDebugUtilsMessengerEXT(ctx->vkInstance, debugMessenger, NULL);
+  }
+
+  vkDestroySurfaceKHR(ctx->vkInstance, ctx->surface, NULL);
   vkDestroyInstance(ctx->vkInstance, NULL);
 }
