@@ -18,8 +18,6 @@ extern PFN_vkCreateDebugUtilsMessengerEXT g_createDebugUtils;
 extern PFN_vkDestroyDebugUtilsMessengerEXT g_destroyDebugUtils;
 #endif
 
-#define CLAMP(val, min, max)                                                   \
-  ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 typedef struct {
   VkSurfaceCapabilitiesKHR capabilities;
   VkSurfaceFormatKHR *formats;
