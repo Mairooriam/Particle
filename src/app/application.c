@@ -342,21 +342,26 @@ void update_collision(GameState *gameState, float frameTime) {
 
 void handle_init(GameMemory *gameMemory, GameState *gameState) {
   size_t gameStateSize = sizeof(GameState);
-  size_t maxEntities = 1000000;
+
+  size_t entityCapacity = 10000;
   int cellSpacing = 5;
-  size_t entityPoolSize = maxEntities * sizeof(Entity);
-  size_t spatialGridSize = maxEntities * sizeof(SpatialEntry);
-  size_t spatialGridCells = (100 / cellSpacing) * (100 / cellSpacing);
+
+  assert(cellSpacing > 0 && "cellSpacing must be > 0");
+
+  size_t entityPoolSize = entityCapacity * sizeof(Entity);
+  size_t spatialGridSize = entityCapacity * sizeof(SpatialEntry);
+  size_t spatialGridCells =
+      ((size_t)(100 / cellSpacing)) * ((size_t)(100 / cellSpacing));
   size_t spatialSparseSize = spatialGridCells * sizeof(size_t) * 2;
-  size_t meshDataSize = 1024 * 1024;
+  size_t meshDataSize = 256 * 1024;
 
   size_t permanentArenaSize =
       entityPoolSize + spatialGridSize + spatialSparseSize + meshDataSize;
-
   size_t totalRequired = gameStateSize + permanentArenaSize;
+
   printf("=== Memory Allocation ===\n");
   printf("Entity Pool: %.2f MB (%zu entities)\n",
-         entityPoolSize / (1024.0 * 1024.0), maxEntities);
+         entityPoolSize / (1024.0 * 1024.0), entityCapacity);
   printf("Spatial Grid Dense: %.2f MB\n", spatialGridSize / (1024.0 * 1024.0));
   printf("Spatial Grid Sparse: %.2f MB (%zu cells)\n",
          spatialSparseSize / (1024.0 * 1024.0), spatialGridCells);
@@ -372,7 +377,6 @@ void handle_init(GameMemory *gameMemory, GameState *gameState) {
   gameState->minBounds = (Vector3){0, 0, 0};
   gameState->maxBounds = (Vector3){100, 100, 0};
 
-  // Initialize arenas
   void *permanentArenaBase =
       (char *)gameMemory->permamentMemory + gameStateSize;
   arena_init(&gameState->permanentArena, permanentArenaBase,
@@ -384,16 +388,12 @@ void handle_init(GameMemory *gameMemory, GameState *gameState) {
   gameState->transientAllocator =
       create_arena_allocator(&gameState->transientArena);
 
-  size_t entityCapacity = 10000;
-  // Use the stored allocators
   EntityPoolAllocator poolAllocator = {arena_alloc, &gameState->permanentArena};
 
-  // Mesh generation
   gameState->instancedMesh =
       GenMeshCube(&gameState->permanentAllocator, 1.0f, 1.0f, 1.0f);
   gameState->instancedMeshUpdated = true;
 
-  // ENTITY POOL
   gameState->entityPool = entityPool_InitInArena(poolAllocator, entityCapacity);
 
   // SPATIAL GRID
