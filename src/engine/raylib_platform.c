@@ -245,15 +245,13 @@ int main(void) {
   // https://github.com/KhronosGroup/Vulkan-Samples/blob/main/framework/core/device.h
   // https://github.com/lonelydevil/vulkan-tutorial-C-implementation/blob/main/main.c
   // ==================== MAIN LOOP ====================
-  static float dx = 0.01f;
-  static float dy = 0.01f;
-  static int frameCounter = 0;
-
   Input input = {0};
-  float frameTime = 0.0f;
+  float lastTime = GetTime();
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
-
+        float currentTime = GetTime();
+        float deltaTime = currentTime - lastTime;  // Delta time in seconds
+        lastTime = currentTime;
     // ==================== HOT RELOADING ====================
     if (code.reloadDLLRequested && (code.clock >= code.reloadDLLDelay)) {
       LOG("Reloading DLLs.");
@@ -272,7 +270,7 @@ int main(void) {
     gameMemory.vertices = vertices;
     gameMemory.vertexCount = ARR_COUNT(vertices);
 
-    code.update(&gameMemory, &input, frameTime);
+    code.update(&gameMemory, &input, deltaTime);
 
     vkDrawFrame(&vkCtx, vertices, ARR_COUNT(vertices));
     code.clock++;

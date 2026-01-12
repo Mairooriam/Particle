@@ -261,3 +261,5 @@ DA_FREE(arr_uint32_t)
 DA_INIT(arr_uint32_t)
 // TODO: make proper utils.h not spread around utls and other files
 #define ARR_COUNT(arr) (sizeof(arr) / sizeof((arr)[0]))
+#define CLAMP(val, min, max)                                                   \
+  ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
