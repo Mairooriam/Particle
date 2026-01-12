@@ -43,7 +43,7 @@ ${CMAKE_CURRENT_SOURCE_DIR} # REMOVE THIS LATER. NOT NICE
 
 
 # Engine executable
-add_executable(engine engine/raylib_platform.c)
+add_executable(engine engine/raylib_platform.c engine/vulkanLayer.c)
 target_include_directories(engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${RAYLIB_INCLUDE_DIR} ${GLFW_INCLUDE_DIR} ${CGLM} $ENV{VULKAN_SDK}/Include)
 target_link_directories(engine PRIVATE ${RAYLIB_LIB_DIR} ${GLFW_LIBRARY} winmm Vulkan::Vulkan)
 target_link_libraries(engine PRIVATE raylib winmm Vulkan::Vulkan)
