@@ -3,13 +3,14 @@
 #include <stdio.h>
 #include <vulkan/vulkan_core.h>
 #include "utils.h"
+#include "shared.h"
 #define VK_USE_PLATFORM_WIN32_KHR
 #define GLFW_INCLUDE_VULKAN
 #include <glfw3.h>
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <glfw3native.h>
 #include "vulkan/vulkan.h"
-#include "cglm/cglm.h"
+
 #define MAX_FRAMES_IN_FLIGHT 2 // for command buffer count;
 #define DEFINE_OPTIONAL(Type)                                                  \
   typedef struct {                                                             \
@@ -27,6 +28,16 @@ typedef struct {
   uint32_t queueUniqueFamilies[2];
   uint32_t queueUniqueFamiliesCount;
 } QueueFamilyIndices;
+
+typedef struct {
+  const char **items;
+  size_t count;
+  size_t capacity;
+} arr_cstr;
+DA_CREATE(arr_cstr)
+DA_FREE(arr_cstr)
+DA_INIT(arr_cstr)
+
 
 typedef struct {
   VkInstance vkInstance;
@@ -53,6 +64,7 @@ typedef struct {
   VkShaderModule fragShaderModule;
   VkBuffer vertexBuffer;
   VkDeviceMemory vertexBufferMemory;
+  Vertex *vertices[2][3];
 
   // SWAP CHAIN
   VkSurfaceFormatKHR swapChainSurfaceFormat;
@@ -76,29 +88,6 @@ const int enableValidationLayers = 1;
 #else
 const int enableValidationLayers = 0;
 #endif
-
-// TODO: make proper utils.h not spread around utls and other files
-#define ARR_COUNT(arr) (sizeof(arr) / sizeof((arr)[0]))
-
-typedef struct {
-  const char **items;
-  size_t count;
-  size_t capacity;
-} arr_cstr;
-DA_CREATE(arr_cstr)
-DA_FREE(arr_cstr)
-DA_INIT(arr_cstr)
-
-typedef struct {
-  vec2 pos;
-  vec3 color;
-} Vertex;
-
-const Vertex vertices[] = {
-    {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // Bottom vertex: red
-    {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},  // Top-right: green
-    {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}  // Top-left: blue
-};
 
 // just example of how to do custom validaiton by docs? is this even needed?
 // ==================== VULKAN UTILS ====================
@@ -461,9 +450,21 @@ VkShaderModule createShaderModule(const ShaderCode *shader, VkDevice device) {
   return shaderModule;
 }
 
+void updateVertexBuffer(vulkanContext *ctx, const Vertex *newVertices,
+                        size_t vertexCount) {
+  VkDeviceSize bufferSize = sizeof(Vertex) * vertexCount;
+  // for now no size checks lol
+
+  void *data;
+  vkMapMemory(ctx->lDevice, ctx->vertexBufferMemory, 0, bufferSize, 0, &data);
+  memcpy(data, newVertices, bufferSize);
+  vkUnmapMemory(ctx->lDevice, ctx->vertexBufferMemory);
+}
+
 // dont add everything to ctx just the stuff thats used also elsewhere
 void recordCommandBuffer(vulkanContext *ctx, VkCommandBuffer cmdBuffer,
-                         uint32_t imageIndex) {
+                         uint32_t imageIndex, const Vertex *vertices,
+                         uint32_t vertexCount) {
 
   assert(ctx->swapChainFramebuffers &&
          "Dont call record command buffer without frambuffer");
@@ -496,9 +497,6 @@ void recordCommandBuffer(vulkanContext *ctx, VkCommandBuffer cmdBuffer,
   VkBuffer vertexBuffers[] = {ctx->vertexBuffer};
   VkDeviceSize offsets[] = {0};
   vkCmdBindVertexBuffers(cmdBuffer, 0, 1, vertexBuffers, offsets);
-
-  vkCmdDraw(cmdBuffer, (uint32_t)ARR_COUNT(vertices), 1, 0, 0);
-
   VkViewport viewport = {0};
   viewport.x = 0.0f;
   viewport.y = 0.0f;
@@ -512,7 +510,9 @@ void recordCommandBuffer(vulkanContext *ctx, VkCommandBuffer cmdBuffer,
   scissor.offset = (VkOffset2D){0, 0};
   scissor.extent = ctx->swapChainExtent;
   vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
-  vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
+
+  vkCmdDraw(cmdBuffer, vertexCount, 1, 0, 0);
+
   vkCmdEndRenderPass(cmdBuffer);
   if (vkEndCommandBuffer(cmdBuffer) != VK_SUCCESS) {
     fprintf(stderr, "failed to reconrd command buffer!");
@@ -697,7 +697,8 @@ void recreateSwapChain(vulkanContext *ctx) {
   createFrameBuffers(ctx);
 }
 
-void vkInit(vulkanContext *ctx, GLFWwindow *_window) {
+void vkInit(vulkanContext *ctx, GLFWwindow *_window,
+            const Vertex *initialVertices, size_t vertexCount) {
   ctx->window = _window;
   ctx->framebufferResized = false;
   glfwSetWindowUserPointer(_window, ctx);
@@ -948,7 +949,7 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window) {
 
   VkBufferCreateInfo bufferInfo = {0};
   bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-  bufferInfo.size = sizeof(vertices[0]) * ARR_COUNT(vertices);
+  bufferInfo.size = sizeof(initialVertices[0]) * vertexCount;
   bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
   bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -980,7 +981,7 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window) {
   void *data;
   vkMapMemory(ctx->lDevice, ctx->vertexBufferMemory, 0, bufferInfo.size, 0,
               &data);
-  memcpy(data, vertices, (size_t)bufferInfo.size);
+  memcpy(data, initialVertices, (size_t)bufferInfo.size);
   vkUnmapMemory(ctx->lDevice, ctx->vertexBufferMemory);
 
   // ==================== DYNAMIC STATE ====================
@@ -1190,8 +1191,9 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window) {
   }
 }
 
-void vkDrawFrame(vulkanContext *ctx) {
-
+void vkDrawFrame(vulkanContext *ctx, const Vertex *vertices,
+                 uint32_t vertexCount) {
+  updateVertexBuffer(ctx, vertices, vertexCount);
   // ==================== DRAW FRAME ====================
   vkWaitForFences(ctx->lDevice, 1, &ctx->inFlightFences[ctx->currentFrame],
                   VK_TRUE, UINT64_MAX);
@@ -1211,7 +1213,8 @@ void vkDrawFrame(vulkanContext *ctx) {
   vkResetFences(ctx->lDevice, 1, &ctx->inFlightFences[ctx->currentFrame]);
 
   vkResetCommandBuffer(ctx->cmdBuffers[ctx->currentFrame], 0);
-  recordCommandBuffer(ctx, ctx->cmdBuffers[ctx->currentFrame], imageIndex);
+  recordCommandBuffer(ctx, ctx->cmdBuffers[ctx->currentFrame], imageIndex,
+                      vertices, vertexCount);
 
   VkSubmitInfo submitInfo = {0};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;

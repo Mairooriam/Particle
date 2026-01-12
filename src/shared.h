@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <math.h>
 #include "utils.h"
+#include "cglm/cglm.h"
 #define Assert(expression)                                                     \
   if (!(expression)) {                                                         \
     __builtin_trap();                                                          \
@@ -219,14 +220,18 @@ typedef struct {
   RenderCommand commands[MAX_RENDER_COMMANDS];
   int count;
 } RenderQueue;
-
+typedef struct {
+  vec2 pos;
+  vec3 color;
+} Vertex;
 typedef struct {
   bool isInitialized;
   void *permamentMemory;
   size_t permanentMemorySize;
   void *transientMemory;
   size_t transientMemorySize;
-
+  Vertex *vertices;   // REMOVE IN  FUTURE
+  size_t vertexCount; // REMOVE IN FUTURE
   RenderQueue *renderQueue;
 } GameMemory;
 
@@ -254,3 +259,5 @@ typedef struct {
 DA_CREATE(arr_uint32_t)
 DA_FREE(arr_uint32_t)
 DA_INIT(arr_uint32_t)
+// TODO: make proper utils.h not spread around utls and other files
+#define ARR_COUNT(arr) (sizeof(arr) / sizeof((arr)[0]))

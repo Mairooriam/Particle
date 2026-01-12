@@ -193,7 +193,7 @@ int main(void) {
 
   GameCode code = loadGameCode(sourceDLLfilepath, tempDLLfilepath);
   code.reloadDLLRequested = false;
-  code.reloadDLLDelay = 0.0f;
+  code.reloadDLLDelay = 0.1f;
 
 #if INTERNAL_BUILD
   LPVOID baseAddress = (LPVOID)TeraBytes((uint64_t)2);
@@ -202,8 +202,8 @@ int main(void) {
 #endif
 
   GameMemory gameMemory = {0};
-  gameMemory.permanentMemorySize = MegaBytes(256);
-  gameMemory.transientMemorySize = GigaBytes((uint64_t)4);
+  gameMemory.permanentMemorySize = MegaBytes(512);
+  gameMemory.transientMemorySize = MegaBytes(512);
 
   uint64_t totalSize =
       gameMemory.permanentMemorySize + gameMemory.transientMemorySize;
@@ -211,12 +211,14 @@ int main(void) {
       baseAddress, totalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
   if (!gameMemory.permamentMemory) {
     LOG("FAILED TO ALLOC PERMANENT MEMORY");
+    assert(0 && "lol alloc failed");
   }
   gameMemory.transientMemory =
       ((uint8_t *)gameMemory.permamentMemory + gameMemory.permanentMemorySize);
 
   if (!gameMemory.transientMemory) {
     LOG("FAILED TO ALLOC TRANSIENT MEMORY");
+    assert(0 && "Lmao alloc failed");
   }
 
   // ==================== INIT WINDOW ====================
@@ -231,8 +233,14 @@ int main(void) {
   glfwSetWindowSizeCallback(window, window_size_callback);
 
   // TODO: make it proper just placeholder currently
+  Vertex vertices[] = {
+      {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // Bottom vertex: red
+      {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},  // Top-right: green
+      {{-0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}}  // Top-left: blue
+  };
+
   vulkanContext vkCtx = {0};
-  vkInit(&vkCtx, window);
+  vkInit(&vkCtx, window, vertices, ARR_COUNT(vertices));
 
   // things that dont go away virtual device
   // swap chain
@@ -240,9 +248,38 @@ int main(void) {
   // https://github.com/KhronosGroup/Vulkan-Samples/blob/main/framework/core/device.h
   // https://github.com/lonelydevil/vulkan-tutorial-C-implementation/blob/main/main.c
   // ==================== MAIN LOOP ====================
+  static float dx = 0.01f;
+  static float dy = 0.01f;
+  static int frameCounter = 0;
+
+  Input input = {0};
+  float frameTime = 0.0f;
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
-    vkDrawFrame(&vkCtx);
+
+    // ==================== HOT RELOADING ====================
+    if (code.reloadDLLRequested && (code.clock >= code.reloadDLLDelay)) {
+      LOG("Reloading DLLs.");
+      unloadGameCode(&code);
+      code = loadGameCode(sourceDLLfilepath, tempDLLfilepath);
+      code.reloadDLLRequested = false;
+      code.clock = 0;
+      code.resetTransientMemoryRequested = true;
+      
+    }
+
+    FILETIME time = getFileLastWriteTime(sourceDLLfilepath);
+    if (CompareFileTime(&time, &code.currentDLLtimestamp) != 0) {
+      code.reloadDLLRequested = true;
+    }
+
+    gameMemory.vertices = vertices;
+    gameMemory.vertexCount = ARR_COUNT(vertices);
+
+    code.update(&gameMemory, &input, frameTime);
+
+    vkDrawFrame(&vkCtx, vertices, ARR_COUNT(vertices));
+    code.clock++;
   }
 
   vkCleanup(&vkCtx);
