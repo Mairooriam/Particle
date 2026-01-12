@@ -155,14 +155,6 @@ void window_size_callback(GLFWwindow *window, int width, int height) {
 }
 int main(void) {
 
-  vCtx.real_vkCreateInstance =
-      (PFN_vkCreateInstance)vkGetInstanceProcAddr(NULL, "vkCreateInstance");
-  if (!vCtx.real_vkCreateInstance) {
-    fprintf(stderr, "Failed to load vkCreateInstance!\n");
-    assert(0 && "failed to load vkCreateInstance");
-    exit(1);
-  }
-
   char EXEDirPath[MAX_PATH];
   DWORD SizeOfFilename = GetModuleFileNameA(0, EXEDirPath, sizeof(EXEDirPath));
   (void)SizeOfFilename;
@@ -240,6 +232,11 @@ int main(void) {
   };
 
   vulkanContext vkCtx = {0};
+#if defined(SLOW_CODE_ALLOWED)
+  g_real_vkCreateInstance =
+      (PFN_vkCreateInstance)vkGetInstanceProcAddr(NULL, "vkCreateInstance");
+#endif
+
   vkInit(&vkCtx, window, vertices, ARR_COUNT(vertices));
 
   // things that dont go away virtual device
@@ -265,7 +262,6 @@ int main(void) {
       code.reloadDLLRequested = false;
       code.clock = 0;
       code.resetTransientMemoryRequested = true;
-      
     }
 
     FILETIME time = getFileLastWriteTime(sourceDLLfilepath);
@@ -292,15 +288,4 @@ int main(void) {
 
 // ==================== VULKAN HELPERS / VALIDATION ====================
 
-VkResult vkCreateInstance(const VkInstanceCreateInfo *pCreateInfo,
-                          const VkAllocationCallbacks *pAllocator,
-                          VkInstance *pInstance) {
-
-  printf("hello from debug vkCreateInstance\n");
-  if (pCreateInfo == NULL || pInstance == NULL) {
-    fprintf(stderr, "Null pointer passed to required parameter!\n");
-    return VK_ERROR_INITIALIZATION_FAILED;
-  }
-
-  return vCtx.real_vkCreateInstance(pCreateInfo, pAllocator, pInstance);
-}
+// TODO: setup this up?
