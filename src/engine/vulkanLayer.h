@@ -47,8 +47,12 @@ typedef struct {
   VkCommandPool commandPool;
   VkImageView *swapChainImageViews;
   uint32_t swapChainImageCount;
+
+  // Shader
   VkShaderModule vertShaderModule;
   VkShaderModule fragShaderModule;
+  VkBuffer vertexBuffer;
+  VkDeviceMemory vertexBufferMemory;
 
   // SWAP CHAIN
   VkSurfaceFormatKHR swapChainSurfaceFormat;
@@ -85,6 +89,17 @@ DA_CREATE(arr_cstr)
 DA_FREE(arr_cstr)
 DA_INIT(arr_cstr)
 
+typedef struct {
+  vec2 pos;
+  vec3 color;
+} Vertex;
+
+const Vertex vertices[] = {
+    {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // Bottom vertex: red
+    {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},  // Top-right: green
+    {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}  // Top-left: blue
+};
+
 // just example of how to do custom validaiton by docs? is this even needed?
 // ==================== VULKAN UTILS ====================
 typedef struct {
@@ -93,6 +108,22 @@ typedef struct {
   PFN_vkDestroyDebugUtilsMessengerEXT destroyDebugUtils;
 } vulkanCtx;
 vulkanCtx vCtx = {0};
+
+uint32_t findMemoryType(VkPhysicalDevice pDevice, uint32_t typeFilter,
+                        VkMemoryPropertyFlags properties) {
+  VkPhysicalDeviceMemoryProperties memProperties;
+  vkGetPhysicalDeviceMemoryProperties(pDevice, &memProperties);
+  for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+    if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags &
+                                    properties) == properties) {
+      return i;
+    }
+  }
+
+  fprintf(stderr, "failed to find suitable memory type!\n");
+  assert(0 && "failed to find suitable memory type!\n");
+  return UINT32_MAX;
+}
 
 VkDebugUtilsMessengerEXT debugMessenger;
 bool checkValidationLayerSupport(const char **requiredLayers,
@@ -433,6 +464,7 @@ VkShaderModule createShaderModule(const ShaderCode *shader, VkDevice device) {
 // dont add everything to ctx just the stuff thats used also elsewhere
 void recordCommandBuffer(vulkanContext *ctx, VkCommandBuffer cmdBuffer,
                          uint32_t imageIndex) {
+
   assert(ctx->swapChainFramebuffers &&
          "Dont call record command buffer without frambuffer");
   VkCommandBufferBeginInfo beginInfo = {0};
@@ -460,6 +492,12 @@ void recordCommandBuffer(vulkanContext *ctx, VkCommandBuffer cmdBuffer,
 
   vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                     ctx->graphicsPipeline);
+
+  VkBuffer vertexBuffers[] = {ctx->vertexBuffer};
+  VkDeviceSize offsets[] = {0};
+  vkCmdBindVertexBuffers(cmdBuffer, 0, 1, vertexBuffers, offsets);
+
+  vkCmdDraw(cmdBuffer, (uint32_t)ARR_COUNT(vertices), 1, 0, 0);
 
   VkViewport viewport = {0};
   viewport.x = 0.0f;
@@ -882,6 +920,70 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window) {
   VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo,
                                                     fragShaderStageInfo};
 
+  // ==================== VERTEX LAYOUT ====================
+  VkVertexInputBindingDescription bindingDescription = {0};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(Vertex);
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  uint32_t attributeCount = 2;
+  VkVertexInputAttributeDescription attributeDescriptions[attributeCount];
+
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0; // Location for pos (vec2)
+  attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT; // 2 floats
+  attributeDescriptions[0].offset = offsetof(Vertex, pos);
+
+  attributeDescriptions[1].binding = 0;
+  attributeDescriptions[1].location = 1; // Location for color (vec3)
+  attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT; // 3 floats
+  attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+  VkPipelineVertexInputStateCreateInfo vertexInputInfo = {0};
+  vertexInputInfo.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+  vertexInputInfo.vertexBindingDescriptionCount = 1;
+  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+  vertexInputInfo.vertexAttributeDescriptionCount = attributeCount;
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions;
+
+  VkBufferCreateInfo bufferInfo = {0};
+  bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  bufferInfo.size = sizeof(vertices[0]) * ARR_COUNT(vertices);
+  bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+  bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+  if (vkCreateBuffer(ctx->lDevice, &bufferInfo, NULL, &ctx->vertexBuffer) !=
+      VK_SUCCESS) {
+    fprintf(stderr, "failed to create vertex buffer!\n");
+    assert(0 && "failed to create vertex buffer!");
+  }
+
+  VkMemoryRequirements memRequirements;
+  vkGetBufferMemoryRequirements(ctx->lDevice, ctx->vertexBuffer,
+                                &memRequirements);
+
+  VkMemoryAllocateInfo allocInfo = {0};
+  allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  allocInfo.allocationSize = memRequirements.size;
+  allocInfo.memoryTypeIndex =
+      findMemoryType(ctx->pDevice, memRequirements.memoryTypeBits,
+                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+  if (vkAllocateMemory(ctx->lDevice, &allocInfo, NULL,
+                       &ctx->vertexBufferMemory) != VK_SUCCESS) {
+    fprintf(stderr, "failed to allocate vertex buffer memory!\n");
+    assert(0 && "failed to allocate vertex buffer memory!\n");
+  }
+  vkBindBufferMemory(ctx->lDevice, ctx->vertexBuffer, ctx->vertexBufferMemory,
+                     0);
+
+  void *data;
+  vkMapMemory(ctx->lDevice, ctx->vertexBufferMemory, 0, bufferInfo.size, 0,
+              &data);
+  memcpy(data, vertices, (size_t)bufferInfo.size);
+  vkUnmapMemory(ctx->lDevice, ctx->vertexBufferMemory);
+
+  // ==================== DYNAMIC STATE ====================
   VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT,
                                     VK_DYNAMIC_STATE_SCISSOR};
 
@@ -890,31 +992,11 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window) {
   dynamicState.dynamicStateCount = ARR_COUNT(dynamicStates);
   dynamicState.pDynamicStates = dynamicStates;
 
-  VkPipelineVertexInputStateCreateInfo vertexInputInfo = {0};
-  vertexInputInfo.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-  vertexInputInfo.vertexBindingDescriptionCount = 0;
-  vertexInputInfo.pVertexBindingDescriptions = NULL;
-  vertexInputInfo.vertexAttributeDescriptionCount = 0;
-  vertexInputInfo.pVertexAttributeDescriptions = NULL;
-
   VkPipelineInputAssemblyStateCreateInfo inputAssembly = {0};
   inputAssembly.sType =
       VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
   inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
   inputAssembly.primitiveRestartEnable = VK_FALSE;
-
-  // VkViewport viewport = {0};
-  // viewport.x = 0.0f;
-  // viewport.y = 0.0f;
-  // viewport.width = (float)swapChainExtent.width;
-  // viewport.height = (float)swapChainExtent.height;
-  // viewport.minDepth = 0.0f;
-  // viewport.maxDepth = 1.0f;
-  //
-  // VkRect2D scissor = {0};
-  // scissor.offset = (VkOffset2D){0, 0};
-  // scissor.extent = swapChainExtent;
 
   VkPipelineViewportStateCreateInfo viewportState = {0};
   viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -1065,14 +1147,14 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window) {
     assert(0 && "failed to create command pool!");
   }
 
-  VkCommandBufferAllocateInfo allocInfo = {0};
-  allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  allocInfo.commandPool = ctx->commandPool;
-  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  allocInfo.commandBufferCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
+  VkCommandBufferAllocateInfo cmdBufferAllocInfo = {0};
+  cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  cmdBufferAllocInfo.commandPool = ctx->commandPool;
+  cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  cmdBufferAllocInfo.commandBufferCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
 
-  if (vkAllocateCommandBuffers(ctx->lDevice, &allocInfo, ctx->cmdBuffers) !=
-      VK_SUCCESS) {
+  if (vkAllocateCommandBuffers(ctx->lDevice, &cmdBufferAllocInfo,
+                               ctx->cmdBuffers) != VK_SUCCESS) {
     fprintf(stderr, "failed to allocate command buffers!");
     assert(0 && "failed to allocate command buffers!");
   }
@@ -1182,6 +1264,10 @@ void vkDrawFrame(vulkanContext *ctx) {
 void vkCleanup(vulkanContext *ctx) {
   // ==================== CLEAN UP ====================
   cleanupSwapChain(ctx);
+
+  vkDestroyBuffer(ctx->lDevice, ctx->vertexBuffer, NULL);
+  vkFreeMemory(ctx->lDevice, ctx->vertexBufferMemory, NULL);
+
   vkDestroyPipeline(ctx->lDevice, ctx->graphicsPipeline, NULL);
   vkDestroyPipelineLayout(ctx->lDevice, ctx->pipelineLayout, NULL);
 
