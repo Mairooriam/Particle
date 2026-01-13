@@ -94,7 +94,13 @@ static void arena_free(void* context, void* ptr) {
 }
 
 static MemoryAllocator create_arena_allocator(memory_arena* arena) {
-  assert(arena != NULL);
+    if (!arena) {
+    // Log error instead of assert for release builds
+    fprintf(stderr, "Error: NULL arena passed to create_arena_allocator\n");
+    MemoryAllocator invalid = {NULL, NULL, NULL};
+    assert(0 && "lol no arena to be found");
+    return invalid;
+  }
     MemoryAllocator allocator;
     allocator.alloc = arena_alloc;
     allocator.free = arena_free;

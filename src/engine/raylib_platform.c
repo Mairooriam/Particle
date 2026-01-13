@@ -228,8 +228,10 @@ int main(void) {
   Vertex vertices[] = {
       {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // Bottom vertex: red
       {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},  // Top-right: green
-      {{-0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}}  // Top-left: blue
-  };
+      {{-0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}}, // Top-left: blue
+      {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}};
+
+  uint16_t indicies[] = {0, 1, 2, 2, 3, 0};
 
   vulkanContext vkCtx = {0};
 #if defined(SLOW_CODE_ALLOWED)
@@ -237,7 +239,7 @@ int main(void) {
       (PFN_vkCreateInstance)vkGetInstanceProcAddr(NULL, "vkCreateInstance");
 #endif
 
-  vkInit(&vkCtx, window, vertices, ARR_COUNT(vertices));
+  vkInit(&vkCtx, window, vertices, ARR_COUNT(vertices), indicies, ARR_COUNT(indicies));
 
   // things that dont go away virtual device
   // swap chain
@@ -249,9 +251,9 @@ int main(void) {
   float lastTime = GetTime();
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
-        float currentTime = GetTime();
-        float deltaTime = currentTime - lastTime;  // Delta time in seconds
-        lastTime = currentTime;
+    float currentTime = GetTime();
+    float deltaTime = currentTime - lastTime; // Delta time in seconds
+    lastTime = currentTime;
     // ==================== HOT RELOADING ====================
     if (code.reloadDLLRequested && (code.clock >= code.reloadDLLDelay)) {
       LOG("Reloading DLLs.");
@@ -272,7 +274,7 @@ int main(void) {
 
     code.update(&gameMemory, &input, deltaTime);
 
-    vkDrawFrame(&vkCtx, vertices, ARR_COUNT(vertices));
+    vkDrawFrame(&vkCtx, vertices, ARR_COUNT(vertices), ARR_COUNT(indicies));
     code.clock++;
   }
 

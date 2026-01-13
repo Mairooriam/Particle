@@ -364,19 +364,34 @@ VkShaderModule createShaderModule(const ShaderCode *shader, VkDevice device) {
 void updateVertexBuffer(vulkanContext *ctx, const Vertex *newVertices,
                         size_t vertexCount) {
   VkDeviceSize bufferSize = sizeof(Vertex) * vertexCount;
-  // for now no size checks lol
+  if (bufferSize > ctx->stagingBufferSize) {
+    fprintf(stderr, "Staging buffer too small! Need: %zu, Have: %zu\n",
+            (size_t)bufferSize, (size_t)ctx->stagingBufferSize);
+    return; // Resize or error
+  }
 
+  // Map staging buffer and copy data
   void *data;
-  vkMapMemory(ctx->lDevice, ctx->vertexBufferMemory, 0, bufferSize, 0, &data);
-  memcpy(data, newVertices, bufferSize);
-  vkUnmapMemory(ctx->lDevice, ctx->vertexBufferMemory);
+  vkMapMemory(ctx->lDevice, ctx->stagingBufferMemory, 0, bufferSize, 0, &data);
+  memcpy(data, newVertices, (size_t)bufferSize);
+  vkUnmapMemory(ctx->lDevice, ctx->stagingBufferMemory);
+
+  // Copy from staging to vertex buffer (need command buffer)
+  // Assuming you have a transfer queue/command pool
+  VkCommandBuffer commandBuffer =
+      beginSingleTimeCommands(ctx); // Implement this (one-time command)
+
+  VkBufferCopy copyRegion = {0};
+  copyRegion.size = bufferSize;
+  vkCmdCopyBuffer(commandBuffer, ctx->stagingBuffer, ctx->vertexBuffer, 1,
+                  &copyRegion);
+
+  endSingleTimeCommands(ctx, commandBuffer); // Submit and wait
 }
 
 // dont add everything to ctx just the stuff thats used also elsewhere
 void recordCommandBuffer(vulkanContext *ctx, VkCommandBuffer cmdBuffer,
-                         uint32_t imageIndex, const Vertex *vertices,
-                         uint32_t vertexCount) {
-  (void)vertices;
+                         uint32_t imageIndex, size_t indiceCount) {
   assert(ctx->swapChainFramebuffers &&
          "Dont call record command buffer without frambuffer");
   VkCommandBufferBeginInfo beginInfo = {0};
@@ -422,7 +437,10 @@ void recordCommandBuffer(vulkanContext *ctx, VkCommandBuffer cmdBuffer,
   scissor.extent = ctx->swapChainExtent;
   vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
-  vkCmdDraw(cmdBuffer, vertexCount, 1, 0, 0);
+  // normal draw and indexed draw
+  // vkCmdDraw(cmdBuffer, vertexCount, 1, 0, 0);
+  vkCmdBindIndexBuffer(cmdBuffer, ctx->indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+  vkCmdDrawIndexed(cmdBuffer, indiceCount, 1, 0, 0, 0);
 
   vkCmdEndRenderPass(cmdBuffer);
   if (vkEndCommandBuffer(cmdBuffer) != VK_SUCCESS) {
@@ -609,7 +627,8 @@ void recreateSwapChain(vulkanContext *ctx) {
 }
 
 void vkInit(vulkanContext *ctx, GLFWwindow *_window,
-            const Vertex *initialVertices, size_t vertexCount) {
+            const Vertex *initialVertices, size_t vertexCount,
+            const uint16_t *initialIndices, size_t indexCount) {
   ctx->window = _window;
   ctx->framebufferResized = false;
   glfwSetWindowUserPointer(_window, ctx);
@@ -831,7 +850,40 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window,
 
   VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo,
                                                     fragShaderStageInfo};
+  // ==================== COMMAND POOLS ====================
+  VkCommandPoolCreateInfo poolInfo = {0};
+  poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+  poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+  poolInfo.queueFamilyIndex = ctx->lDeviceIndices.graphicsFamily.val;
 
+  if (vkCreateCommandPool(ctx->lDevice, &poolInfo, NULL, &ctx->commandPool) !=
+      VK_SUCCESS) {
+    fprintf(stderr, "failed to create command pool!");
+    assert(0 && "failed to create command pool!");
+  }
+
+  VkCommandBufferAllocateInfo cmdBufferAllocInfo = {0};
+  cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  cmdBufferAllocInfo.commandPool = ctx->commandPool;
+  cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  cmdBufferAllocInfo.commandBufferCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
+
+  if (vkAllocateCommandBuffers(ctx->lDevice, &cmdBufferAllocInfo,
+                               ctx->cmdBuffers) != VK_SUCCESS) {
+    fprintf(stderr, "failed to allocate command buffers!");
+    assert(0 && "failed to allocate command buffers!");
+  }
+
+  VkCommandBufferBeginInfo beginInfo = {0};
+  beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  beginInfo.flags = 0;               // Optional
+  beginInfo.pInheritanceInfo = NULL; // Optional
+
+  if (vkBeginCommandBuffer(ctx->cmdBuffers[ctx->currentFrame], &beginInfo) !=
+      VK_SUCCESS) {
+    fprintf(stderr, "failed to begin recording command buffer!");
+    assert(0 && "failed to begin recording command buffer!");
+  }
   // ==================== VERTEX LAYOUT ====================
   VkVertexInputBindingDescription bindingDescription = {0};
   bindingDescription.binding = 0;
@@ -858,43 +910,33 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window,
   vertexInputInfo.vertexAttributeDescriptionCount = attributeCount;
   vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions;
 
-  VkBufferCreateInfo bufferInfo = {0};
-  bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-  bufferInfo.size = sizeof(initialVertices[0]) * vertexCount;
-  bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-  bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  VkDeviceSize bufferSize = sizeof(initialVertices[0]) * vertexCount;
 
-  if (vkCreateBuffer(ctx->lDevice, &bufferInfo, NULL, &ctx->vertexBuffer) !=
-      VK_SUCCESS) {
-    fprintf(stderr, "failed to create vertex buffer!\n");
-    assert(0 && "failed to create vertex buffer!");
-  }
-
-  VkMemoryRequirements memRequirements;
-  vkGetBufferMemoryRequirements(ctx->lDevice, ctx->vertexBuffer,
-                                &memRequirements);
-
-  VkMemoryAllocateInfo allocInfo = {0};
-  allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-  allocInfo.allocationSize = memRequirements.size;
-  allocInfo.memoryTypeIndex =
-      findMemoryType(ctx->pDevice, memRequirements.memoryTypeBits,
-                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-  if (vkAllocateMemory(ctx->lDevice, &allocInfo, NULL,
-                       &ctx->vertexBufferMemory) != VK_SUCCESS) {
-    fprintf(stderr, "failed to allocate vertex buffer memory!\n");
-    assert(0 && "failed to allocate vertex buffer memory!\n");
-  }
-  vkBindBufferMemory(ctx->lDevice, ctx->vertexBuffer, ctx->vertexBufferMemory,
-                     0);
+  VkBuffer stagingBuffer;
+  VkDeviceMemory stagingBufferMemory;
+  createBuffer(ctx, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                   VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+               &stagingBuffer, &stagingBufferMemory);
 
   void *data;
-  vkMapMemory(ctx->lDevice, ctx->vertexBufferMemory, 0, bufferInfo.size, 0,
-              &data);
-  memcpy(data, initialVertices, (size_t)bufferInfo.size);
-  vkUnmapMemory(ctx->lDevice, ctx->vertexBufferMemory);
+  vkMapMemory(ctx->lDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
+  memcpy(data, initialVertices, (size_t)bufferSize);
+  vkUnmapMemory(ctx->lDevice, stagingBufferMemory);
 
+  ctx->stagingBuffer = stagingBuffer;
+  ctx->stagingBufferMemory = stagingBufferMemory;
+  ctx->stagingBufferSize = bufferSize;
+
+  createBuffer(ctx, bufferSize,
+               VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                   VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+               VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &ctx->vertexBuffer,
+               &ctx->vertexBufferMemory);
+
+  // TODO: vertexbuffer size into ctx?
+  copyBuffer(ctx, stagingBuffer, ctx->vertexBuffer, bufferSize);
+  createIndexBuffer(ctx, initialIndices, indexCount);
   // ==================== DYNAMIC STATE ====================
   VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT,
                                     VK_DYNAMIC_STATE_SCISSOR};
@@ -922,8 +964,8 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window,
   rasterizer.rasterizerDiscardEnable = VK_FALSE;
   rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
   rasterizer.lineWidth = 1.0f;
-  rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-  rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+  rasterizer.cullMode = VK_CULL_MODE_NONE;
+  rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
   rasterizer.depthBiasEnable = VK_FALSE;
   rasterizer.depthBiasConstantFactor = 0.0f; // Optional
   rasterizer.depthBiasClamp = 0.0f;          // Optional
@@ -1047,41 +1089,6 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window,
 
   createFrameBuffers(ctx);
 
-  // ==================== COMMAND POOLS ====================
-  VkCommandPoolCreateInfo poolInfo = {0};
-  poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-  poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-  poolInfo.queueFamilyIndex = ctx->lDeviceIndices.graphicsFamily.val;
-
-  if (vkCreateCommandPool(ctx->lDevice, &poolInfo, NULL, &ctx->commandPool) !=
-      VK_SUCCESS) {
-    fprintf(stderr, "failed to create command pool!");
-    assert(0 && "failed to create command pool!");
-  }
-
-  VkCommandBufferAllocateInfo cmdBufferAllocInfo = {0};
-  cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  cmdBufferAllocInfo.commandPool = ctx->commandPool;
-  cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  cmdBufferAllocInfo.commandBufferCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
-
-  if (vkAllocateCommandBuffers(ctx->lDevice, &cmdBufferAllocInfo,
-                               ctx->cmdBuffers) != VK_SUCCESS) {
-    fprintf(stderr, "failed to allocate command buffers!");
-    assert(0 && "failed to allocate command buffers!");
-  }
-
-  VkCommandBufferBeginInfo beginInfo = {0};
-  beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-  beginInfo.flags = 0;               // Optional
-  beginInfo.pInheritanceInfo = NULL; // Optional
-
-  if (vkBeginCommandBuffer(ctx->cmdBuffers[ctx->currentFrame], &beginInfo) !=
-      VK_SUCCESS) {
-    fprintf(stderr, "failed to begin recording command buffer!");
-    assert(0 && "failed to begin recording command buffer!");
-  }
-
   // ==================== SYNC OBJECTS ====================
   VkSemaphoreCreateInfo semaphoreInfo = {0};
   semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -1103,7 +1110,7 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window,
 }
 
 void vkDrawFrame(vulkanContext *ctx, const Vertex *vertices,
-                 uint32_t vertexCount) {
+                 uint32_t vertexCount, size_t indiceCount) {
   updateVertexBuffer(ctx, vertices, vertexCount);
   // ==================== DRAW FRAME ====================
   vkWaitForFences(ctx->lDevice, 1, &ctx->inFlightFences[ctx->currentFrame],
@@ -1125,7 +1132,7 @@ void vkDrawFrame(vulkanContext *ctx, const Vertex *vertices,
 
   vkResetCommandBuffer(ctx->cmdBuffers[ctx->currentFrame], 0);
   recordCommandBuffer(ctx, ctx->cmdBuffers[ctx->currentFrame], imageIndex,
-                      vertices, vertexCount);
+                      indiceCount);
 
   VkSubmitInfo submitInfo = {0};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1198,6 +1205,8 @@ void vkCleanup(vulkanContext *ctx) {
   vkDestroyShaderModule(ctx->lDevice, ctx->vertShaderModule, NULL);
 
   vkDestroyCommandPool(ctx->lDevice, ctx->commandPool, NULL);
+  vkDestroyBuffer(ctx->lDevice, ctx->stagingBuffer, NULL);
+  vkFreeMemory(ctx->lDevice, ctx->stagingBufferMemory, NULL);
   vkDestroyDevice(ctx->lDevice, NULL);
 
   if (enableValidationLayers) {
@@ -1222,4 +1231,107 @@ VkResult vkCreateInstance(const VkInstanceCreateInfo *pCreateInfo,
   }
 #endif
   return VK_ERROR_INITIALIZATION_FAILED;
+}
+
+void createBuffer(vulkanContext *ctx, VkDeviceSize size,
+                  VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
+                  VkBuffer *buffer, VkDeviceMemory *bufferMemory) {
+  VkBufferCreateInfo bufferInfo = {0};
+  bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  bufferInfo.size = size;
+  bufferInfo.usage = usage;
+  bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+  if (vkCreateBuffer(ctx->lDevice, &bufferInfo, NULL, buffer) != VK_SUCCESS) {
+    fprintf(stderr, "failed to create vertex buffer!\n");
+    assert(0 && "failed to create vertex buffer!");
+  }
+
+  VkMemoryRequirements memRequirements;
+  vkGetBufferMemoryRequirements(ctx->lDevice, *buffer, &memRequirements);
+
+  VkMemoryAllocateInfo allocInfo = {0};
+  allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  allocInfo.allocationSize = memRequirements.size;
+  allocInfo.memoryTypeIndex =
+      findMemoryType(ctx->pDevice, memRequirements.memoryTypeBits, properties);
+  if (vkAllocateMemory(ctx->lDevice, &allocInfo, NULL, bufferMemory) !=
+      VK_SUCCESS) {
+    fprintf(stderr, "failed to allocate vertex buffer memory!\n");
+    assert(0 && "failed to allocate vertex buffer memory!\n");
+  }
+  vkBindBufferMemory(ctx->lDevice, *buffer, *bufferMemory, 0);
+}
+
+void copyBuffer(vulkanContext *ctx, VkBuffer srcBuffer, VkBuffer dstBuffer,
+                VkDeviceSize size) {
+
+  VkCommandBuffer commandBuffer = beginSingleTimeCommands(ctx);
+
+  VkBufferCopy copyRegion = {0};
+  copyRegion.srcOffset = 0;
+  copyRegion.dstOffset = 0;
+  copyRegion.size = size;
+  vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+  endSingleTimeCommands(ctx, commandBuffer);
+}
+
+VkCommandBuffer beginSingleTimeCommands(vulkanContext *ctx) {
+  VkCommandBufferAllocateInfo allocInfo = {0};
+  allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  allocInfo.commandPool = ctx->commandPool;
+  allocInfo.commandBufferCount = 1;
+
+  VkCommandBuffer commandBuffer = {0};
+  vkAllocateCommandBuffers(ctx->lDevice, &allocInfo, &commandBuffer);
+
+  VkCommandBufferBeginInfo beginInfo = {0};
+  beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+  vkBeginCommandBuffer(commandBuffer, &beginInfo);
+  return commandBuffer;
+}
+void endSingleTimeCommands(vulkanContext *ctx, VkCommandBuffer commandBuffer) {
+  vkEndCommandBuffer(commandBuffer);
+
+  VkSubmitInfo submitInfo = {0};
+  submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  submitInfo.commandBufferCount = 1;
+  submitInfo.pCommandBuffers = &commandBuffer;
+
+  // TODO: look into transfer ques
+  vkQueueSubmit(ctx->graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+  vkQueueWaitIdle(ctx->graphicsQueue);
+
+  vkFreeCommandBuffers(ctx->lDevice, ctx->commandPool, 1, &commandBuffer);
+}
+
+void createIndexBuffer(vulkanContext *ctx, uint16_t indices[], size_t count) {
+  VkDeviceSize bufferSize = sizeof(uint16_t) * count;
+
+  VkBuffer stagingBuffer;
+  VkDeviceMemory stagingBufferMemory;
+  createBuffer(ctx, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                   VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+               &stagingBuffer, &stagingBufferMemory);
+
+  void *data;
+  vkMapMemory(ctx->lDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
+  memcpy(data, indices, (size_t)bufferSize);
+  vkUnmapMemory(ctx->lDevice, stagingBufferMemory);
+
+  createBuffer(ctx, bufferSize,
+               VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                   VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+               VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &ctx->indexBuffer,
+               &ctx->indexBufferMemory);
+
+  copyBuffer(ctx, stagingBuffer, ctx->indexBuffer, bufferSize);
+
+  vkDestroyBuffer(ctx->lDevice, stagingBuffer, NULL);
+  vkFreeMemory(ctx->lDevice, stagingBufferMemory, NULL);
 }
