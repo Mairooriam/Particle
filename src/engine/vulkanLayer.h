@@ -1,4 +1,5 @@
 #pragma once
+#include <stdint.h>
 #include <vulkan/vulkan_core.h>
 #include "utils.h"
 #include "shared.h"
@@ -25,10 +26,12 @@ typedef struct {
   VkPresentModeKHR *presentModes;
   uint32_t presentModesCount;
 } SwapChainSupportDetails;
+
 typedef struct {
   uint32_t *code;
   size_t size;
 } ShaderCode;
+
 #define MAX_FRAMES_IN_FLIGHT 2 // for command buffer count;
 #define DEFINE_OPTIONAL(Type)                                                  \
   typedef struct {                                                             \
@@ -81,7 +84,12 @@ typedef struct {
   VkShaderModule fragShaderModule;
   VkBuffer vertexBuffer;
   VkDeviceMemory vertexBufferMemory;
+  VkBuffer indexBuffer;
+  VkDeviceMemory indexBufferMemory;
   Vertex *vertices[2][3];
+  VkBuffer stagingBuffer;
+  VkDeviceMemory stagingBufferMemory;
+  VkDeviceSize stagingBufferSize;
 
   // SWAP CHAIN
   VkSurfaceFormatKHR swapChainSurfaceFormat;
@@ -105,6 +113,9 @@ typedef struct {
   // PFN_vkDestroyDebugUtilsMessengerEXT destroyDebugUtils;
   //
 } vulkanContext;
+void vkInit(vulkanContext *ctx, GLFWwindow *_window,
+            const Vertex *initialVertices, size_t vertexCount,
+            const uint16_t *initialIndices, size_t indexCount);
 
 // ==================== DEBUG STUFF ====================
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -121,6 +132,7 @@ void DestroyDebugUtilsMessengerEXT(vulkanContext *ctx,
 void populateDebugMessengerCreateInfo(
     VkDebugUtilsMessengerCreateInfoEXT *createInfo);
 
+// ==================== HELPERS ====================
 uint32_t findMemoryType(VkPhysicalDevice pDevice, uint32_t typeFilter,
                         VkMemoryPropertyFlags properties);
 bool checkValidationLayerSupport(const char **requiredLayers,
@@ -140,21 +152,29 @@ bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface,
                       size_t requiredExtensionsCount);
 size_t getFileSize(const char *filename);
 int readShaderFile(const char *filename, ShaderCode *shader);
+VkCommandBuffer beginSingleTimeCommands(vulkanContext *ctx);
+void endSingleTimeCommands(vulkanContext *ctx, VkCommandBuffer commandBuffer);
+
+// ==================== NOT SO HELPERS ====================
 VkShaderModule createShaderModule(const ShaderCode *shader, VkDevice device);
 void updateVertexBuffer(vulkanContext *ctx, const Vertex *newVertices,
                         size_t vertexCount);
+void createIndexBuffer(vulkanContext *ctx, uint16_t indicies[], size_t count);
+
 void recordCommandBuffer(vulkanContext *ctx, VkCommandBuffer cmdBuffer,
-                         uint32_t imageIndex, const Vertex *vertices,
-                         uint32_t vertexCount);
+                         uint32_t imageIndex, size_t indiceCount);
 void createSwapChain_and_imageviews(vulkanContext *ctx);
 void createFrameBuffers(vulkanContext *ctx);
 void cleanupSwapChain(vulkanContext *ctx);
 void recreateSwapChain(vulkanContext *ctx);
-void vkInit(vulkanContext *ctx, GLFWwindow *_window,
-            const Vertex *initialVertices, size_t vertexCount);
 void vkDrawFrame(vulkanContext *ctx, const Vertex *vertices,
-                 uint32_t vertexCount);
+                 uint32_t vertexCount, size_t indiceCount);
 void vkCleanup(vulkanContext *ctx);
 VkResult vkCreateInstance(const VkInstanceCreateInfo *pCreateInfo,
                           const VkAllocationCallbacks *pAllocator,
                           VkInstance *pInstance);
+void createBuffer(vulkanContext *ctx, VkDeviceSize size,
+                  VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
+                  VkBuffer *buffer, VkDeviceMemory *bufferMemory);
+void copyBuffer(vulkanContext *ctx, VkBuffer srcBuffer, VkBuffer dstBuffer,
+                VkDeviceSize size);

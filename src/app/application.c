@@ -39,7 +39,7 @@ GAME_UPDATE(game_update) {
   }
 
   static float colorTime = 0.0f;
-  colorTime += frameTime * 2.0f;
+  colorTime += frameTime * 50.0f;
   float r = (sinf(colorTime) + 1.0f) * 0.5f;
   float g = (sinf(colorTime + 2.0f * 3.14 / 3.0f) + 1.0f) * 0.5f;
   float b = (sinf(colorTime + 4.0f * 3.14 / 3.0f) + 1.0f) * 0.5f;
@@ -62,6 +62,12 @@ GAME_UPDATE(game_update) {
   gameMemory->vertices[2].color[0] = b;
   gameMemory->vertices[2].color[1] = r;
   gameMemory->vertices[2].color[2] = g;
+
+  // gameMemory->vertices[3].pos[0] = trianglePos.x - size;
+  // gameMemory->vertices[3].pos[1] = trianglePos.y - size;
+  gameMemory->vertices[3].color[0] = b;
+  gameMemory->vertices[3].color[1] = r;
+  gameMemory->vertices[3].color[2] = g;
 
   gameMemory->vertexCount = 3;
 
