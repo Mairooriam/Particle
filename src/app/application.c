@@ -29,50 +29,6 @@ GAME_UPDATE(game_update) {
 
   handle_update(gameState, frameTime, input);
 
-  // quick example from AI
-  static Vector2 trianglePos = {0.0f, 3.0f};
-  static Vector2 triangleVel = {1.0f, 0.3f};
-
-  printf("Hello \n");
-  trianglePos.x += triangleVel.x * frameTime;
-  trianglePos.y += triangleVel.y * frameTime;
-
-  if (trianglePos.x > 1.0f || trianglePos.x < -1.0f) {
-    triangleVel.x = -triangleVel.x;
-    trianglePos.x = CLAMP(trianglePos.x, -1.0f, 1.0f);
-  }
-  if (trianglePos.y > 1.0f || trianglePos.y < -1.0f) {
-    triangleVel.y = -triangleVel.y;
-    trianglePos.y = CLAMP(trianglePos.y, -1.0f, 1.0f);
-  }
-
-  static float colorTime = 0.0f;
-  colorTime += frameTime * 20.0f;
-  float r = (sinf(colorTime) + 1.0f) * 0.5f;
-  float g = (sinf(colorTime + 2.0f * 3.14 / 3.0f) + 1.0f) * 0.5f;
-  float b = (sinf(colorTime + 4.0f * 3.14 / 3.0f) + 1.0f) * 0.5f;
-
-  float size = 0.2f;
-  gameMemory->vertices[0].pos[0] = trianglePos.x;
-  gameMemory->vertices[0].pos[1] = trianglePos.y - size;
-  gameMemory->vertices[0].color[0] = r;
-  gameMemory->vertices[0].color[1] = g;
-  gameMemory->vertices[0].color[2] = b;
-
-  gameMemory->vertices[1].pos[0] = trianglePos.x + size;
-  gameMemory->vertices[1].pos[1] = trianglePos.y + size;
-  gameMemory->vertices[1].color[0] = g;
-  gameMemory->vertices[1].color[1] = b;
-  gameMemory->vertices[1].color[2] = r;
-
-  gameMemory->vertices[2].pos[0] = trianglePos.x - size;
-  gameMemory->vertices[2].pos[1] = trianglePos.y + size;
-  gameMemory->vertices[2].color[0] = b;
-  gameMemory->vertices[2].color[1] = r;
-  gameMemory->vertices[2].color[2] = g;
-
-  gameMemory->vertexCount = 3;
-
   // ==================== DEBUG STUFF ====================
   // size_t cell = 0; // or any cell index you want to inspect
   // size_t start = gameState->sGrid->spatialSparse.items[cell];

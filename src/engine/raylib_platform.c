@@ -19,7 +19,7 @@
 #include "utils.h"
 
 #include "vulkanLayer.h"
-#include "app/application_types.h" 
+#include "app/application_types.h"
 
 // TODO: fix timestep https://gafferongames.com/post/fix_your_timestep/
 // TODO: Clean up hotloop code
@@ -41,10 +41,11 @@ static GameCode loadGameCode(char *sourceDLLfilepath, char *tempDLLfilepath) {
   set_log_prefix("[loadGameCode] ");
   GameCode result = {0};
   result.currentDLLtimestamp = getFileLastWriteTime(sourceDLLfilepath);
-      DeleteFileA(tempDLLfilepath);
-    if (!CopyFile(sourceDLLfilepath, tempDLLfilepath, FALSE)) {
+  DeleteFileA(tempDLLfilepath);
+  if (!CopyFile(sourceDLLfilepath, tempDLLfilepath, FALSE)) {
     DWORD error = GetLastError();
-    LOG("Failed to copy DLL from %s to %s. Error: %lu", sourceDLLfilepath, tempDLLfilepath, error);
+    LOG("Failed to copy DLL from %s to %s. Error: %lu", sourceDLLfilepath,
+        tempDLLfilepath, error);
     result.isvalid = false;
     result.update = game_update_stub;
     return result;
@@ -82,7 +83,6 @@ static void unloadGameCode(GameCode *gameCode) {
   if (gameCode->gameCodeDLL) {
     FreeLibrary(gameCode->gameCodeDLL);
     LOG("Freed .dlls");
-    
   }
   gameCode->isvalid = false;
   gameCode->update = game_update_stub;
@@ -165,12 +165,12 @@ void window_size_callback(GLFWwindow *window, int width, int height) {
 int main(void) {
 #ifdef __cplusplus
 #warning "This file is being compiled as C++"
-printf("this is c++")
+  printf("this is c++")
 #else
 #warning "This file is being compiled as C"
-printf("this is C");
+  printf("this is C");
 #endif
-  char EXEDirPath[MAX_PATH];
+      char EXEDirPath[MAX_PATH];
   DWORD SizeOfFilename = GetModuleFileNameA(0, EXEDirPath, sizeof(EXEDirPath));
   (void)SizeOfFilename;
 
@@ -228,9 +228,11 @@ printf("this is C");
     LOG("FAILED TO ALLOC TRANSIENT MEMORY");
     assert(0 && "Lmao alloc failed");
   }
-LOG("Allocated memory:");
-printf("  Permanent Memory: %p (Size: %llu)\n", gameMemory.permamentMemory, gameMemory.permanentMemorySize);
-printf("  Transient Memory: %p (Size: %llu)\n", gameMemory.transientMemory, gameMemory.transientMemorySize);
+  LOG("Allocated memory:");
+  printf("  Permanent Memory: %p (Size: %llu)\n", gameMemory.permamentMemory,
+         gameMemory.permanentMemorySize);
+  printf("  Transient Memory: %p (Size: %llu)\n", gameMemory.transientMemory,
+         gameMemory.transientMemorySize);
   // ==================== INIT WINDOW ====================
   const uint32_t WIDTH = 800;
   const uint32_t HEIGHT = 600;
@@ -244,10 +246,11 @@ printf("  Transient Memory: %p (Size: %llu)\n", gameMemory.transientMemory, game
 
   // TODO: make it proper just placeholder currently
   Vertex vertices[] = {
-      {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // Bottom vertex: red
-      {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},  // Top-right: green
-      {{-0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}}, // Top-left: blue
-      {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}};
+    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // Bottom-left
+    {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},  // Bottom-right
+    {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},   // Top-right
+    {{-0.5f, 0.5f}, {1.0f, 1.0f, 0.0f}}   // Top-left
+  };
 
   uint16_t indicies[] = {0, 1, 2, 2, 3, 0};
 
@@ -257,7 +260,8 @@ printf("  Transient Memory: %p (Size: %llu)\n", gameMemory.transientMemory, game
       (PFN_vkCreateInstance)vkGetInstanceProcAddr(NULL, "vkCreateInstance");
 #endif
 
-  vkInit(&vkCtx, window, vertices, ARR_COUNT(vertices), indicies, ARR_COUNT(indicies));
+  vkInit(&vkCtx, window, vertices, ARR_COUNT(vertices), indicies,
+         ARR_COUNT(indicies));
 
   // things that dont go away virtual device
   // swap chain
