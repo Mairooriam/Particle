@@ -3,7 +3,7 @@ if not exist build (
     mkdir build
 )
 cd build
-cmake -G "Ninja" -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Debug ../src
+cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Debug ../src
 set CLICOLOR_FORCE=1
 ninja
 

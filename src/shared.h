@@ -4,6 +4,9 @@
 #include <math.h>
 #include "utils.h"
 #include "cglm/cglm.h"
+
+
+
 #define Assert(expression)                                                     \
   if (!(expression)) {                                                         \
     __builtin_trap();                                                          \
@@ -226,13 +229,14 @@ typedef struct {
 } Vertex;
 typedef struct {
   bool isInitialized;
-  void *permamentMemory;
-  size_t permanentMemorySize;
-  void *transientMemory;
-  size_t transientMemorySize;
   Vertex *vertices;   // REMOVE IN  FUTURE
   size_t vertexCount; // REMOVE IN FUTURE
+  size_t permanentMemorySize;
+  size_t transientMemorySize;
   RenderQueue *renderQueue;
+  void *permamentMemory;
+  void *transientMemory;
+  bool reloadDLLHappened;
 } GameMemory;
 
 typedef struct {
