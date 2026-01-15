@@ -9,6 +9,6 @@ typedef struct {
   float clock;
   GameUpdate *update;
   bool isvalid;
-  bool resetTransientMemoryRequested;
+  bool reloadDLLExecuted;
 
 } GameCode;

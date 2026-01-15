@@ -19,6 +19,7 @@
 #include "utils.h"
 
 #include "vulkanLayer.h"
+#include "app/application_types.h" 
 
 // TODO: fix timestep https://gafferongames.com/post/fix_your_timestep/
 // TODO: Clean up hotloop code
@@ -40,7 +41,14 @@ static GameCode loadGameCode(char *sourceDLLfilepath, char *tempDLLfilepath) {
   set_log_prefix("[loadGameCode] ");
   GameCode result = {0};
   result.currentDLLtimestamp = getFileLastWriteTime(sourceDLLfilepath);
-  CopyFile(sourceDLLfilepath, tempDLLfilepath, FALSE);
+      DeleteFileA(tempDLLfilepath);
+    if (!CopyFile(sourceDLLfilepath, tempDLLfilepath, FALSE)) {
+    DWORD error = GetLastError();
+    LOG("Failed to copy DLL from %s to %s. Error: %lu", sourceDLLfilepath, tempDLLfilepath, error);
+    result.isvalid = false;
+    result.update = game_update_stub;
+    return result;
+  }
 
   result.gameCodeDLL = LoadLibraryA(tempDLLfilepath);
   if (!result.gameCodeDLL) {
@@ -74,6 +82,7 @@ static void unloadGameCode(GameCode *gameCode) {
   if (gameCode->gameCodeDLL) {
     FreeLibrary(gameCode->gameCodeDLL);
     LOG("Freed .dlls");
+    
   }
   gameCode->isvalid = false;
   gameCode->update = game_update_stub;
@@ -154,7 +163,13 @@ void window_size_callback(GLFWwindow *window, int width, int height) {
   app->framebufferResized = true;
 }
 int main(void) {
-
+#ifdef __cplusplus
+#warning "This file is being compiled as C++"
+printf("this is c++")
+#else
+#warning "This file is being compiled as C"
+printf("this is C");
+#endif
   char EXEDirPath[MAX_PATH];
   DWORD SizeOfFilename = GetModuleFileNameA(0, EXEDirPath, sizeof(EXEDirPath));
   (void)SizeOfFilename;
@@ -196,6 +211,7 @@ int main(void) {
   GameMemory gameMemory = {0};
   gameMemory.permanentMemorySize = MegaBytes(512);
   gameMemory.transientMemorySize = MegaBytes(512);
+  gameMemory.reloadDLLHappened = false;
 
   uint64_t totalSize =
       gameMemory.permanentMemorySize + gameMemory.transientMemorySize;
@@ -212,7 +228,9 @@ int main(void) {
     LOG("FAILED TO ALLOC TRANSIENT MEMORY");
     assert(0 && "Lmao alloc failed");
   }
-
+LOG("Allocated memory:");
+printf("  Permanent Memory: %p (Size: %llu)\n", gameMemory.permamentMemory, gameMemory.permanentMemorySize);
+printf("  Transient Memory: %p (Size: %llu)\n", gameMemory.transientMemory, gameMemory.transientMemorySize);
   // ==================== INIT WINDOW ====================
   const uint32_t WIDTH = 800;
   const uint32_t HEIGHT = 600;
@@ -261,7 +279,7 @@ int main(void) {
       code = loadGameCode(sourceDLLfilepath, tempDLLfilepath);
       code.reloadDLLRequested = false;
       code.clock = 0;
-      code.resetTransientMemoryRequested = true;
+      gameMemory.reloadDLLHappened = true;
     }
 
     FILETIME time = getFileLastWriteTime(sourceDLLfilepath);
@@ -276,6 +294,7 @@ int main(void) {
 
     vkDrawFrame(&vkCtx, vertices, ARR_COUNT(vertices), ARR_COUNT(indicies));
     code.clock++;
+    flush_logs();
   }
 
   vkCleanup(&vkCtx);

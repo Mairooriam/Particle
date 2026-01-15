@@ -1,21 +1,17 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
             "name": "Debug Existing EXE",
-            "type": "cppdbg",           // Use "cppvsdbg" for MSVC, "cppdbg" for MinGW/GDB
-            "MIMode": "gdb",
+            "type": "lldb",  // CHANGE: Use LLDB for better clang-cl compatibility
             "request": "launch",
             "program": "${workspaceFolder}/build/engine.exe",
             "args": [],
             "cwd": "${workspaceFolder}/build",
-            "environment": []
+            "environment": [],
+            "initCommands": [
+                // "settings set target.source-map /src /src"  // Optional: Map source paths if needed
+            ]
         }
-
-        
-
     ]
 }
