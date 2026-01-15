@@ -1111,7 +1111,7 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window,
 
 void vkDrawFrame(vulkanContext *ctx, const Vertex *vertices,
                  uint32_t vertexCount, size_t indiceCount) {
-  updateVertexBuffer(ctx, vertices, vertexCount);
+  // updateVertexBuffer(ctx, vertices, vertexCount);
   // ==================== DRAW FRAME ====================
   vkWaitForFences(ctx->lDevice, 1, &ctx->inFlightFences[ctx->currentFrame],
                   VK_TRUE, UINT64_MAX);
@@ -1188,6 +1188,8 @@ void vkCleanup(vulkanContext *ctx) {
 
   vkDestroyBuffer(ctx->lDevice, ctx->vertexBuffer, NULL);
   vkFreeMemory(ctx->lDevice, ctx->vertexBufferMemory, NULL);
+    vkDestroyBuffer(ctx->lDevice, ctx->indexBuffer, NULL);
+  vkFreeMemory(ctx->lDevice, ctx->indexBufferMemory, NULL);
 
   vkDestroyPipeline(ctx->lDevice, ctx->graphicsPipeline, NULL);
   vkDestroyPipelineLayout(ctx->lDevice, ctx->pipelineLayout, NULL);
