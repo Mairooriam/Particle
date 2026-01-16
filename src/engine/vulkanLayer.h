@@ -60,6 +60,12 @@ DA_FREE(arr_cstr)
 DA_INIT(arr_cstr)
 
 typedef struct {
+  mat4 model;
+  mat4 view;
+  mat4 proj;
+} UniformBufferObject;
+
+typedef struct {
   VkInstance vkInstance;
 
   GLFWwindow *window;
@@ -73,6 +79,8 @@ typedef struct {
   VkFramebuffer *swapChainFramebuffers; // MALLOCED TODO: remove malloc
   VkExtent2D swapChainExtent;
   VkSurfaceKHR surface;
+
+  VkDescriptorSetLayout descriptorSetLayout;
   VkPipelineLayout pipelineLayout;
 
   VkCommandPool commandPool;
@@ -90,6 +98,13 @@ typedef struct {
   VkBuffer stagingBuffer;
   VkDeviceMemory stagingBufferMemory;
   VkDeviceSize stagingBufferSize;
+
+  VkBuffer uniformBuffers[MAX_FRAMES_IN_FLIGHT];
+  VkDeviceMemory uniformBuffersMemory[MAX_FRAMES_IN_FLIGHT];
+  void *uniformBuffersMapped[MAX_FRAMES_IN_FLIGHT];
+
+  VkDescriptorPool descriptorPool;
+  VkDescriptorSet descriptorSets[MAX_FRAMES_IN_FLIGHT];
 
   // SWAP CHAIN
   VkSurfaceFormatKHR swapChainSurfaceFormat;
@@ -178,3 +193,10 @@ void createBuffer(vulkanContext *ctx, VkDeviceSize size,
                   VkBuffer *buffer, VkDeviceMemory *bufferMemory);
 void copyBuffer(vulkanContext *ctx, VkBuffer srcBuffer, VkBuffer dstBuffer,
                 VkDeviceSize size);
+
+void createDescriptorSetLayout(vulkanContext *ctx);
+void createGraphicsPipeline(vulkanContext *ctx);
+void createUniformBuffers(vulkanContext *ctx);
+void updateUniformBuffer(vulkanContext *ctx, uint32_t currentImage);
+void createDescriptorPool(vulkanContext *ctx);
+void createDescriptorSets(vulkanContext *ctx);
