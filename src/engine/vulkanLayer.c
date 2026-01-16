@@ -1211,8 +1211,6 @@ void vkCleanup(vulkanContext *ctx) {
   vkFreeMemory(ctx->lDevice, ctx->indexBufferMemory, NULL);
   vkDestroyDescriptorPool(ctx->lDevice, ctx->descriptorPool, NULL);
 
-  vkDestroyDescriptorSetLayout(ctx->lDevice, ctx->descriptorSetLayout, NULL);
-  vkDestroyDescriptorSetLayout(ctx->lDevice, ctx->descriptorSetLayout, NULL);
   vkDestroyPipeline(ctx->lDevice, ctx->graphicsPipeline, NULL);
   vkDestroyPipelineLayout(ctx->lDevice, ctx->pipelineLayout, NULL);
   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
