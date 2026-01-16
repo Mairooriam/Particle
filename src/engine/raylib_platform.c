@@ -246,13 +246,15 @@ int main(void) {
 
   // TODO: make it proper just placeholder currently
   Vertex vertices[] = {
-    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // Bottom-left
-    {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},  // Bottom-right
-    {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},   // Top-right
-    {{-0.5f, 0.5f}, {1.0f, 1.0f, 0.0f}}   // Top-left
+      {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // Bottom-left
+      {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},  // Bottom-right
+      {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},   // Top-right
+      {{-0.5f, 0.5f}, {1.0f, 1.0f, 0.0f}},  // Top-left
+      {{-0.25f, 0.25f}, {1.0f, 1.0f, 0.0f}} // Top-left
+
   };
 
-  uint16_t indicies[] = {0, 1, 2, 2, 3, 0};
+  uint16_t indicies[] = {0, 1, 2, 2, 3, 0, 0};
 
   vulkanContext vkCtx = {0};
 #if defined(SLOW_CODE_ALLOWED)

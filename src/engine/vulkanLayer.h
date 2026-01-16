@@ -1,4 +1,5 @@
 #pragma once
+#include <stdalign.h>
 #include <stdint.h>
 #include <vulkan/vulkan_core.h>
 #include "utils.h"
@@ -60,9 +61,9 @@ DA_FREE(arr_cstr)
 DA_INIT(arr_cstr)
 
 typedef struct {
-  mat4 model;
-  mat4 view;
-  mat4 proj;
+  alignas(16) mat4 model;
+  alignas(16) mat4 view;
+  alignas(16) mat4 proj;
 } UniformBufferObject;
 
 typedef struct {
