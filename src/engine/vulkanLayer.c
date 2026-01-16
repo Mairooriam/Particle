@@ -2,9 +2,13 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <vulkan/vk_platform.h>
 #include <vulkan/vulkan_core.h>
+#include "cglm/affine2d.h"
+#include "cglm/cam.h"
 #include "utils.h"
 #include "shared.h"
+#include "time.h"
 #define VK_USE_PLATFORM_WIN32_KHR
 #define GLFW_INCLUDE_VULKAN
 #include <glfw3.h>
@@ -439,7 +443,14 @@ void recordCommandBuffer(vulkanContext *ctx, VkCommandBuffer cmdBuffer,
 
   // normal draw and indexed draw
   // vkCmdDraw(cmdBuffer, vertexCount, 1, 0, 0);
+
+  // shader layout stuff
+  vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          ctx->pipelineLayout, 0, 1,
+                          &ctx->descriptorSets[ctx->currentFrame], 0, NULL);
+  // index buffer
   vkCmdBindIndexBuffer(cmdBuffer, ctx->indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+  // actual draw
   vkCmdDrawIndexed(cmdBuffer, indiceCount, 1, 0, 0, 0);
 
   vkCmdEndRenderPass(cmdBuffer);
@@ -810,23 +821,28 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window,
 
   createSwapChain_and_imageviews(ctx);
 
+  createDescriptorSetLayout(ctx);
+  createDescriptorPool(ctx);
+  createUniformBuffers(ctx);
+  createDescriptorSets(ctx);
+
   // ==================== GRAPGICS PIPELINE - SHADERS ====================
-  size_t shadersize = getFileSize("shader/vert.spv");
+  size_t shadersize = getFileSize("shader/vert2.spv");
   assert(shadersize > 0 && "Is the path valid?");
   ShaderCode vertShaderCode = {0};
   vertShaderCode.code = malloc(shadersize);
   vertShaderCode.size = shadersize;
   shadersize = 0;
 
-  readShaderFile("shader/vert.spv", &vertShaderCode);
+  readShaderFile("shader/vert2.spv", &vertShaderCode);
 
-  shadersize = getFileSize("shader/frag.spv");
+  shadersize = getFileSize("shader/frag2.spv");
   assert(shadersize > 0 && "Is the path valid?");
   ShaderCode fragShaderCode = {0};
   fragShaderCode.code = malloc(shadersize);
   fragShaderCode.size = shadersize;
 
-  readShaderFile("shader/frag.spv", &fragShaderCode);
+  readShaderFile("shader/frag2.spv", &fragShaderCode);
 
   ctx->vertShaderModule = createShaderModule(&vertShaderCode, ctx->lDevice);
   ctx->fragShaderModule = createShaderModule(&fragShaderCode, ctx->lDevice);
@@ -964,7 +980,7 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window,
   rasterizer.rasterizerDiscardEnable = VK_FALSE;
   rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
   rasterizer.lineWidth = 1.0f;
-  rasterizer.cullMode = VK_CULL_MODE_NONE;
+  rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
   rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
   rasterizer.depthBiasEnable = VK_FALSE;
   rasterizer.depthBiasConstantFactor = 0.0f; // Optional
@@ -1009,10 +1025,10 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window,
 
   VkPipelineLayoutCreateInfo pipelineLayoutInfo = {0};
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutInfo.setLayoutCount = 0;         // Optional
-  pipelineLayoutInfo.pSetLayouts = NULL;         // Optional
-  pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-  pipelineLayoutInfo.pPushConstantRanges = NULL; // Optional
+  pipelineLayoutInfo.setLayoutCount = 1;                      // Optional
+  pipelineLayoutInfo.pSetLayouts = &ctx->descriptorSetLayout; // Optional
+  pipelineLayoutInfo.pushConstantRangeCount = 0;              // Optional
+  pipelineLayoutInfo.pPushConstantRanges = NULL;              // Optional
 
   if (vkCreatePipelineLayout(ctx->lDevice, &pipelineLayoutInfo, NULL,
                              &ctx->pipelineLayout) != VK_SUCCESS) {
@@ -1112,6 +1128,7 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window,
 void vkDrawFrame(vulkanContext *ctx, const Vertex *vertices,
                  uint32_t vertexCount, size_t indiceCount) {
   // updateVertexBuffer(ctx, vertices, vertexCount);
+
   // ==================== DRAW FRAME ====================
   vkWaitForFences(ctx->lDevice, 1, &ctx->inFlightFences[ctx->currentFrame],
                   VK_TRUE, UINT64_MAX);
@@ -1133,6 +1150,8 @@ void vkDrawFrame(vulkanContext *ctx, const Vertex *vertices,
   vkResetCommandBuffer(ctx->cmdBuffers[ctx->currentFrame], 0);
   recordCommandBuffer(ctx, ctx->cmdBuffers[ctx->currentFrame], imageIndex,
                       indiceCount);
+
+  updateUniformBuffer(ctx, ctx->currentFrame);
 
   VkSubmitInfo submitInfo = {0};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1188,12 +1207,20 @@ void vkCleanup(vulkanContext *ctx) {
 
   vkDestroyBuffer(ctx->lDevice, ctx->vertexBuffer, NULL);
   vkFreeMemory(ctx->lDevice, ctx->vertexBufferMemory, NULL);
-    vkDestroyBuffer(ctx->lDevice, ctx->indexBuffer, NULL);
+  vkDestroyBuffer(ctx->lDevice, ctx->indexBuffer, NULL);
   vkFreeMemory(ctx->lDevice, ctx->indexBufferMemory, NULL);
+  vkDestroyDescriptorPool(ctx->lDevice, ctx->descriptorPool, NULL);
 
+  vkDestroyDescriptorSetLayout(ctx->lDevice, ctx->descriptorSetLayout, NULL);
+  vkDestroyDescriptorSetLayout(ctx->lDevice, ctx->descriptorSetLayout, NULL);
   vkDestroyPipeline(ctx->lDevice, ctx->graphicsPipeline, NULL);
   vkDestroyPipelineLayout(ctx->lDevice, ctx->pipelineLayout, NULL);
+  for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    vkDestroyBuffer(ctx->lDevice, ctx->uniformBuffers[i], NULL);
+    vkFreeMemory(ctx->lDevice, ctx->uniformBuffersMemory[i], NULL);
+  }
 
+  vkDestroyDescriptorSetLayout(ctx->lDevice, ctx->descriptorSetLayout, NULL);
   vkDestroyRenderPass(ctx->lDevice, ctx->renderPass, NULL);
 
   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -1336,4 +1363,125 @@ void createIndexBuffer(vulkanContext *ctx, uint16_t indices[], size_t count) {
 
   vkDestroyBuffer(ctx->lDevice, stagingBuffer, NULL);
   vkFreeMemory(ctx->lDevice, stagingBufferMemory, NULL);
+}
+
+void createDescriptorSetLayout(vulkanContext *ctx) {
+  VkDescriptorSetLayoutBinding uboLayoutBinding = {0};
+  uboLayoutBinding.binding = 0;
+  uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  uboLayoutBinding.descriptorCount = 1;
+  uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+  uboLayoutBinding.pImmutableSamplers = NULL;
+
+  VkDescriptorSetLayoutCreateInfo layoutInfo = {0};
+  layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+  layoutInfo.bindingCount = 1;
+  layoutInfo.pBindings = &uboLayoutBinding;
+
+  if (vkCreateDescriptorSetLayout(ctx->lDevice, &layoutInfo, NULL,
+                                  &ctx->descriptorSetLayout) != VK_SUCCESS) {
+    fprintf(stderr, "failed to create descriptor set layout!");
+    assert(0 && "Failed to create descriptor set layout!");
+  }
+}
+
+void createUniformBuffers(vulkanContext *ctx) {
+
+  VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+  for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    createBuffer(ctx, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 &ctx->uniformBuffers[i], &ctx->uniformBuffersMemory[i]);
+    vkMapMemory(ctx->lDevice, ctx->uniformBuffersMemory[i], 0, bufferSize, 0,
+                &ctx->uniformBuffersMapped[i]);
+  }
+}
+
+// TODO: abstract windows.h away just generic getTime()
+void updateUniformBuffer(vulkanContext *ctx, uint32_t currentImage) {
+  static LARGE_INTEGER frequency;
+  static LARGE_INTEGER startTime;
+  static int initialized = 0;
+
+  if (!initialized) {
+    QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&startTime);
+    initialized = 1;
+  }
+  float aspect =
+      (float)ctx->swapChainExtent.width / (float)ctx->swapChainExtent.height;
+  LARGE_INTEGER currentTime;
+  QueryPerformanceCounter(&currentTime);
+
+  float time = (float)(currentTime.QuadPart - startTime.QuadPart) /
+               (float)frequency.QuadPart;
+
+  UniformBufferObject ubo = {0};
+  glm_mat4_identity(ubo.model);
+  glm_rotate(ubo.model, glm_rad(90.0f) * time, (vec3){0.0f, 0.0f, 1.0f});
+
+  glm_lookat((vec3){2.0f, 2.0f, 2.0f}, // Eye position
+             (vec3){0.0f, 0.0f, 0.0f}, // Target position
+             (vec3){0.0f, 0.0f, 1.0f}, // Up vector
+             ubo.view);                // Output view matrix
+  glm_perspective(glm_rad(45.0f), aspect, 0.1f, 10.0f, ubo.proj);
+  ubo.proj[1][1] *= -1;
+  memcpy(ctx->uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+}
+void createDescriptorPool(vulkanContext *ctx) {
+  VkDescriptorPoolSize poolSize = {0};
+  poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  poolSize.descriptorCount = MAX_FRAMES_IN_FLIGHT;
+
+  VkDescriptorPoolCreateInfo poolInfo = {0};
+  poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+  poolInfo.poolSizeCount = 1;
+  poolInfo.pPoolSizes = &poolSize;
+  poolInfo.maxSets = MAX_FRAMES_IN_FLIGHT;
+
+  if (vkCreateDescriptorPool(ctx->lDevice, &poolInfo, NULL,
+                             &ctx->descriptorPool) != VK_SUCCESS) {
+    fprintf(stderr, "Failed to create descriptor pool!\n");
+    assert(0 && "Failed to create descriptor pool!");
+  }
+}
+
+void createDescriptorSets(vulkanContext *ctx) {
+  VkDescriptorSetLayout layouts[MAX_FRAMES_IN_FLIGHT];
+  for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    layouts[i] = ctx->descriptorSetLayout;
+  }
+
+  VkDescriptorSetAllocateInfo allocInfo = {0};
+  allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+  allocInfo.descriptorPool = ctx->descriptorPool;
+  allocInfo.descriptorSetCount = MAX_FRAMES_IN_FLIGHT;
+  allocInfo.pSetLayouts = layouts;
+
+  if (vkAllocateDescriptorSets(ctx->lDevice, &allocInfo, ctx->descriptorSets) !=
+      VK_SUCCESS) {
+    fprintf(stderr, "Failed to allocate descriptor sets!\n");
+    assert(0 && "Failed to allocate descriptor sets!");
+  }
+
+  for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    VkDescriptorBufferInfo bufferInfo = {0};
+    bufferInfo.buffer = ctx->uniformBuffers[i];
+    bufferInfo.offset = 0;
+    bufferInfo.range = sizeof(UniformBufferObject);
+
+    VkWriteDescriptorSet descriptorWrite = {0};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = ctx->descriptorSets[i];
+    descriptorWrite.dstBinding = 0;
+    descriptorWrite.dstArrayElement = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pBufferInfo = &bufferInfo;
+    descriptorWrite.pImageInfo = NULL;
+    descriptorWrite.pTexelBufferView = NULL;
+
+    vkUpdateDescriptorSets(ctx->lDevice, 1, &descriptorWrite, 0, NULL);
+  }
 }
