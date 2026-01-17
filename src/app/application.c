@@ -1,12 +1,20 @@
 // application.c
 #include "application.h"
 #include "app/application_types.h"
+#include "cglm/mat4.h"
 #include "entityPool_types.h"
 #include "entity_types.h"
 #include "shared.h"
 #include "stdio.h"
 // if moving to c++ to prevent name mangling
 // extern "C" GAME_UPDATE(game_update) { pos->y++; }
+void mat4_lerp(mat4 result, const mat4 a, const mat4 b, float t) {
+  for (int i = 0; i < 4; i++) {
+    for (int j = 0; j < 4; j++) {
+      result[i][j] = a[i][j] * (1.0f - t) + b[i][j] * t;
+    }
+  }
+}
 GAME_UPDATE(game_update) {
   Assert(sizeof(GameState) <= gameMemory->permanentMemorySize);
 
@@ -27,22 +35,97 @@ GAME_UPDATE(game_update) {
 
   handle_input(gameState, input);
 
-  handle_update(gameState, frameTime, input);
+  arr_mat4 *transforms = (arr_mat4 *)gameState->transientAllocator.alloc(
+      gameState->transientAllocator.context, sizeof(arr_mat4));
 
-  // ==================== DEBUG STUFF ====================
-  // size_t cell = 0; // or any cell index you want to inspect
-  // size_t start = gameState->sGrid->spatialSparse.items[cell];
-  // size_t end = (cell + 1 < gameState->sGrid->spatialSparse.capacity)
-  //                  ? gameState->sGrid->spatialSparse.items[cell + 1]
-  //                  : gameState->sGrid->spatialDense.count;
-  // printf("Entities in cell %zu: ", cell);
-  // for (size_t i = start; i < end; i++) {
-  //   printf("%zu ", gameState->sGrid->spatialDense.items[i].entityId);
-  // }
-  // printf("\n");
+  transforms->items = (mat4 *)gameState->transientAllocator.alloc(
+      gameState->transientAllocator.context, sizeof(mat4) * 5);
+  transforms->capacity = 5;
+  transforms->count = 0;
 
-  // ==================== PUSING RENDER COMMANDS ETC ====================
-  render(gameMemory, gameState);
+  mat4 rotation;
+  glm_mat4_zero(rotation);
+  float rot = M_PI * 3;
+  rotation[0][0] = cosf(rot);  // 0
+  rotation[0][1] = -sinf(rot); // -1
+  rotation[1][0] = sinf(rot);  // 1
+  rotation[1][1] = cosf(rot);  // 0
+  rotation[2][2] = 1.0f;
+  rotation[3][3] = 1.0f;
+
+  // Shear
+  mat4 shear;
+  glm_mat4_zero(shear);
+  shear[0][0] = 1.0f;
+  shear[0][1] = 0.5f;
+  shear[1][1] = 1.0f;
+  shear[2][2] = 1.0f;
+  shear[3][3] = 1.0f;
+
+  static float t = 0.0f;
+  t += 0.005f;
+  if (t > 1.0f)
+    t = 0.0f;
+
+  mat4 identity;
+  glm_mat4_identity(identity);
+
+  mat4 selectedTransform;
+
+  switch (0) {
+  case 0:
+    mat4_lerp(selectedTransform, identity, rotation, t);
+    break;
+  case 1:
+    mat4_lerp(selectedTransform, identity, shear, t);
+    break;
+  case 2:
+    mat4_lerp(selectedTransform, rotation, shear, t);
+    break;
+  case 3:
+    glm_mat4_copy(identity, selectedTransform);
+    break;
+  default:
+    mat4_lerp(selectedTransform, identity, rotation, t);
+    break;
+  }
+  memcpy(&transforms->items[transforms->count], selectedTransform,
+         sizeof(mat4));
+  transforms->count++;
+
+  memcpy(&transforms->items[transforms->count], rotation, sizeof(mat4));
+  transforms->count++;
+
+  // memcpy(&transforms->items[transforms->count], shear, sizeof(mat4));
+  // transforms->count++;
+
+  gameMemory->transforms = transforms;
+
+  vec4 *instanceColors = (vec4 *)gameState->transientAllocator.alloc(
+      gameState->transientAllocator.context, sizeof(vec4) * transforms->count);
+
+  if (transforms->count > 0) {
+    instanceColors[0][0] = 1.0f;
+    instanceColors[0][1] = 0.0f;
+    instanceColors[0][2] = 0.0f;
+    instanceColors[0][3] = 1.0f;
+  }
+  if (transforms->count > 1) {
+    instanceColors[1][0] = 0.0f;
+    instanceColors[1][1] = 0.65f;
+    instanceColors[1][2] = 0.0f;
+    instanceColors[1][3] = 0.5f;
+  }
+  if (transforms->count > 2) {
+    instanceColors[2][0] = 0.0f;
+    instanceColors[2][1] = 1.0f;
+    instanceColors[2][2] = 0.0f;
+    instanceColors[2][3] = 0.5f;
+  }
+  gameMemory->instanceColors = instanceColors;
+
+  // handle_update(gameState, frameTime, input);
+  // render(gameMemory, gameState);
 
   gameState->lastFrameInput = *input;
 }
@@ -348,6 +431,37 @@ void update_collision(GameState *gameState, float frameTime) {
 }
 
 void handle_init(GameMemory *gameMemory, GameState *gameState) {
+  arr_mat4 *transforms = arr_mat4_create(5);
+  mat4 rotation;
+  glm_mat4_zero(rotation);
+  float rot = M_PI / 2;
+  rotation[0][0] = sin(rot);
+  rotation[0][1] = cos(rot);
+  rotation[1][0] = cos(rot);
+  rotation[1][1] = -sin(rot);
+  rotation[2][2] = 1.0f;
+  rotation[3][3] = 1.0f;
+
+  if (transforms->count >= transforms->capacity) {
+    transforms->capacity *= 2;
+    transforms->items =
+        realloc(transforms->items, transforms->capacity * sizeof(mat4));
+  }
+  memcpy(&transforms->items[transforms->count], rotation, sizeof(mat4));
+  transforms->count++;
+
+  mat4 shear;
+  glm_mat4_zero(shear);
+  shear[0][0] = 1.0f;
+  shear[0][1] = 0.5f;
+  shear[1][1] = 1.0f;
+  shear[2][2] = 1.0f;
+  shear[3][3] = 1.0f;
+
+  // Append shear
+  memcpy(&transforms->items[transforms->count], shear, sizeof(mat4));
+  transforms->count++;
+
   size_t gameStateSize = sizeof(GameState);
 
   size_t entityCapacity = 10000;
@@ -395,55 +509,57 @@ void handle_init(GameMemory *gameMemory, GameState *gameState) {
   gameState->transientAllocator =
       create_arena_allocator(&gameState->transientArena);
 
-  EntityPoolAllocator poolAllocator = {arena_alloc, &gameState->permanentArena};
-
-  gameState->instancedMesh =
-      GenMeshCube(&gameState->permanentAllocator, 1.0f, 1.0f, 1.0f);
-  gameState->instancedMeshUpdated = true;
-
-  gameState->entityPool = entityPool_InitInArena(poolAllocator, entityCapacity);
-
-  // SPATIAL GRID
-
-  int numCellsX =
-      (int)(gameState->maxBounds.x - gameState->minBounds.x) / cellSpacing;
-  int numCellsY =
-      (int)(gameState->maxBounds.y - gameState->minBounds.y) / cellSpacing;
-
-  gameState->sGrid = spatialGrid_create_with_dimensions(
-      gameState->permanentAllocator, gameState->minBounds, gameState->maxBounds,
-      cellSpacing, entityCapacity);
-
-  for (int cy = 0; cy < numCellsY; cy++) {
-    for (int cx = 0; cx < numCellsX; cx++) {
-      Vector3 cellPos = {.x = gameState->minBounds.x + (cx * cellSpacing) +
-                              (cellSpacing / 2.0f),
-                         .y = gameState->minBounds.y + (cy * cellSpacing) +
-                              (cellSpacing / 2.0f),
-                         .z = 0.0f};
-
-      if (cx == 0 && cy == 0) {
-        Entity testEntity =
-            entity_create_physics_particle(cellPos, (Vector3){10, 10, 0});
-        testEntity.c_transform.a = (Vector3){0, 0, 0}; // No acceleration
-        testEntity.c_render.color =
-            (Color){100, 100, 255, 200}; // Blue for test entities
-        // entityPool_push(gameState->entityPool, testEntity);
-        // entityPool_push(gameState->entityPool, testEntity);
-        // entityPool_push(gameState->entityPool, testEntity);
-        entityPool_push(gameState->entityPool, testEntity);
-      }
-      if (cx == 15 && cy == 15) {
-        Entity testEntity =
-            entity_create_physics_particle(cellPos, (Vector3){-10, -10, 0});
-        testEntity.c_transform.a = (Vector3){0, 0, 0}; // No acceleration
-        testEntity.c_render.color =
-            (Color){100, 100, 255, 200}; // Blue for test entities
-        // entityPool_push(gameState->entityPool, testEntity);
-        entityPool_push(gameState->entityPool, testEntity);
-      }
-    }
-  }
+  // EntityPoolAllocator poolAllocator = {arena_alloc,
+  // &gameState->permanentArena};
+  //
+  // gameState->instancedMesh =
+  //     GenMeshCube(&gameState->permanentAllocator, 1.0f, 1.0f, 1.0f);
+  // gameState->instancedMeshUpdated = true;
+  //
+  // gameState->entityPool = entityPool_InitInArena(poolAllocator,
+  // entityCapacity);
+  //
+  // // SPATIAL GRID
+  //
+  // int numCellsX =
+  //     (int)(gameState->maxBounds.x - gameState->minBounds.x) / cellSpacing;
+  // int numCellsY =
+  //     (int)(gameState->maxBounds.y - gameState->minBounds.y) / cellSpacing;
+  //
+  // gameState->sGrid = spatialGrid_create_with_dimensions(
+  //     gameState->permanentAllocator, gameState->minBounds,
+  //     gameState->maxBounds, cellSpacing, entityCapacity);
+  //
+  // for (int cy = 0; cy < numCellsY; cy++) {
+  //   for (int cx = 0; cx < numCellsX; cx++) {
+  //     Vector3 cellPos = {.x = gameState->minBounds.x + (cx * cellSpacing) +
+  //                             (cellSpacing / 2.0f),
+  //                        .y = gameState->minBounds.y + (cy * cellSpacing) +
+  //                             (cellSpacing / 2.0f),
+  //                        .z = 0.0f};
+  //
+  //     if (cx == 0 && cy == 0) {
+  //       Entity testEntity =
+  //           entity_create_physics_particle(cellPos, (Vector3){10, 10, 0});
+  //       testEntity.c_transform.a = (Vector3){0, 0, 0}; // No acceleration
+  //       testEntity.c_render.color =
+  //           (Color){100, 100, 255, 200}; // Blue for test entities
+  //       // entityPool_push(gameState->entityPool, testEntity);
+  //       // entityPool_push(gameState->entityPool, testEntity);
+  //       // entityPool_push(gameState->entityPool, testEntity);
+  //       entityPool_push(gameState->entityPool, testEntity);
+  //     }
+  //     if (cx == 15 && cy == 15) {
+  //       Entity testEntity =
+  //           entity_create_physics_particle(cellPos, (Vector3){-10, -10, 0});
+  //       testEntity.c_transform.a = (Vector3){0, 0, 0}; // No acceleration
+  //       testEntity.c_render.color =
+  //           (Color){100, 100, 255, 200}; // Blue for test entities
+  //       // entityPool_push(gameState->entityPool, testEntity);
+  //       entityPool_push(gameState->entityPool, testEntity);
+  //     }
+  //   }
+  // }
 
   // Entity player =
   //     entity_create_physics_particle((Vector3){0, 0, 0}, (Vector3){0, 0,
