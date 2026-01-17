@@ -1,11 +1,14 @@
+#include <corecrt_math_defines.h>
 #include "vulkanLayer.h"
 #include <assert.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <vulkan/vk_platform.h>
 #include <vulkan/vulkan_core.h>
 #include "cglm/affine2d.h"
 #include "cglm/cam.h"
+#include "cglm/mat4.h"
 #include "utils.h"
 #include "shared.h"
 #include "time.h"
@@ -962,10 +965,11 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window,
   dynamicState.dynamicStateCount = ARR_COUNT(dynamicStates);
   dynamicState.pDynamicStates = dynamicStates;
 
+  // ==================== INPUT ASSEMBLER ====================
   VkPipelineInputAssemblyStateCreateInfo inputAssembly = {0};
   inputAssembly.sType =
       VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
   inputAssembly.primitiveRestartEnable = VK_FALSE;
 
   VkPipelineViewportStateCreateInfo viewportState = {0};
@@ -1416,15 +1420,58 @@ void updateUniformBuffer(vulkanContext *ctx, uint32_t currentImage) {
                (float)frequency.QuadPart;
 
   UniformBufferObject ubo = {0};
-  glm_mat4_identity(ubo.model);
-  glm_rotate(ubo.model, glm_rad(90.0f) * time, (vec3){0.0f, 0.0f, 1.0f});
+  // glm_mat4_identity(ubo.model);
+  // glm_rotate(ubo.model, glm_rad(90.0f) * time, (vec3){0.0f, 0.0f, 1.0f});
 
-  glm_lookat((vec3){2.0f, 2.0f, 2.0f}, // Eye position
-             (vec3){0.0f, 0.0f, 0.0f}, // Target position
-             (vec3){0.0f, 0.0f, 1.0f}, // Up vector
-             ubo.view);                // Output view matrix
+  // glm_lookat((vec3){2.0f, 2.0f, 2.0f}, // Eye position
+  //            (vec3){0.0f, 0.0f, 0.0f}, // Target position
+  //            (vec3){0.0f, 0.0f, 1.0f}, // Up vector
+  //            ubo.view);                // Output view matrix
+  // glm_perspective(glm_rad(45.0f), aspect, 0.1f, 10.0f, ubo.proj);
+  // ubo.proj[1][1] *= -1;
+
+  glm_mat4_identity(ubo.model);
+  mat4 rotation;
+  glm_mat4_zero(rotation);
+  // rotation[0][0] = 0.0f;
+  // rotation[0][1] = 1.0f;
+  // rotation[1][0] = -1.0f;
+  // rotation[1][1] = 0.0f;
+  // rotation[2][2] = 1.0f;
+  // rotation[3][3] = 1.0f;
+
+  float rot = M_PI;
+  rotation[0][0] = sin(rot);
+  rotation[0][1] = cos(rot);
+  rotation[1][0] = cos(rot);
+  rotation[1][1] = -sin(rot);
+  rotation[2][2] = 1.0f;
+  rotation[3][3] = 1.0f;
+  glm_mat4_mul(rotation, ubo.model, ubo.model);
+
+  mat4 shear;
+  glm_mat4_zero(shear);
+  shear[0][0] = 1.0f;
+  shear[0][1] = 0.0f;
+  shear[1][0] = 1.0f;
+  shear[1][1] = 1.0f;
+  shear[2][2] = 1.0f;
+  shear[3][3] = 1.0f;
+  glm_mat4_mul(shear, ubo.model, ubo.model);
+
+  glm_mat4_print(ubo.model, stdout);
+
+  glm_mat4_identity(ubo.view);
+  glm_lookat((vec3){0.0f, 0.0f, 3.0f}, // Eye: 5 units back
+             (vec3){0.0f, 0.0f, 0.0f}, // Target: origin
+             (vec3){0.0f, 1.0f, 0.0f}, // Up: Y-up
+             ubo.view);
+
+  float size = 1.5f;
+  // glm_ortho(-size, size, -size / aspect, size / aspect, -1.0f, 1.0f,
+  // ubo.proj);
   glm_perspective(glm_rad(45.0f), aspect, 0.1f, 10.0f, ubo.proj);
-  ubo.proj[1][1] *= -1;
+  ubo.proj[1][1] *= -1; // Vulkan clip space adjustment
   memcpy(ctx->uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
 }
 void createDescriptorPool(vulkanContext *ctx) {

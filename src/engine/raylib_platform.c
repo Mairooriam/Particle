@@ -244,17 +244,73 @@ int main(void) {
       glfwCreateWindow(WIDTH, HEIGHT, "Vulkan window", NULL, NULL);
   glfwSetWindowSizeCallback(window, window_size_callback);
 
-  // TODO: make it proper just placeholder currently
-  Vertex vertices[] = {
-      {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // Bottom-left
-      {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},  // Bottom-right
-      {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},   // Top-right
-      {{-0.5f, 0.5f}, {1.0f, 1.0f, 0.0f}},  // Top-left
-      {{-0.25f, 0.25f}, {1.0f, 1.0f, 0.0f}} // Top-left
+// TODO: make it proper just placeholder currently
+#define _RED {1.0f, 0.0f, 0.0f}
+#define _GREEN {0.0f, 1.0f, 0.0f}
+#define _BLUE {0.0f, 0.0f, 1.0f}
+#define _YELLOW {1.0f, 1.0f, 0.0f}
+  //
+  // Vertex vertices[] = {
+  //     {{-0.5f, -0.5f}, _RED}, // Bottom-left
+  //     {{0.5f, -0.5f}, _GREEN},
+  //     {{0.5f, 0.5f}, _BLUE},    // Top-right
+  //     {{-0.5f, 0.5f}, _YELLOW}, // Top-left
+  // };
 
-  };
+  float step = 0.1f;
+  int numLines = (int)((2.0f / step) + 1);
+  int count = numLines * 2;
+  printf("%i\n", count);
+  // -1 <--> 1
+  Vertex vertices[count * 2 + 2];
+  uint16_t indicies[count * 2 + 2];
 
-  uint16_t indicies[] = {0, 1, 2, 2, 3, 0, 0};
+  float x = -1, y = -1, z = 0;
+  int vIdx = 0, iIdx = 0;
+  // VERTICAL
+  for (int i = 0; i < count; i++) {
+    if (i % 2 == 0) {
+      y = -1;
+      x += step;
+    } else {
+      y = 1;
+    }
+
+    if (i == 0) {
+      x = -1;
+    }
+    vertices[vIdx++] = (Vertex){{x, y, z}, _RED};
+    indicies[iIdx++] = i;
+  }
+
+  x = 1, y = -1, z = 0;
+  // HORIZONTAL
+  for (int i = 0; i < count; i++) {
+    if (i % 2 == 0) {
+      x = -1;
+      y += step;
+    } else {
+      x = 1;
+    }
+
+    if (i == 0) {
+      y = -1;
+    }
+
+    vertices[vIdx++] = (Vertex){{x, y, z}, _RED};
+    indicies[iIdx++] = count + i;
+  }
+
+  float vX = 1, vY = 2;
+  Vertex vectorVertices[2] = {{{0.0f * step, 0.0f * step}, _BLUE},
+                              {{vX * step, vY * step}, _BLUE}};
+
+  uint16_t vectorIndices[2] = {vIdx, vIdx + 1};
+  memcpy(&vertices[vIdx], vectorVertices, sizeof(vectorVertices));
+  memcpy(&indicies[iIdx], vectorIndices, sizeof(vectorIndices));
+  vIdx += 2;
+  iIdx += 2;
+  printf("%f", x);
 
   vulkanContext vkCtx = {0};
 #if defined(SLOW_CODE_ALLOWED)
