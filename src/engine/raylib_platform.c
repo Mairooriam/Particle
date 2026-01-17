@@ -313,7 +313,7 @@ int main(void) {
   printf("%f", x);
 
   vulkanContext vkCtx = {0};
-#if defined(SLOW_CODE_ALLOWED)
+#ifdef SLOW_CODE_ALLOWED
   g_real_vkCreateInstance =
       (PFN_vkCreateInstance)vkGetInstanceProcAddr(NULL, "vkCreateInstance");
 #endif
@@ -354,7 +354,8 @@ int main(void) {
 
     code.update(&gameMemory, &input, deltaTime);
 
-    vkDrawFrame(&vkCtx, vertices, ARR_COUNT(vertices), ARR_COUNT(indicies));
+    vkDrawFrame(&vkCtx, vertices, ARR_COUNT(vertices), ARR_COUNT(indicies),
+                gameMemory.transforms, gameMemory.instanceColors);
     code.clock++;
     flush_logs();
   }

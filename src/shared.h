@@ -5,7 +5,9 @@
 #include "utils.h"
 #include "cglm/cglm.h"
 
-
+#include "cglm/affine2d.h"
+#include "cglm/cam.h"
+#include "cglm/mat4.h"
 
 #define Assert(expression)                                                     \
   if (!(expression)) {                                                         \
@@ -168,6 +170,14 @@ static Matrix MatrixMultiply(Matrix left, Matrix right) {
 }
 
 #endif
+typedef struct {
+  mat4 *items;
+  size_t capacity;
+  size_t count;
+} arr_mat4;
+DA_CREATE(arr_mat4)
+DA_FREE(arr_mat4)
+DA_INIT(arr_mat4)
 
 typedef enum {
   RENDER_RECTANGLE,
@@ -213,6 +223,9 @@ typedef struct {
       float radius;
       Color color;
     } sphere3D;
+    struct {
+      mat4 transform;
+    } transform;
   };
 } RenderCommand;
 
@@ -234,6 +247,8 @@ typedef struct {
   size_t permanentMemorySize;
   size_t transientMemorySize;
   RenderQueue *renderQueue;
+  arr_mat4* transforms;
+  vec4* instanceColors;
   void *permamentMemory;
   void *transientMemory;
   bool reloadDLLHappened;

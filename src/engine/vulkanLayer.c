@@ -6,9 +6,7 @@
 #include <stdio.h>
 #include <vulkan/vk_platform.h>
 #include <vulkan/vulkan_core.h>
-#include "cglm/affine2d.h"
-#include "cglm/cam.h"
-#include "cglm/mat4.h"
+
 #include "utils.h"
 #include "shared.h"
 #include "time.h"
@@ -398,7 +396,8 @@ void updateVertexBuffer(vulkanContext *ctx, const Vertex *newVertices,
 
 // dont add everything to ctx just the stuff thats used also elsewhere
 void recordCommandBuffer(vulkanContext *ctx, VkCommandBuffer cmdBuffer,
-                         uint32_t imageIndex, size_t indiceCount) {
+                         uint32_t imageIndex, size_t indiceCount,
+                         arr_mat4 *transforms) {
   assert(ctx->swapChainFramebuffers &&
          "Dont call record command buffer without frambuffer");
   VkCommandBufferBeginInfo beginInfo = {0};
@@ -454,7 +453,10 @@ void recordCommandBuffer(vulkanContext *ctx, VkCommandBuffer cmdBuffer,
   // index buffer
   vkCmdBindIndexBuffer(cmdBuffer, ctx->indexBuffer, 0, VK_INDEX_TYPE_UINT16);
   // actual draw
-  vkCmdDrawIndexed(cmdBuffer, indiceCount, 1, 0, 0, 0);
+  uint32_t instanceCount = transforms ? (uint32_t)transforms->count : 1;
+  if (instanceCount > MAX_INSTANCES)
+    instanceCount = MAX_INSTANCES;
+  vkCmdDrawIndexed(cmdBuffer, indiceCount, instanceCount, 0, 0, 0);
 
   vkCmdEndRenderPass(cmdBuffer);
   if (vkEndCommandBuffer(cmdBuffer) != VK_SUCCESS) {
@@ -1007,13 +1009,13 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window,
   colorBlendAttachment.colorWriteMask =
       VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
       VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-  colorBlendAttachment.blendEnable = VK_FALSE;
-  colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;  // Optional
-  colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-  colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;             // Optional
-  colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;  // Optional
-  colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-  colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;             // Optional
+colorBlendAttachment.blendEnable = VK_TRUE; // Enable blending
+colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA; // Source alpha
+colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; // Destination alpha
+colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Additive blending
+colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Source alpha
+colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Destination alpha
+colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Additive alpha blending
 
   VkPipelineColorBlendStateCreateInfo colorBlending = {0};
   colorBlending.sType =
@@ -1130,7 +1132,8 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window,
 }
 
 void vkDrawFrame(vulkanContext *ctx, const Vertex *vertices,
-                 uint32_t vertexCount, size_t indiceCount) {
+                 uint32_t vertexCount, size_t indiceCount, arr_mat4 *transforms,
+                 vec4 *colors) {
   // updateVertexBuffer(ctx, vertices, vertexCount);
 
   // ==================== DRAW FRAME ====================
@@ -1151,11 +1154,10 @@ void vkDrawFrame(vulkanContext *ctx, const Vertex *vertices,
   }
   vkResetFences(ctx->lDevice, 1, &ctx->inFlightFences[ctx->currentFrame]);
 
+  updateUniformBuffer(ctx, ctx->currentFrame, transforms, colors);
   vkResetCommandBuffer(ctx->cmdBuffers[ctx->currentFrame], 0);
   recordCommandBuffer(ctx, ctx->cmdBuffers[ctx->currentFrame], imageIndex,
-                      indiceCount);
-
-  updateUniformBuffer(ctx, ctx->currentFrame);
+                      indiceCount, transforms);
 
   VkSubmitInfo submitInfo = {0};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1401,7 +1403,8 @@ void createUniformBuffers(vulkanContext *ctx) {
 }
 
 // TODO: abstract windows.h away just generic getTime()
-void updateUniformBuffer(vulkanContext *ctx, uint32_t currentImage) {
+void updateUniformBuffer(vulkanContext *ctx, uint32_t currentImage,
+                         arr_mat4 *transforms, vec4 *colors) {
   static LARGE_INTEGER frequency;
   static LARGE_INTEGER startTime;
   static int initialized = 0;
@@ -1420,57 +1423,36 @@ void updateUniformBuffer(vulkanContext *ctx, uint32_t currentImage) {
                (float)frequency.QuadPart;
 
   UniformBufferObject ubo = {0};
-  // glm_mat4_identity(ubo.model);
-  // glm_rotate(ubo.model, glm_rad(90.0f) * time, (vec3){0.0f, 0.0f, 1.0f});
+  size_t numInstances = transforms ? transforms->count : 0;
+  if (numInstances > MAX_INSTANCES)
+    numInstances = MAX_INSTANCES;
 
-  // glm_lookat((vec3){2.0f, 2.0f, 2.0f}, // Eye position
-  //            (vec3){0.0f, 0.0f, 0.0f}, // Target position
-  //            (vec3){0.0f, 0.0f, 1.0f}, // Up vector
-  //            ubo.view);                // Output view matrix
-  // glm_perspective(glm_rad(45.0f), aspect, 0.1f, 10.0f, ubo.proj);
-  // ubo.proj[1][1] *= -1;
-
-  glm_mat4_identity(ubo.model);
-  mat4 rotation;
-  glm_mat4_zero(rotation);
-  // rotation[0][0] = 0.0f;
-  // rotation[0][1] = 1.0f;
-  // rotation[1][0] = -1.0f;
-  // rotation[1][1] = 0.0f;
-  // rotation[2][2] = 1.0f;
-  // rotation[3][3] = 1.0f;
-
-  float rot = M_PI;
-  rotation[0][0] = sin(rot);
-  rotation[0][1] = cos(rot);
-  rotation[1][0] = cos(rot);
-  rotation[1][1] = -sin(rot);
-  rotation[2][2] = 1.0f;
-  rotation[3][3] = 1.0f;
-  glm_mat4_mul(rotation, ubo.model, ubo.model);
-
-  mat4 shear;
-  glm_mat4_zero(shear);
-  shear[0][0] = 1.0f;
-  shear[0][1] = 0.0f;
-  shear[1][0] = 1.0f;
-  shear[1][1] = 1.0f;
-  shear[2][2] = 1.0f;
-  shear[3][3] = 1.0f;
-  glm_mat4_mul(shear, ubo.model, ubo.model);
-
-  glm_mat4_print(ubo.model, stdout);
+  for (size_t i = 0; i < numInstances; i++) {
+    memcpy(ubo.models[i], &transforms->items[i], sizeof(mat4));
+    memcpy(ubo.colors[i], colors[i], sizeof(vec4));
+  }
+for (size_t i = 0; i < transforms->count; i++) {
+    printf("Instance %zu: R=%f, G=%f, B=%f, A=%f\n",
+           i, ubo.colors[i][0], ubo.colors[i][1],
+           ubo.colors[i][2], ubo.colors[i][3]);
+}
+  for (size_t i = numInstances; i < MAX_INSTANCES; i++) {
+    glm_mat4_identity(ubo.models[i]);
+    ubo.colors[i][0] = 1.0f;
+    ubo.colors[i][1] = 1.0f;
+    ubo.colors[i][2] = 1.0f;
+    ubo.colors[i][3] = 1.0f;
+  }
 
   glm_mat4_identity(ubo.view);
   glm_lookat((vec3){0.0f, 0.0f, 3.0f}, // Eye: 5 units back
              (vec3){0.0f, 0.0f, 0.0f}, // Target: origin
-             (vec3){0.0f, 1.0f, 0.0f}, // Up: Y-up
+             (vec3){0.0f, 3.0f, 0.0f}, // Up: Y-up
              ubo.view);
-
-  float size = 1.5f;
+  float size = 3.0f;
   // glm_ortho(-size, size, -size / aspect, size / aspect, -1.0f, 1.0f,
   // ubo.proj);
-  glm_perspective(glm_rad(45.0f), aspect, 0.1f, 10.0f, ubo.proj);
+  glm_perspective(glm_rad(45.0f), aspect, 0.01f, 10.0f, ubo.proj);
   ubo.proj[1][1] *= -1; // Vulkan clip space adjustment
   memcpy(ctx->uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
 }
