@@ -1,4 +1,5 @@
 
+#include <corecrt_math_defines.h>
 #include <math.h>
 #include <raylib.h>
 #include "fix_win32_compatibility.h"
@@ -267,7 +268,7 @@ int main(void) {
 
   float x = -1, y = -1, z = 0;
   int vIdx = 0, iIdx = 0;
-  // VERTICAL
+  // // VERTICAL
   for (int i = 0; i < count; i++) {
     if (i % 2 == 0) {
       y = -1;
@@ -284,7 +285,7 @@ int main(void) {
   }
 
   x = 1, y = -1, z = 0;
-  // HORIZONTAL
+  // // HORIZONTAL
   for (int i = 0; i < count; i++) {
     if (i % 2 == 0) {
       x = -1;
@@ -301,7 +302,16 @@ int main(void) {
     indicies[iIdx++] = count + i;
   }
 
-  float vX = 1, vY = 2;
+  // float segmentAmount = 32;
+  // float segmentSize = M_PI / segmentAmount;
+  // for (size_t i = 0; i < segmentAmount * 2 + 1; i++) {
+  //
+  //   vertices[vIdx++] =
+  //       (Vertex){{cosf(segmentSize * i), sinf(segmentSize * i)}, _YELLOW};
+  //   indicies[iIdx++] = i + 1;
+  // }
+
+  float vX = 1, vY = 1;
   Vertex vectorVertices[2] = {{{0.0f * step, 0.0f * step}, _BLUE},
                               {{vX * step, vY * step}, _BLUE}};
 
