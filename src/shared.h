@@ -175,10 +175,6 @@ typedef struct {
   size_t capacity;
   size_t count;
 } arr_mat4;
-DA_CREATE(arr_mat4)
-DA_FREE(arr_mat4)
-DA_INIT(arr_mat4)
-
 typedef enum {
   RENDER_RECTANGLE,
   RENDER_CIRCLE,
@@ -247,8 +243,8 @@ typedef struct {
   size_t permanentMemorySize;
   size_t transientMemorySize;
   RenderQueue *renderQueue;
-  arr_mat4* transforms;
-  vec4* instanceColors;
+  arr_mat4 *transforms;
+  vec4 *instanceColors;
   void *permamentMemory;
   void *transientMemory;
   bool reloadDLLHappened;

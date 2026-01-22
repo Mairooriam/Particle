@@ -194,3 +194,34 @@ extern double g_timing_print_interval; // Print every N seconds
   (((flags) & (mask)) != 0) // Example: if (FLAG_ANY_SET(entity.flags,
                             // FLAG_COLLIDING | FLAG_DEAD)) { ... }
 #define FLAG_CLEAR_ALL(flags) ((flags) = FLAG_NONE)
+#define DA_CREATE_ALLOCATOR(type, allocator)                                   \
+  static inline type *type##_create(size_t cap, MemoryAllocator *allocator) {  \
+    type *da = (type *)allocator->alloc(allocator->context, sizeof(type));     \
+    if (!da)                                                                   \
+      return NULL;                                                             \
+    da->count = 0;                                                             \
+    da->capacity = cap;                                                        \
+    da->items = (typeof(da->items))allocator->alloc(allocator->context,        \
+                                                    sizeof(*da->items) * cap); \
+    if (!da->items) {                                                          \
+      allocator->free(allocator->context, da);                                 \
+      return NULL;                                                             \
+    }                                                                          \
+    return da;                                                                 \
+  }                                                                            \
+                                                                               \
+  static inline void type##_free(type *da, MemoryAllocator *allocator) {       \
+    if (da) {                                                                  \
+      allocator->free(allocator->context, da->items);                          \
+      allocator->free(allocator->context, da);                                 \
+    }                                                                          \
+  }                                                                            \
+                                                                               \
+  static inline void type##_resize(type *da, size_t new_cap,                   \
+                                   MemoryAllocator *allocator) {               \
+    if (new_cap > da->capacity) {                                              \
+      da->items = (typeof(da->items))allocator->alloc(                         \
+          allocator->context, sizeof(*da->items) * new_cap);                   \
+      da->capacity = new_cap;                                                  \
+    }                                                                          \
+  }

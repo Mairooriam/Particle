@@ -971,7 +971,7 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window,
   VkPipelineInputAssemblyStateCreateInfo inputAssembly = {0};
   inputAssembly.sType =
       VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
   inputAssembly.primitiveRestartEnable = VK_FALSE;
 
   VkPipelineViewportStateCreateInfo viewportState = {0};
@@ -1009,13 +1009,18 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window,
   colorBlendAttachment.colorWriteMask =
       VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
       VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-colorBlendAttachment.blendEnable = VK_TRUE; // Enable blending
-colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA; // Source alpha
-colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; // Destination alpha
-colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Additive blending
-colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Source alpha
-colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Destination alpha
-colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Additive alpha blending
+  colorBlendAttachment.blendEnable = VK_TRUE; // Enable blending
+  colorBlendAttachment.srcColorBlendFactor =
+      VK_BLEND_FACTOR_SRC_ALPHA; // Source alpha
+  colorBlendAttachment.dstColorBlendFactor =
+      VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;             // Destination alpha
+  colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Additive blending
+  colorBlendAttachment.srcAlphaBlendFactor =
+      VK_BLEND_FACTOR_ONE; // Source alpha
+  colorBlendAttachment.dstAlphaBlendFactor =
+      VK_BLEND_FACTOR_ZERO; // Destination alpha
+  colorBlendAttachment.alphaBlendOp =
+      VK_BLEND_OP_ADD; // Additive alpha blending
 
   VkPipelineColorBlendStateCreateInfo colorBlending = {0};
   colorBlending.sType =
@@ -1431,11 +1436,10 @@ void updateUniformBuffer(vulkanContext *ctx, uint32_t currentImage,
     memcpy(ubo.models[i], &transforms->items[i], sizeof(mat4));
     memcpy(ubo.colors[i], colors[i], sizeof(vec4));
   }
-for (size_t i = 0; i < transforms->count; i++) {
-    printf("Instance %zu: R=%f, G=%f, B=%f, A=%f\n",
-           i, ubo.colors[i][0], ubo.colors[i][1],
-           ubo.colors[i][2], ubo.colors[i][3]);
-}
+  for (size_t i = 0; i < transforms->count; i++) {
+    printf("Instance %zu: R=%f, G=%f, B=%f, A=%f\n", i, ubo.colors[i][0],
+           ubo.colors[i][1], ubo.colors[i][2], ubo.colors[i][3]);
+  }
   for (size_t i = numInstances; i < MAX_INSTANCES; i++) {
     glm_mat4_identity(ubo.models[i]);
     ubo.colors[i][0] = 1.0f;

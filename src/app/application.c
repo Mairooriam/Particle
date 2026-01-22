@@ -4,10 +4,63 @@
 #include "cglm/mat4.h"
 #include "entityPool_types.h"
 #include "entity_types.h"
+#include "memory_allocator.h"
 #include "shared.h"
 #include "stdio.h"
+#include <oaidl.h>
 // if moving to c++ to prevent name mangling
 // extern "C" GAME_UPDATE(game_update) { pos->y++; }
+
+static inline arr_mat4 *arr_mat4_create(size_t capacity,
+                                        MemoryAllocator *allocator) {
+  arr_mat4 *da =
+      (arr_mat4 *)allocator->alloc(allocator->context, sizeof(arr_mat4));
+  if (!da)
+    return NULL;
+
+  da->items =
+      (mat4 *)allocator->alloc(allocator->context, sizeof(mat4) * capacity);
+  if (!da->items) {
+    allocator->free(allocator->context, da);
+    return NULL;
+  }
+
+  da->capacity = capacity;
+  da->count = 0;
+  return da;
+}
+
+static inline void arr_mat4_free(arr_mat4 *da, MemoryAllocator *allocator) {
+  if (da) {
+    allocator->free(allocator->context, da->items);
+    allocator->free(allocator->context, da);
+  }
+}
+
+static inline void arr_mat4_resize(arr_mat4 *da, size_t new_capacity,
+                                   MemoryAllocator *allocator) {
+  if (new_capacity > da->capacity) {
+    mat4 *new_items = (mat4 *)allocator->alloc(allocator->context,
+                                               sizeof(mat4) * new_capacity);
+    if (!new_items)
+      return;
+
+    memcpy(new_items, da->items, sizeof(mat4) * da->count);
+    allocator->free(allocator->context, da->items);
+    da->items = new_items;
+    da->capacity = new_capacity;
+  }
+}
+
+static inline void arr_mat4_append(arr_mat4 *da, const mat4 *item,
+                                   MemoryAllocator *allocator) {
+  if (da->count >= da->capacity) {
+    arr_mat4_resize(da, da->capacity * 2, allocator);
+  }
+  memcpy(&da->items[da->count], item, sizeof(mat4));
+  da->count++;
+}
+
 void mat4_lerp(mat4 result, const mat4 a, const mat4 b, float t) {
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 4; j++) {
@@ -35,25 +88,29 @@ GAME_UPDATE(game_update) {
 
   handle_input(gameState, input);
 
-  arr_mat4 *transforms = (arr_mat4 *)gameState->transientAllocator.alloc(
-      gameState->transientAllocator.context, sizeof(arr_mat4));
+  // Create transforms array using allocator
+  arr_mat4 *transforms = arr_mat4_create(5, &gameState->transientAllocator);
 
-  transforms->items = (mat4 *)gameState->transientAllocator.alloc(
-      gameState->transientAllocator.context, sizeof(mat4) * 5);
-  transforms->capacity = 5;
-  transforms->count = 0;
+  mat4 identity;
+  glm_mat4_identity(identity);
 
   mat4 rotation;
   glm_mat4_zero(rotation);
-  float rot = M_PI * 3;
-  rotation[0][0] = cosf(rot);  // 0
-  rotation[0][1] = -sinf(rot); // -1
-  rotation[1][0] = sinf(rot);  // 1
-  rotation[1][1] = cosf(rot);  // 0
+  float rot = M_PI / 2;
+  rotation[0][0] = cosf(rot);
+  rotation[0][1] = -sinf(rot);
+  rotation[1][0] = sinf(rot);
+  rotation[1][1] = cosf(rot);
   rotation[2][2] = 1.0f;
   rotation[3][3] = 1.0f;
 
-  // Shear
+  mat4 scale;
+  glm_mat4_zero(scale);
+  scale[0][0] = 2.0;
+  scale[1][1] = 2.0;
+  scale[2][2] = 1.0f;
+  scale[3][3] = 1.0f;
+
   mat4 shear;
   glm_mat4_zero(shear);
   shear[0][0] = 1.0f;
@@ -67,37 +124,26 @@ GAME_UPDATE(game_update) {
   if (t > 1.0f)
     t = 0.0f;
 
-  mat4 identity;
-  glm_mat4_identity(identity);
+  mat4 scaleLerp;
+  mat4_lerp(scaleLerp, identity, scale, t);
+  arr_mat4_append(transforms, &scale, &gameState->transientAllocator);
+  //
+  mat4 rotationLerp;
+  mat4_lerp(rotationLerp, identity, rotation, t);
+  arr_mat4_append(transforms, &rotation, &gameState->transientAllocator);
+  //
+  mat4 shearLerp;
+  mat4_lerp(shearLerp, identity, shear, t);
+  arr_mat4_append(transforms, &shear, &gameState->transientAllocator);
 
-  mat4 selectedTransform;
-
-  switch (0) {
-  case 0:
-    mat4_lerp(selectedTransform, identity, rotation, t);
-    break;
-  case 1:
-    mat4_lerp(selectedTransform, identity, shear, t);
-    break;
-  case 2:
-    mat4_lerp(selectedTransform, rotation, shear, t);
-    break;
-  case 3:
-    glm_mat4_copy(identity, selectedTransform);
-    break;
-  default:
-    mat4_lerp(selectedTransform, identity, rotation, t);
-    break;
-  }
-  memcpy(&transforms->items[transforms->count], selectedTransform,
-         sizeof(mat4));
-  transforms->count++;
-
-  memcpy(&transforms->items[transforms->count], rotation, sizeof(mat4));
-  transforms->count++;
-
-  // memcpy(&transforms->items[transforms->count], shear, sizeof(mat4));
-  // transforms->count++;
+  // Combine all transforms (scale, rotation, shear)
+  mat4 tempTransform1, tempTransform2, tempTransform3, combinedTransform;
+  glm_mat4_mul(scaleLerp, rotationLerp, tempTransform1);
+  glm_mat4_mul(tempTransform1, shearLerp, tempTransform2);
+  glm_mat4_mul(tempTransform2, scaleLerp, tempTransform3);
+  mat4_lerp(combinedTransform, identity, tempTransform3, t);
+  arr_mat4_append(transforms, &combinedTransform,
+                  &gameState->transientAllocator);
 
   gameMemory->transforms = transforms;
 
@@ -117,10 +163,16 @@ GAME_UPDATE(game_update) {
     instanceColors[1][3] = 0.5f;
   }
   if (transforms->count > 2) {
-    instanceColors[2][0] = 0.0f;
-    instanceColors[2][1] = 1.0f;
-    instanceColors[2][2] = 0.0f;
+    instanceColors[2][0] = 0.5f;
+    instanceColors[2][1] = 0.5f;
+    instanceColors[2][2] = 0.5f;
     instanceColors[2][3] = 0.5f;
+  }
+  if (transforms->count > 3) {
+    instanceColors[3][0] = 0.0f;
+    instanceColors[3][1] = 1.0f;
+    instanceColors[3][2] = 1.0f;
+    instanceColors[3][3] = 0.5f;
   }
   gameMemory->instanceColors = instanceColors;
 
@@ -431,37 +483,6 @@ void update_collision(GameState *gameState, float frameTime) {
 }
 
 void handle_init(GameMemory *gameMemory, GameState *gameState) {
-  arr_mat4 *transforms = arr_mat4_create(5);
-  mat4 rotation;
-  glm_mat4_zero(rotation);
-  float rot = M_PI / 2;
-  rotation[0][0] = sin(rot);
-  rotation[0][1] = cos(rot);
-  rotation[1][0] = cos(rot);
-  rotation[1][1] = -sin(rot);
-  rotation[2][2] = 1.0f;
-  rotation[3][3] = 1.0f;
-
-  if (transforms->count >= transforms->capacity) {
-    transforms->capacity *= 2;
-    transforms->items =
-        realloc(transforms->items, transforms->capacity * sizeof(mat4));
-  }
-  memcpy(&transforms->items[transforms->count], rotation, sizeof(mat4));
-  transforms->count++;
-
-  mat4 shear;
-  glm_mat4_zero(shear);
-  shear[0][0] = 1.0f;
-  shear[0][1] = 0.5f;
-  shear[1][1] = 1.0f;
-  shear[2][2] = 1.0f;
-  shear[3][3] = 1.0f;
-
-  // Append shear
-  memcpy(&transforms->items[transforms->count], shear, sizeof(mat4));
-  transforms->count++;
-
   size_t gameStateSize = sizeof(GameState);
 
   size_t entityCapacity = 10000;
@@ -508,6 +529,8 @@ void handle_init(GameMemory *gameMemory, GameState *gameState) {
       create_arena_allocator(&gameState->permanentArena);
   gameState->transientAllocator =
       create_arena_allocator(&gameState->transientArena);
+
+  arr_mat4 *transforms = arr_mat4_create(5, &gameState->permanentAllocator);
 
   // EntityPoolAllocator poolAllocator = {arena_alloc,
   // &gameState->permanentArena};
