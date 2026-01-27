@@ -249,6 +249,8 @@ typedef struct {
 
   EntityPool *entityPool; // stores entities
   SpatialGrid *sGrid;
+  vec2 p;
+  vec2 v;
 } GameState;
 static Mesh GenMeshCube(MemoryAllocator *allocator, float width, float height,
                         float length) {
