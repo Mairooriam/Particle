@@ -2,11 +2,13 @@
 #include "application.h"
 #include "app/application_types.h"
 #include "cglm/mat4.h"
+#include "cglm/vec2.h"
 #include "entityPool_types.h"
 #include "entity_types.h"
 #include "memory_allocator.h"
 #include "shared.h"
 #include "stdio.h"
+#include <math.h>
 #include <oaidl.h>
 // if moving to c++ to prevent name mangling
 // extern "C" GAME_UPDATE(game_update) { pos->y++; }
@@ -75,20 +77,30 @@ GAME_UPDATE(game_update) {
   GameState *gameState = (GameState *)gameMemory->permamentMemory;
   if (!gameMemory->isInitialized) {
     handle_init(gameMemory, gameState);
+    gameState->p[0] = 0;
+    gameState->p[1] = 0;
+    gameState->v[0] = 0.005f;
+    gameState->v[1] = 0.001f;
   }
   if (gameMemory->reloadDLLHappened) {
     gameState->permanentAllocator.alloc = arena_alloc;
     gameState->permanentAllocator.free = arena_free;
     gameState->transientAllocator.alloc = arena_alloc;
     gameState->transientAllocator.free = arena_free;
+
+    gameState->v[0] = 0.005f * 2;
+    gameState->v[1] = 0.001f * 10;
+    printf("reload dll happened, updated variables\n");
     gameMemory->reloadDLLHappened = false;
   }
 
   arena_reset(&gameState->transientArena);
 
   handle_input(gameState, input);
+  glm_vec2_add(gameState->p, gameState->v, gameState->p);
 
-  // Create transforms array using allocator
+  printf("Position: (%f, %f), Velocity: (%f, %f)\n", gameState->p[0],
+         gameState->p[1], gameState->v[0], gameState->v[1]);
   arr_mat4 *transforms = arr_mat4_create(5, &gameState->transientAllocator);
 
   mat4 identity;
@@ -104,10 +116,20 @@ GAME_UPDATE(game_update) {
   rotation[2][2] = 1.0f;
   rotation[3][3] = 1.0f;
 
+  mat4 translate;
+  glm_mat4_zero(translate);
+  translate[0][0] = 1;
+  translate[1][1] = 1;
+  translate[2][2] = 1.0f;
+  translate[3][3] = 1.0f;
+  translate[3][0] = gameState->p[0];
+  translate[3][1] = gameState->p[1];
+  translate[3][2] = 0;
+
   mat4 scale;
   glm_mat4_zero(scale);
-  scale[0][0] = 2.0;
-  scale[1][1] = 2.0;
+  scale[0][0] = 1.5;
+  scale[1][1] = 2.5;
   scale[2][2] = 1.0f;
   scale[3][3] = 1.0f;
 
@@ -126,27 +148,52 @@ GAME_UPDATE(game_update) {
 
   mat4 scaleLerp;
   mat4_lerp(scaleLerp, identity, scale, t);
-  arr_mat4_append(transforms, &scale, &gameState->transientAllocator);
+  // arr_mat4_append(transforms, &scale, &gameState->transientAllocator);
   //
   mat4 rotationLerp;
   mat4_lerp(rotationLerp, identity, rotation, t);
-  arr_mat4_append(transforms, &rotation, &gameState->transientAllocator);
+  // arr_mat4_append(transforms, &rotation, &gameState->transientAllocator);
   //
   mat4 shearLerp;
   mat4_lerp(shearLerp, identity, shear, t);
-  arr_mat4_append(transforms, &shear, &gameState->transientAllocator);
+  // arr_mat4_append(transforms, &shear, &gameState->transientAllocator);
 
   // Combine all transforms (scale, rotation, shear)
   mat4 tempTransform1, tempTransform2, tempTransform3, combinedTransform;
-  glm_mat4_mul(scaleLerp, rotationLerp, tempTransform1);
-  glm_mat4_mul(tempTransform1, shearLerp, tempTransform2);
-  glm_mat4_mul(tempTransform2, scaleLerp, tempTransform3);
-  mat4_lerp(combinedTransform, identity, tempTransform3, t);
+  // glm_mat4_mul(scaleLerp, rotationLerp, tempTransform1);
+  // glm_mat4_mul(tempTransform1, shearLerp, tempTransform2);
+  // glm_mat4_mul(tempTransform2, scaleLerp, tempTransform3);
+  // mat4_lerp(combinedTransform, identity, rotationLerp, t);
+  // arr_mat4_append(transforms, &combinedTransform,
+  //                 &gameState->transientAllocator);
+
+  glm_mat4_mul(scale, rotation, tempTransform1);
+  glm_mat4_mul(tempTransform1, shear, tempTransform2);
+  glm_mat4_mul(tempTransform2, translate, tempTransform3);
+
+  glm_mat4_copy(tempTransform3, combinedTransform);
+
   arr_mat4_append(transforms, &combinedTransform,
                   &gameState->transientAllocator);
 
   gameMemory->transforms = transforms;
 
+  if (gameState->p[0] <= -1) {
+    gameState->v[0] = -gameState->v[0];
+    gameState->p[0] = -1;
+  } else if (gameState->p[0] >= 1) {
+    gameState->v[0] = -gameState->v[0];
+    gameState->p[0] = 1;
+  }
+
+  if (gameState->p[1] >= 1) {
+    gameState->p[1] = 1;
+    gameState->v[1] = -gameState->v[1];
+
+  } else if (gameState->p[1] <= -1) {
+    gameState->p[1] = -1;
+    gameState->v[1] = -gameState->v[1];
+  }
   vec4 *instanceColors = (vec4 *)gameState->transientAllocator.alloc(
       gameState->transientAllocator.context, sizeof(vec4) * transforms->count);
 

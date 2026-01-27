@@ -285,7 +285,7 @@ int main(void) {
   }
 
   x = 1, y = -1, z = 0;
-  // // HORIZONTAL
+  // HORIZONTAL
   for (int i = 0; i < count; i++) {
     if (i % 2 == 0) {
       x = -1;
