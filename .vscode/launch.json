@@ -3,15 +3,13 @@
     "configurations": [
         {
             "name": "Debug Existing EXE",
-            "type": "lldb",  // CHANGE: Use LLDB for better clang-cl compatibility
+            "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/engine.exe",
+            "program": "${workspaceFolder}/build/src/engine.exe",
             "args": [],
-            "cwd": "${workspaceFolder}/build",
+            "cwd": "${workspaceFolder}/build/src",
             "environment": [],
-            "initCommands": [
-                // "settings set target.source-map /src /src"  // Optional: Map source paths if needed
-            ]
+            "stopAtEntry": false
         }
     ]
 }

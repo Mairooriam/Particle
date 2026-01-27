@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <vulkan/vk_platform.h>
-#include <vulkan/vulkan_core.h>
 
 #include "internal/math/raymath.h"
 #include "shared.h"
