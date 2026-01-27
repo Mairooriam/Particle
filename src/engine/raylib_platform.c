@@ -1,26 +1,12 @@
 
-#include <corecrt_math_defines.h>
 #include <math.h>
-#include <raylib.h>
-#include "fix_win32_compatibility.h"
-#include "rlgl.h"
-#include "raymath.h"
+#include "glfw3.h"
 #include "raylib_platfrom.h"
-
 #include "log.h"
-#include "shared.h"
-
-#include <assert.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sysinfoapi.h>
-#include <winnt.h>
-#include "utils.h"
 
 #include "vulkanLayer.h"
 #include "app/application_types.h"
+#include "shared.h"
 
 // TODO: fix timestep https://gafferongames.com/post/fix_your_timestep/
 // TODO: Clean up hotloop code
@@ -135,13 +121,13 @@ void loadGameMemory(const char *filePath, GameMemory *gameMemory) {
 
 // TODO: use something other than raylib?
 static void collect_input(Input *input) {
-  input->mousePos = GetMousePosition();
-  for (int i = 0; i < 3; i++) {
-    input->mouseButtons[i] = IsMouseButtonDown(i);
-  }
-  for (int i = 0; i < 256; i++) {
-    input->keys[i] = IsKeyDown(i);
-  }
+  // input->mousePos = GetMousePosition();
+  // for (int i = 0; i < 3; i++) {
+  //   input->mouseButtons[i] = IsMouseButtonDown(i);
+  // }
+  // for (int i = 0; i < 256; i++) {
+  //   input->keys[i] = IsKeyDown(i);
+  // }
 }
 
 // static void appendToFile(FILE *h, void *base, size_t size) {
@@ -338,10 +324,10 @@ int main(void) {
   // https://github.com/lonelydevil/vulkan-tutorial-C-implementation/blob/main/main.c
   // ==================== MAIN LOOP ====================
   Input input = {0};
-  float lastTime = GetTime();
+  float lastTime = glfwGetTime();
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
-    float currentTime = GetTime();
+    float currentTime = glfwGetTime();
     float deltaTime = currentTime - lastTime; // Delta time in seconds
     lastTime = currentTime;
     // ==================== HOT RELOADING ====================
@@ -359,13 +345,13 @@ int main(void) {
       code.reloadDLLRequested = true;
     }
 
-    gameMemory.vertices = vertices;
-    gameMemory.vertexCount = ARR_COUNT(vertices);
+    // gameMemory.vertices = vertices;
+    // gameMemory.vertexCount = ARR_COUNT(vertices);
 
     code.update(&gameMemory, &input, deltaTime);
 
-    vkDrawFrame(&vkCtx, vertices, ARR_COUNT(vertices), ARR_COUNT(indicies),
-                gameMemory.transforms, gameMemory.instanceColors);
+    // vkDrawFrame(&vkCtx, vertices, ARR_COUNT(vertices), ARR_COUNT(indicies),
+    //             gameMemory.transforms, gameMemory.instanceColors);
     code.clock++;
     flush_logs();
   }
@@ -377,7 +363,3 @@ int main(void) {
 
   return 0;
 }
-
-// ==================== VULKAN HELPERS / VALIDATION ====================
-
-// TODO: setup this up?

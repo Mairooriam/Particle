@@ -1,6 +1,8 @@
 #pragma once
-#include "fix_win32_compatibility.h"
-#include "shared.h"
+#include "shared/shared.h"
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
 typedef struct {
   HMODULE gameCodeDLL;
   FILETIME currentDLLtimestamp;

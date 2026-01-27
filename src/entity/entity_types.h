@@ -1,6 +1,6 @@
 #pragma once
 
-#include "shared.h"
+#include "shared/shared.h"
 // ================================
 // ENTITY FLAGS (up to 64, using uint64_t)
 // ================================
@@ -31,7 +31,6 @@
 // END ENTITY FLAGS
 // ================================
 
-
 // ==================== COMPONENTS ====================
 typedef struct {
   Color color;
@@ -44,8 +43,9 @@ typedef struct {
   Vector3 a;           // acceleration
   float restitution;   // 1 -> will bounce apart - 0 -> both will keep moving to
                        // same direction
-  Vector3 previousPos; // https://gafferongames.com/post/fix_your_timestep/ currently not being used
-  Vector3 lastGridPos;  // last position used for spatial grid
+  Vector3 previousPos; // https://gafferongames.com/post/fix_your_timestep/
+                       // currently not being used
+  Vector3 lastGridPos; // last position used for spatial grid
   bool needsGridUpdate; // flag if entity moved enough to need update
 } c_Transform;
 
@@ -63,7 +63,6 @@ typedef struct {
   size_t searchCount;
   Vector3 forceAccum;
 } c_Collision;
-
 
 // ==================== ENTITY ====================
 typedef struct Entity {

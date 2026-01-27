@@ -1,15 +1,16 @@
 #pragma once
+#include "internal/math/raymath.h"
+#include "shared.h"
 #include <stdalign.h>
 #include <stdint.h>
 #include <vulkan/vulkan_core.h>
-#include "utils.h"
-#include "shared.h"
 #define VK_USE_PLATFORM_WIN32_KHR
 #define GLFW_INCLUDE_VULKAN
 #include <glfw3.h>
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <glfw3native.h>
-#include "vulkan/vulkan.h"
+// #include "vulkan/vulkan.h"
+#include "shared/shared.h"
 extern const int enableValidationLayers;
 
 // TODO: add some other define as well?
@@ -51,22 +52,13 @@ typedef struct {
   uint32_t queueUniqueFamiliesCount;
 } QueueFamilyIndices;
 
-typedef struct {
-  const char **items;
-  size_t count;
-  size_t capacity;
-} arr_cstr;
-DA_CREATE(arr_cstr)
-DA_FREE(arr_cstr)
-DA_INIT(arr_cstr)
-
 // TODO: not good check out storage buffers
 #define MAX_INSTANCES 10
 typedef struct {
-  alignas(16) mat4 models[MAX_INSTANCES];
-  alignas(16) vec4 colors[MAX_INSTANCES];
-  alignas(16) mat4 view;
-  alignas(16) mat4 proj;
+  alignas(16) Matrix models[MAX_INSTANCES];
+  alignas(16) Vector4 colors[MAX_INSTANCES];
+  alignas(16) Matrix view;
+  alignas(16) Matrix proj;
 } UniformBufferObject;
 
 typedef struct {
@@ -182,14 +174,14 @@ void createIndexBuffer(vulkanContext *ctx, uint16_t indicies[], size_t count);
 
 void recordCommandBuffer(vulkanContext *ctx, VkCommandBuffer cmdBuffer,
                          uint32_t imageIndex, size_t indiceCount,
-                         arr_mat4 *transforms);
+                         arr_Matrix *transforms);
 void createSwapChain_and_imageviews(vulkanContext *ctx);
 void createFrameBuffers(vulkanContext *ctx);
 void cleanupSwapChain(vulkanContext *ctx);
 void recreateSwapChain(vulkanContext *ctx);
 void vkDrawFrame(vulkanContext *ctx, const Vertex *vertices,
-                 uint32_t vertexCount, size_t indiceCount, arr_mat4 *transforms,
-                 vec4 *colors);
+                 uint32_t vertexCount, size_t indiceCount,
+                 arr_Matrix *transforms, Vector4 *colors);
 void vkCleanup(vulkanContext *ctx);
 VkResult vkCreateInstance(const VkInstanceCreateInfo *pCreateInfo,
                           const VkAllocationCallbacks *pAllocator,
@@ -204,6 +196,6 @@ void createDescriptorSetLayout(vulkanContext *ctx);
 void createGraphicsPipeline(vulkanContext *ctx);
 void createUniformBuffers(vulkanContext *ctx);
 void updateUniformBuffer(vulkanContext *ctx, uint32_t currentImage,
-                         arr_mat4 *transforms, vec4 *colors);
+                         arr_Matrix *transforms, Vector4 *colors);
 void createDescriptorPool(vulkanContext *ctx);
 void createDescriptorSets(vulkanContext *ctx);

@@ -1,75 +1,17 @@
 // application.c
 #include "application.h"
 #include "app/application_types.h"
-#include "cglm/mat4.h"
-#include "cglm/vec2.h"
 #include "entityPool_types.h"
 #include "entity_types.h"
-#include "memory_allocator.h"
+#include "internal/mirMath.h"
 #include "shared.h"
 #include "stdio.h"
 #include <math.h>
-#include <oaidl.h>
+#include "spatialGrid.h"
+#include "entityPool.h"
+
 // if moving to c++ to prevent name mangling
 // extern "C" GAME_UPDATE(game_update) { pos->y++; }
-
-static inline arr_mat4 *arr_mat4_create(size_t capacity,
-                                        MemoryAllocator *allocator) {
-  arr_mat4 *da =
-      (arr_mat4 *)allocator->alloc(allocator->context, sizeof(arr_mat4));
-  if (!da)
-    return NULL;
-
-  da->items =
-      (mat4 *)allocator->alloc(allocator->context, sizeof(mat4) * capacity);
-  if (!da->items) {
-    allocator->free(allocator->context, da);
-    return NULL;
-  }
-
-  da->capacity = capacity;
-  da->count = 0;
-  return da;
-}
-
-static inline void arr_mat4_free(arr_mat4 *da, MemoryAllocator *allocator) {
-  if (da) {
-    allocator->free(allocator->context, da->items);
-    allocator->free(allocator->context, da);
-  }
-}
-
-static inline void arr_mat4_resize(arr_mat4 *da, size_t new_capacity,
-                                   MemoryAllocator *allocator) {
-  if (new_capacity > da->capacity) {
-    mat4 *new_items = (mat4 *)allocator->alloc(allocator->context,
-                                               sizeof(mat4) * new_capacity);
-    if (!new_items)
-      return;
-
-    memcpy(new_items, da->items, sizeof(mat4) * da->count);
-    allocator->free(allocator->context, da->items);
-    da->items = new_items;
-    da->capacity = new_capacity;
-  }
-}
-
-static inline void arr_mat4_append(arr_mat4 *da, const mat4 *item,
-                                   MemoryAllocator *allocator) {
-  if (da->count >= da->capacity) {
-    arr_mat4_resize(da, da->capacity * 2, allocator);
-  }
-  memcpy(&da->items[da->count], item, sizeof(mat4));
-  da->count++;
-}
-
-void mat4_lerp(mat4 result, const mat4 a, const mat4 b, float t) {
-  for (int i = 0; i < 4; i++) {
-    for (int j = 0; j < 4; j++) {
-      result[i][j] = a[i][j] * (1.0f - t) + b[i][j] * t;
-    }
-  }
-}
 GAME_UPDATE(game_update) {
   Assert(sizeof(GameState) <= gameMemory->permanentMemorySize);
 
@@ -77,151 +19,27 @@ GAME_UPDATE(game_update) {
   GameState *gameState = (GameState *)gameMemory->permamentMemory;
   if (!gameMemory->isInitialized) {
     handle_init(gameMemory, gameState);
-    gameState->p[0] = 0;
-    gameState->p[1] = 0;
-    gameState->v[0] = 0.005f;
-    gameState->v[1] = 0.001f;
   }
   if (gameMemory->reloadDLLHappened) {
     gameState->permanentAllocator.alloc = arena_alloc;
     gameState->permanentAllocator.free = arena_free;
     gameState->transientAllocator.alloc = arena_alloc;
     gameState->transientAllocator.free = arena_free;
-
-    gameState->v[0] = 0.005f * 2;
-    gameState->v[1] = 0.001f * 10;
-    printf("reload dll happened, updated variables\n");
     gameMemory->reloadDLLHappened = false;
   }
 
   arena_reset(&gameState->transientArena);
 
   handle_input(gameState, input);
-  glm_vec2_add(gameState->p, gameState->v, gameState->p);
+  // arr_mat4 *transforms = arr_mat4_create(5, &gameState->transientAllocator);
 
-  printf("Position: (%f, %f), Velocity: (%f, %f)\n", gameState->p[0],
-         gameState->p[1], gameState->v[0], gameState->v[1]);
-  arr_mat4 *transforms = arr_mat4_create(5, &gameState->transientAllocator);
+  // gameMemory->transforms = transforms;
 
-  mat4 identity;
-  glm_mat4_identity(identity);
+  // vec4 *instanceColors = (vec4 *)gameState->transientAllocator.alloc(
+  //     gameState->transientAllocator.context, sizeof(vec4) *
+  //     transforms->count);
 
-  mat4 rotation;
-  glm_mat4_zero(rotation);
-  float rot = M_PI / 2;
-  rotation[0][0] = cosf(rot);
-  rotation[0][1] = -sinf(rot);
-  rotation[1][0] = sinf(rot);
-  rotation[1][1] = cosf(rot);
-  rotation[2][2] = 1.0f;
-  rotation[3][3] = 1.0f;
-
-  mat4 translate;
-  glm_mat4_zero(translate);
-  translate[0][0] = 1;
-  translate[1][1] = 1;
-  translate[2][2] = 1.0f;
-  translate[3][3] = 1.0f;
-  translate[3][0] = gameState->p[0];
-  translate[3][1] = gameState->p[1];
-  translate[3][2] = 0;
-
-  mat4 scale;
-  glm_mat4_zero(scale);
-  scale[0][0] = 1.5;
-  scale[1][1] = 2.5;
-  scale[2][2] = 1.0f;
-  scale[3][3] = 1.0f;
-
-  mat4 shear;
-  glm_mat4_zero(shear);
-  shear[0][0] = 1.0f;
-  shear[0][1] = 0.5f;
-  shear[1][1] = 1.0f;
-  shear[2][2] = 1.0f;
-  shear[3][3] = 1.0f;
-
-  static float t = 0.0f;
-  t += 0.005f;
-  if (t > 1.0f)
-    t = 0.0f;
-
-  mat4 scaleLerp;
-  mat4_lerp(scaleLerp, identity, scale, t);
-  // arr_mat4_append(transforms, &scale, &gameState->transientAllocator);
-  //
-  mat4 rotationLerp;
-  mat4_lerp(rotationLerp, identity, rotation, t);
-  // arr_mat4_append(transforms, &rotation, &gameState->transientAllocator);
-  //
-  mat4 shearLerp;
-  mat4_lerp(shearLerp, identity, shear, t);
-  // arr_mat4_append(transforms, &shear, &gameState->transientAllocator);
-
-  // Combine all transforms (scale, rotation, shear)
-  mat4 tempTransform1, tempTransform2, tempTransform3, combinedTransform;
-  // glm_mat4_mul(scaleLerp, rotationLerp, tempTransform1);
-  // glm_mat4_mul(tempTransform1, shearLerp, tempTransform2);
-  // glm_mat4_mul(tempTransform2, scaleLerp, tempTransform3);
-  // mat4_lerp(combinedTransform, identity, rotationLerp, t);
-  // arr_mat4_append(transforms, &combinedTransform,
-  //                 &gameState->transientAllocator);
-
-  glm_mat4_mul(scale, rotation, tempTransform1);
-  glm_mat4_mul(tempTransform1, shear, tempTransform2);
-  glm_mat4_mul(tempTransform2, translate, tempTransform3);
-
-  glm_mat4_copy(tempTransform3, combinedTransform);
-
-  arr_mat4_append(transforms, &combinedTransform,
-                  &gameState->transientAllocator);
-
-  gameMemory->transforms = transforms;
-
-  if (gameState->p[0] <= -1) {
-    gameState->v[0] = -gameState->v[0];
-    gameState->p[0] = -1;
-  } else if (gameState->p[0] >= 1) {
-    gameState->v[0] = -gameState->v[0];
-    gameState->p[0] = 1;
-  }
-
-  if (gameState->p[1] >= 1) {
-    gameState->p[1] = 1;
-    gameState->v[1] = -gameState->v[1];
-
-  } else if (gameState->p[1] <= -1) {
-    gameState->p[1] = -1;
-    gameState->v[1] = -gameState->v[1];
-  }
-  vec4 *instanceColors = (vec4 *)gameState->transientAllocator.alloc(
-      gameState->transientAllocator.context, sizeof(vec4) * transforms->count);
-
-  if (transforms->count > 0) {
-    instanceColors[0][0] = 1.0f;
-    instanceColors[0][1] = 0.0f;
-    instanceColors[0][2] = 0.0f;
-    instanceColors[0][3] = 1.0f;
-  }
-  if (transforms->count > 1) {
-    instanceColors[1][0] = 0.0f;
-    instanceColors[1][1] = 0.65f;
-    instanceColors[1][2] = 0.0f;
-    instanceColors[1][3] = 0.5f;
-  }
-  if (transforms->count > 2) {
-    instanceColors[2][0] = 0.5f;
-    instanceColors[2][1] = 0.5f;
-    instanceColors[2][2] = 0.5f;
-    instanceColors[2][3] = 0.5f;
-  }
-  if (transforms->count > 3) {
-    instanceColors[3][0] = 0.0f;
-    instanceColors[3][1] = 1.0f;
-    instanceColors[3][2] = 1.0f;
-    instanceColors[3][3] = 0.5f;
-  }
-  gameMemory->instanceColors = instanceColors;
+  // gameMemory->instanceColors = instanceColors;
 
   // handle_update(gameState, frameTime, input);
   // render(gameMemory, gameState);
@@ -453,79 +271,6 @@ void update_collision(GameState *gameState, float frameTime) {
         }
       }
     }
-
-    // for (size_t i = 0; i < ePool->entities_dense.count; i++) {
-    //   Entity *e = &ePool->entities_dense.items[i];
-    //   c_Transform *cTp1 = &e->c_transform;
-    //   c_Collision *cCp1 = &e->c_collision;
-    //
-    //   for (size_t j = 0; j < ePool->entities_dense.count; j++) {
-    //     if (i == j)
-    //       continue;
-    //     Entity *e2 = &ePool->entities_dense.items[j];
-    //     c_Transform *cTp2 = &e2->c_transform;
-    //     c_Collision *cCp2 = &e2->c_collision;
-    //
-    //     if (CheckCollisionCircles(
-    //             (Vector2){cTp1->pos.x, cTp1->pos.y}, cCp1->radius,
-    //             (Vector2){cTp2->pos.x, cTp2->pos.y}, cCp2->radius)) {
-    //       Vector3 delta = Vector3Subtract(cTp1->pos, cTp2->pos);
-    //       float distance = Vector3Length(delta);
-    //       Vector3 n12 = Vector3Normalize(delta);
-    //       // If objects are spawned on top of each other delta is 0.0.
-    //       if (distance == 0.0f) {
-    //         n12 = (Vector3){0.0f, 1.0f, 0.0f}; // YODO: test other kinds of
-    //         forces
-    //       } else {
-    //         n12 = Vector3Normalize(delta);
-    //       }
-    //       float overlap = (cCp1->radius + cCp2->radius) - distance;
-    //       float totalInverseMass = cCp1->inverseMass + cCp2->inverseMass;
-    //       if (totalInverseMass <= 0)
-    //         break; // infinite mass impulses have no effect
-    //
-    //       if (totalInverseMass >
-    //           0) { // Only separate if at least one has finite mass
-    //         Vector3 separation1 =
-    //             Vector3Scale(n12, overlap * cCp2->inverseMass /
-    //             totalInverseMass);
-    //         Vector3 separation2 = Vector3Scale(n12, -overlap *
-    //         cCp1->inverseMass /
-    //                                                     totalInverseMass);
-    //         cTp1->pos = Vector3Add(cTp1->pos, separation1);
-    //         cTp2->pos = Vector3Add(cTp2->pos, separation2);
-    //       } else {
-    //         // Both infinite mass: don't separate (or handle as static)
-    //       }
-    //       cCp1->collisionCount++;
-    //       Vector3 dV12 = Vector3Subtract(cTp1->v, cTp2->v);
-    //       float Vs = Vector3DotProduct(dV12, n12); // separation velocity
-    //
-    //       if (Vs > 0) {
-    //         break; // contact is either separating or stationary no impulse
-    //                // needed
-    //       }
-    //       float nVs =
-    //           -Vs * cTp1->restitution; // New separation velocity with
-    //           restitution
-    //       float deltaV = nVs - Vs;
-    //
-    //       // TODO: not checking if no particle -> colliding with wall? etc?
-    //       in
-    //       // example there is
-    //
-    //       float impulse = deltaV / totalInverseMass;
-    //
-    //       Vector3 impulsePerIMass = Vector3Scale(n12, impulse);
-    //
-    //       cTp1->v = Vector3Add(cTp1->v,
-    //                            Vector3Scale(impulsePerIMass,
-    //                            cCp1->inverseMass));
-    //       cTp2->v = Vector3Subtract(
-    //           cTp2->v, Vector3Scale(impulsePerIMass, cCp2->inverseMass));
-    //     }
-    //   }
-    // }
   }
 }
 
@@ -577,7 +322,8 @@ void handle_init(GameMemory *gameMemory, GameState *gameState) {
   gameState->transientAllocator =
       create_arena_allocator(&gameState->transientArena);
 
-  arr_mat4 *transforms = arr_mat4_create(5, &gameState->permanentAllocator);
+  arr_Matrix *transforms =
+      arr_Matrix_create_with_allocator(5, &gameState->permanentAllocator);
 
   // EntityPoolAllocator poolAllocator = {arena_alloc,
   // &gameState->permanentArena};
@@ -686,4 +432,184 @@ Entity entity_create_spawner_entity(void) {
       entity_create_physics_particle((Vector3){0, 0, 0}, (Vector3){0, 0, 0});
   e.spawnEntity->c_transform.a = (Vector3){0, 0, 0};
   return e;
+}
+void render(GameMemory *gameMemory, GameState *gameState) {
+  RenderQueue *renderQueue = (RenderQueue *)gameState->transientAllocator.alloc(
+      gameState->transientAllocator.context, sizeof(RenderQueue));
+  renderQueue->count = 0;
+  renderQueue->isMeshReloadRequired = false;
+
+  size_t maxTransforms = 10000;
+  Matrix *sphereTransforms = (Matrix *)gameState->transientAllocator.alloc(
+      gameState->transientAllocator.context, sizeof(Matrix) * maxTransforms);
+  size_t sphereCount = 0;
+
+  gameMemory->renderQueue = renderQueue;
+
+  for (size_t i = 0; i < gameState->entityPool->entities_dense.count &&
+                     sphereCount < maxTransforms;
+       i++) {
+    Entity *e = &gameState->entityPool->entities_dense.items[i];
+    if ((e->flags & ENTITY_FLAG_VISIBLE) &&
+        (e->flags & ENTITY_FLAG_HAS_RENDER)) {
+      Matrix t = MatrixTranslate(e->c_transform.pos.x, e->c_transform.pos.y,
+                                 e->c_transform.pos.z);
+      float scaleFactor = e->c_render.renderRadius * 2.0f;
+      Matrix s = MatrixScale(scaleFactor, scaleFactor, scaleFactor);
+      sphereTransforms[sphereCount++] = MatrixMultiply(s, t);
+    }
+  }
+  // Push instanced render command
+  //   if (sphereCount > 0) {
+  //     renderQueue->instanceMesh = &gameState->instancedMesh;
+  //     // TODO: workaround. sometimes intanceMesh VAO etc is 0
+  //     //  not sure why.
+  //     if (gameState->instancedMeshUpdated ||
+  //         gameState->instancedMesh.vaoId == 0) {
+  //       renderQueue->isMeshReloadRequired = true;
+  //       gameState->instancedMeshUpdated = false;
+  //     }
+  //     RenderCommand cmd = {RENDER_INSTANCED,
+  //                          .instance = {renderQueue->instanceMesh,
+  //                                       sphereTransforms, NULL,
+  //                                       sphereCount}};
+  //     push_render_command(renderQueue, cmd);
+  // }
+
+  // ==================== BOUNDS DEBUG RENDERING ====================
+  RenderCommand cubeCmd = {
+      RENDER_CUBE_3D,
+      .cube3D = {false, 1, gameState->maxBounds.x, gameState->maxBounds.y,
+                 gameState->maxBounds.z,
+                 (Color){255, 0, 0, 50}}}; // wireFrame=false, origin=0
+                                           // (center), dimensions, color
+  push_render_command(renderQueue, cubeCmd);
+
+  Color boundsColorX = (Color){255, 0, 0, 200};
+  Color boundsColorY = (Color){0, 0, 255, 200};
+  Color boundsColorZ = (Color){0, 255, 0, 200};
+
+  Vector3 min = gameState->minBounds;
+  Vector3 max = gameState->maxBounds;
+  // Bottom face
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, min.y, min.z},
+                                                 (Vector3){max.x, min.y, min.z},
+                                                 boundsColorX}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, min.y, min.z},
+                                                 (Vector3){max.x, max.y, min.z},
+                                                 boundsColorX}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, max.y, min.z},
+                                                 (Vector3){min.x, max.y, min.z},
+                                                 boundsColorY}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, max.y, min.z},
+                                                 (Vector3){min.x, min.y, min.z},
+                                                 boundsColorY}});
+  // Top face
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, min.y, max.z},
+                                                 (Vector3){max.x, min.y, max.z},
+                                                 boundsColorZ}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, min.y, max.z},
+                                                 (Vector3){max.x, max.y, max.z},
+                                                 boundsColorZ}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, max.y, max.z},
+                                                 (Vector3){min.x, max.y, max.z},
+                                                 boundsColorX}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, max.y, max.z},
+                                                 (Vector3){min.x, min.y, max.z},
+                                                 boundsColorX}});
+  // Vertical edges
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, min.y, min.z},
+                                                 (Vector3){min.x, min.y, max.z},
+                                                 boundsColorY}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, min.y, min.z},
+                                                 (Vector3){max.x, min.y, max.z},
+                                                 boundsColorX}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, max.y, min.z},
+                                                 (Vector3){max.x, max.y, max.z},
+                                                 boundsColorZ}});
+  push_render_command(
+      renderQueue,
+      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, max.y, min.z},
+                                                 (Vector3){min.x, max.y, max.z},
+                                                 boundsColorY}});
+
+  // ==================== SPATIAL GRID DEBUG RENDERING ====================
+  if (gameState->sGrid && gameState->sGrid->isInitalized) {
+    float spacing = (float)gameState->sGrid->spacing;
+    Vector3 min = gameState->minBounds;
+    Vector3 max = gameState->maxBounds;
+    int numX = gameState->sGrid->numX;
+    int numY = gameState->sGrid->numY;
+    Color gridColor = (Color){100, 255, 100, 255};
+
+    // Vertical grid lines
+    for (int x = 0; x <= numX; x++) {
+      float gx = min.x + x * spacing;
+      push_render_command(
+          renderQueue,
+          (RenderCommand){RENDER_LINE_3D,
+                          .line3D = {(Vector3){gx, min.y, min.z},
+                                     (Vector3){gx, max.y, min.z}, gridColor}});
+      push_render_command(
+          renderQueue,
+          (RenderCommand){RENDER_LINE_3D,
+                          .line3D = {(Vector3){gx, min.y, max.z},
+                                     (Vector3){gx, max.y, max.z}, gridColor}});
+    }
+    // Horizontal grid lines
+    for (int y = 0; y <= numY; y++) {
+      float gy = min.y + y * spacing;
+      push_render_command(
+          renderQueue,
+          (RenderCommand){RENDER_LINE_3D,
+                          .line3D = {(Vector3){min.x, gy, min.z},
+                                     (Vector3){max.x, gy, min.z}, gridColor}});
+      push_render_command(
+          renderQueue,
+          (RenderCommand){RENDER_LINE_3D,
+                          .line3D = {(Vector3){min.x, gy, max.z},
+                                     (Vector3){max.x, gy, max.z}, gridColor}});
+    }
+    // // Cell centers
+    // for (int x = 0; x < numX; x++) {
+    //   for (int y = 0; y < numY; y++) {
+    //     // CELL CENTER
+    //     float cellCenterX = min.x + (x + 0.5f) * spacing;
+    //     float cellCenterY = min.y + (y + 0.5f) * spacing;
+    //     float cellCenterZ = max.z;
+    //     float sphereRadius = 3.0f;
+    //     Color cellColor = (Color){(25 * x) % 255, (25 * y) % 255, 0, 200};
+    //
+    //     push_render_command(
+    //         renderQueue,
+    //         (RenderCommand){
+    //             RENDER_SPHERE_3D,
+    //             .sphere3D = {(Vector3){cellCenterX, cellCenterY,
+    //             cellCenterZ},
+    //                          sphereRadius, cellColor}});
+    //   }
+    // }
+  }
 }

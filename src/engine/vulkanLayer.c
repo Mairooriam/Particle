@@ -1,4 +1,3 @@
-#include <corecrt_math_defines.h>
 #include "vulkanLayer.h"
 #include <assert.h>
 #include <math.h>
@@ -7,8 +6,9 @@
 #include <vulkan/vk_platform.h>
 #include <vulkan/vulkan_core.h>
 
-#include "utils.h"
+#include "internal/math/raymath.h"
 #include "shared.h"
+#include "shared/shared.h"
 #include "time.h"
 #define VK_USE_PLATFORM_WIN32_KHR
 #define GLFW_INCLUDE_VULKAN
@@ -397,7 +397,7 @@ void updateVertexBuffer(vulkanContext *ctx, const Vertex *newVertices,
 // dont add everything to ctx just the stuff thats used also elsewhere
 void recordCommandBuffer(vulkanContext *ctx, VkCommandBuffer cmdBuffer,
                          uint32_t imageIndex, size_t indiceCount,
-                         arr_mat4 *transforms) {
+                         arr_Matrix *transforms) {
   assert(ctx->swapChainFramebuffers &&
          "Dont call record command buffer without frambuffer");
   VkCommandBufferBeginInfo beginInfo = {0};
@@ -1137,8 +1137,8 @@ void vkInit(vulkanContext *ctx, GLFWwindow *_window,
 }
 
 void vkDrawFrame(vulkanContext *ctx, const Vertex *vertices,
-                 uint32_t vertexCount, size_t indiceCount, arr_mat4 *transforms,
-                 vec4 *colors) {
+                 uint32_t vertexCount, size_t indiceCount,
+                 arr_Matrix *transforms, Vector4 *colors) {
   // updateVertexBuffer(ctx, vertices, vertexCount);
 
   // ==================== DRAW FRAME ====================
@@ -1409,7 +1409,7 @@ void createUniformBuffers(vulkanContext *ctx) {
 
 // TODO: abstract windows.h away just generic getTime()
 void updateUniformBuffer(vulkanContext *ctx, uint32_t currentImage,
-                         arr_mat4 *transforms, vec4 *colors) {
+                         arr_Matrix *transforms, Vector4 *colors) {
   static LARGE_INTEGER frequency;
   static LARGE_INTEGER startTime;
   static int initialized = 0;
@@ -1433,31 +1433,27 @@ void updateUniformBuffer(vulkanContext *ctx, uint32_t currentImage,
     numInstances = MAX_INSTANCES;
 
   for (size_t i = 0; i < numInstances; i++) {
-    memcpy(ubo.models[i], &transforms->items[i], sizeof(mat4));
-    memcpy(ubo.colors[i], colors[i], sizeof(vec4));
-  }
-  for (size_t i = 0; i < transforms->count; i++) {
-    printf("Instance %zu: R=%f, G=%f, B=%f, A=%f\n", i, ubo.colors[i][0],
-           ubo.colors[i][1], ubo.colors[i][2], ubo.colors[i][3]);
+    ubo.models[i] = transforms->items[i];
+    ubo.colors[i] = colors[i];
   }
   for (size_t i = numInstances; i < MAX_INSTANCES; i++) {
-    glm_mat4_identity(ubo.models[i]);
-    ubo.colors[i][0] = 1.0f;
-    ubo.colors[i][1] = 1.0f;
-    ubo.colors[i][2] = 1.0f;
-    ubo.colors[i][3] = 1.0f;
+    matrix_identity_init(&ubo.models[i]);
+    ubo.colors->x = 1.0f;
+    ubo.colors->y = 1.0f;
+    ubo.colors->z = 1.0f;
+    ubo.colors->w = 1.0f;
   }
 
-  glm_mat4_identity(ubo.view);
-  glm_lookat((vec3){0.0f, 0.0f, 3.0f}, // Eye: 5 units back
-             (vec3){0.0f, 0.0f, 0.0f}, // Target: origin
-             (vec3){0.0f, 3.0f, 0.0f}, // Up: Y-up
-             ubo.view);
+  ubo.view = MatrixLookAt((Vector3){0.0f, 0.0f, 3.0f}, // Eye: 5 units back )
+                          (Vector3){0.0f, 0.0f, 0.0f}, // Target: origin
+                          (Vector3){0.0f, 3.0f, 0.0f}  // Up: Y-up
+  );
+
   float size = 3.0f;
   // glm_ortho(-size, size, -size / aspect, size / aspect, -1.0f, 1.0f,
   // ubo.proj);
-  glm_perspective(glm_rad(45.0f), aspect, 0.01f, 10.0f, ubo.proj);
-  ubo.proj[1][1] *= -1; // Vulkan clip space adjustment
+  ubo.proj = MatrixPerspective(deg_to_rad(45.0f), aspect, 0.01f, 10.0f);
+  ubo.proj.m5 *= -1;
   memcpy(ctx->uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
 }
 void createDescriptorPool(vulkanContext *ctx) {

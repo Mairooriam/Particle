@@ -1,17 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
+project(hotreload_testing C)
 
 set(CMAKE_C_COMPILER "clang-cl")
-
-project(hotreload_testing C)
-if(CMAKE_GENERATOR STREQUAL "Ninja")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fcolor-diagnostics")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcolor-diagnostics")
-    set(CMAKE_COLOR_DIAGNOSTICS ON)
-endif()
 
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic -fdiagnostics-color=always")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -fdiagnostics-color=always")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-gnu-zero-variadic-macro-arguments")  # Suppress ##__VA_ARGS__ warning
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-newline-eof")               # Suppress newline at EOF warnings
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-function")           # Suppress unused function warnings
@@ -19,62 +14,64 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unsafe-buffer-usage")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-implicit-int-enum-cast")  
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-implicit-void-ptr-cast")    # Suppress implicit void* to pointer cast warnings
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -w")   
-# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address")           # Suppress unused function warnings
 
 
-# Raylib paths
-set(RAYLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib")
-set(RAYLIB_INCLUDE_DIR "${RAYLIB_DIR}/include")
+set(CMAKE_TOOLCHAIN_FILE "C:/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE STRING "VCPKG toolchain file")
+set(VCPKG_MANIFEST_MODE ON)
 
-set(RAYLIB_LIB_DIR "${RAYLIB_DIR}")
-# Entity Pool static library
 add_library(entity_lib STATIC
     entity/pool/entityPool.c
 )
-
-find_path(GLFW_INCLUDE_DIR glfw3.h PATHS C:/lib/glfw/include/GLFW REQUIRED)
-find_library(GLFW_LIBRARY glfw3 PATHS C:/bin REQUIRED)
-set(CGLM "$ENV{libDir}/cglm/include")
-message(STATUS "CGLM include path: ${CGLM}")
-
 find_package(Vulkan REQUIRED)
+find_package(glfw3 CONFIG REQUIRED)
 
 target_include_directories(entity_lib PUBLIC 
-${CMAKE_CURRENT_SOURCE_DIR} # REMOVE THIS LATER. NOT NICE
     ${CMAKE_CURRENT_SOURCE_DIR}/entity
     ${CMAKE_CURRENT_SOURCE_DIR}/entity/pool
-    ${CGLM} 
+)
+
+add_executable(engine
+    engine/raylib_platform.c
+    engine/vulkanLayer.c
+)
+
+target_include_directories(engine PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/entity
+    ${CMAKE_CURRENT_SOURCE_DIR}/entity/pool
+    ${CMAKE_CURRENT_SOURCE_DIR}/shared
+)
+
+target_link_libraries(engine PRIVATE
+    glfw
+    Vulkan::Vulkan
+    cglm # REMOVE THIS IN FUTURE
+    winmm
 )
 
 
-
-# Engine executable
-add_executable(engine engine/raylib_platform.c engine/vulkanLayer.c)
-target_include_directories(engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${RAYLIB_INCLUDE_DIR} ${GLFW_INCLUDE_DIR} ${CGLM} $ENV{VULKAN_SDK}/Include     ${CMAKE_CURRENT_SOURCE_DIR}/entity     ${CMAKE_CURRENT_SOURCE_DIR}/entity/pool)
-target_link_directories(engine PRIVATE ${RAYLIB_LIB_DIR} ${GLFW_LIBRARY} winmm Vulkan::Vulkan)
-target_link_libraries(engine PRIVATE raylib winmm Vulkan::Vulkan)
-
-
 # DLL
-add_library(application SHARED app/application.c)
+add_library(application SHARED
+    app/application.c
+    app/spatialGrid.c
+)
 
-# STATIC LINK TO DLL
-target_link_libraries(application PRIVATE entity_lib)
+target_include_directories(application PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/shared
+)
 
-# Shared interface
-target_include_directories(engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(application PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CGLM})
-target_include_directories(application PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../deps/raylib-master/build/raylib/include)
-# Set output name for DLL to match LoadLibraryA("application.dll")
+target_link_libraries(application PRIVATE
+    entity_lib
+)
+
 set_target_properties(application PROPERTIES OUTPUT_NAME "application_being_written")
-
 
 target_compile_definitions(application PRIVATE INTERNAL_BUILD)
 target_compile_definitions(engine PRIVATE INTERNAL_BUILD)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_definitions(entity_lib PRIVATE SLOW_CODE_ALLOWED)
-    target_compile_definitions(entity_lib PRIVATE ENTITY_POOL_DEVELOPMENT)
+    target_compile_definitions(entity_lib PRIVATE SLOW_CODE_ALLOWED ENTITY_POOL_DEVELOPMENT)
     target_compile_definitions(engine PRIVATE SLOW_CODE_ALLOWED)
     target_compile_definitions(application PRIVATE SLOW_CODE_ALLOWED)
 endif()
