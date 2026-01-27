@@ -1,6 +1,6 @@
 #pragma once
 
-#include "shared/shared.h"
+#include "shared.h"
 // ================================
 // ENTITY FLAGS (up to 64, using uint64_t)
 // ================================

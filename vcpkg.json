@@ -2,8 +2,6 @@
   "name": "spatial-hashing",
   "version": "1.0.0",
   "dependencies": [
-    "glfw3",
-    "vulkan",
-    "cglm"
+    "glfw3"
   ]
 }

@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 project(hotreload_testing C)
-
-set(CMAKE_C_COMPILER "clang-cl")
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+#    set(CMAKE_C_COMPILER "clang-cl")
+#    set(CMAKE_CXX_COMPILER "clang-cl")
 
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -28,6 +29,7 @@ find_package(glfw3 CONFIG REQUIRED)
 target_include_directories(entity_lib PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/entity
     ${CMAKE_CURRENT_SOURCE_DIR}/entity/pool
+       ${CMAKE_CURRENT_SOURCE_DIR}/shared
 )
 
 add_executable(engine
@@ -40,18 +42,21 @@ target_include_directories(engine PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/entity
     ${CMAKE_CURRENT_SOURCE_DIR}/entity/pool
     ${CMAKE_CURRENT_SOURCE_DIR}/shared
+        ${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/include/GLFW
+     $ENV{VULKAN_SDK}/Include
 )
 
 target_link_libraries(engine PRIVATE
     glfw
-    Vulkan::Vulkan
-    cglm # REMOVE THIS IN FUTURE
+    $ENV{VULKAN_SDK}/Lib/vulkan-1.lib
+    # cglm # REMOVE THIS IN FUTURE
     winmm
 )
 
 
 # DLL
 add_library(application SHARED
+
     app/application.c
     app/spatialGrid.c
 )
@@ -64,7 +69,7 @@ target_include_directories(application PRIVATE
 target_link_libraries(application PRIVATE
     entity_lib
 )
-
+target_link_options(application PRIVATE -Xlinker /SUBSYSTEM:WINDOWS)
 set_target_properties(application PROPERTIES OUTPUT_NAME "application_being_written")
 
 target_compile_definitions(application PRIVATE INTERNAL_BUILD)
