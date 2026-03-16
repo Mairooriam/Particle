@@ -1,5 +1,8 @@
-Resources
+### Learning repository
 
+
+### TODO
+- Make website and move .gifs away from the repo. 
 
 
 ### Initial steps
@@ -32,6 +35,8 @@ Resources
 - Playing back recorded input while testing hotreloading
 ![Hot Playback](resources/hotPlayback.gif)
 ### Hello triangle with vulkan
+- https://vulkan-tutorial.com/ 
+- https://vulkan.lunarg.com/sdk/home
 ![Vulkan Simulation 1](resources/vulkan1.gif)
 ### Learning basic transforms with vulkan
 ![Vulkan Transforms](resources/vulkanTransforms.gif)
