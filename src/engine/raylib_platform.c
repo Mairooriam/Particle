@@ -1,6 +1,6 @@
 
 #include <math.h>
-#include "glfw3.h"
+#include "glfw/glfw3.h"
 #include "raylib_platfrom.h"
 #include "log.h"
 
