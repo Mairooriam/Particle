@@ -16,10 +16,6 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-implicit-int-enum-cast")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-implicit-void-ptr-cast")    # Suppress implicit void* to pointer cast warnings
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -w")   
 
-
-set(CMAKE_TOOLCHAIN_FILE "C:/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE STRING "VCPKG toolchain file")
-set(VCPKG_MANIFEST_MODE ON)
-
 add_library(entity_lib STATIC
     entity/pool/entityPool.c
 )
@@ -42,8 +38,8 @@ target_include_directories(engine PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/entity
     ${CMAKE_CURRENT_SOURCE_DIR}/entity/pool
     ${CMAKE_CURRENT_SOURCE_DIR}/shared
-        ${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/include/GLFW
      $ENV{VULKAN_SDK}/Include
+    ${glfw3_INCLUDE_DIRS} 
 )
 
 target_link_libraries(engine PRIVATE
