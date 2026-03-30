@@ -137,6 +137,7 @@ void render() {
   // Device
   uint32_t deviceCount{0};
   chk(vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr));
+
   std::vector<VkPhysicalDevice> devices(deviceCount);
   chk(vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data()));
   // TODO: add proper score selection
