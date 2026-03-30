@@ -140,6 +140,7 @@ void render() {
   std::vector<VkPhysicalDevice> devices(deviceCount);
   chk(vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data()));
   // TODO: add proper score selection
+  //
   uint32_t deviceIndex = 1;
   // if (argc > 1) {
   //   deviceIndex = std::stoi(argv[1]);
