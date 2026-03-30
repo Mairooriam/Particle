@@ -1,0 +1,32 @@
+[
+{
+  "directory": "D:/repositories/Particle/build/clang-debug",
+  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -DENTITY_POOL_DEVELOPMENT -DSLOW_CODE_ALLOWED -ID:\\repositories\\Particle\\src\\entity -ID:\\repositories\\Particle\\src\\entity\\pool -ID:\\repositories\\Particle\\src\\shared /DWIN32 /D_WINDOWS /W3 -Wall -Wextra -Wpedantic -fdiagnostics-color=always -Wno-gnu-zero-variadic-macro-arguments -Wno-newline-eof -Wno-unused-function -Wno-unsafe-buffer-usage -Wno-implicit-int-enum-cast -Wno-implicit-void-ptr-cast -w /MDd /Zi /Ob0 /Od /RTC1 /Fosrc\\CMakeFiles\\entity_lib.dir\\entity\\pool\\entityPool.c.obj /Fdsrc\\CMakeFiles\\entity_lib.dir\\entity_lib.pdb -c -- D:\\repositories\\Particle\\src\\entity\\pool\\entityPool.c",
+  "file": "D:/repositories/Particle/src/entity/pool/entityPool.c",
+  "output": "D:/repositories/Particle/build/clang-debug/src/CMakeFiles/entity_lib.dir/entity/pool/entityPool.c.obj"
+},
+{
+  "directory": "D:/repositories/Particle/build/clang-debug",
+  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -DINTERNAL_BUILD -DSLOW_CODE_ALLOWED -ID:\\repositories\\Particle\\src -ID:\\repositories\\Particle\\src\\entity -ID:\\repositories\\Particle\\src\\entity\\pool -ID:\\repositories\\Particle\\src\\shared -IC:\\VulkanSDK\\1.4.341.1\\Include -imsvcD:\\libs\\glfw3\\include /DWIN32 /D_WINDOWS /W3 -Wall -Wextra -Wpedantic -fdiagnostics-color=always -Wno-gnu-zero-variadic-macro-arguments -Wno-newline-eof -Wno-unused-function -Wno-unsafe-buffer-usage -Wno-implicit-int-enum-cast -Wno-implicit-void-ptr-cast -w /MDd /Zi /Ob0 /Od /RTC1 /Fosrc\\CMakeFiles\\engine.dir\\engine\\raylib_platform.c.obj /Fdsrc\\CMakeFiles\\engine.dir\\ -c -- D:\\repositories\\Particle\\src\\engine\\raylib_platform.c",
+  "file": "D:/repositories/Particle/src/engine/raylib_platform.c",
+  "output": "D:/repositories/Particle/build/clang-debug/src/CMakeFiles/engine.dir/engine/raylib_platform.c.obj"
+},
+{
+  "directory": "D:/repositories/Particle/build/clang-debug",
+  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -DINTERNAL_BUILD -DSLOW_CODE_ALLOWED -ID:\\repositories\\Particle\\src -ID:\\repositories\\Particle\\src\\entity -ID:\\repositories\\Particle\\src\\entity\\pool -ID:\\repositories\\Particle\\src\\shared -IC:\\VulkanSDK\\1.4.341.1\\Include -imsvcD:\\libs\\glfw3\\include /DWIN32 /D_WINDOWS /W3 -Wall -Wextra -Wpedantic -fdiagnostics-color=always -Wno-gnu-zero-variadic-macro-arguments -Wno-newline-eof -Wno-unused-function -Wno-unsafe-buffer-usage -Wno-implicit-int-enum-cast -Wno-implicit-void-ptr-cast -w /MDd /Zi /Ob0 /Od /RTC1 /Fosrc\\CMakeFiles\\engine.dir\\engine\\vulkanLayer.c.obj /Fdsrc\\CMakeFiles\\engine.dir\\ -c -- D:\\repositories\\Particle\\src\\engine\\vulkanLayer.c",
+  "file": "D:/repositories/Particle/src/engine/vulkanLayer.c",
+  "output": "D:/repositories/Particle/build/clang-debug/src/CMakeFiles/engine.dir/engine/vulkanLayer.c.obj"
+},
+{
+  "directory": "D:/repositories/Particle/build/clang-debug",
+  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -DINTERNAL_BUILD -DSLOW_CODE_ALLOWED -Dapplication_EXPORTS -ID:\\repositories\\Particle\\src -ID:\\repositories\\Particle\\src\\shared -ID:\\repositories\\Particle\\src\\entity -ID:\\repositories\\Particle\\src\\entity\\pool /DWIN32 /D_WINDOWS /W3 -Wall -Wextra -Wpedantic -fdiagnostics-color=always -Wno-gnu-zero-variadic-macro-arguments -Wno-newline-eof -Wno-unused-function -Wno-unsafe-buffer-usage -Wno-implicit-int-enum-cast -Wno-implicit-void-ptr-cast -w /MDd /Zi /Ob0 /Od /RTC1 /Fosrc\\CMakeFiles\\application.dir\\app\\application.c.obj /Fdsrc\\CMakeFiles\\application.dir\\ -c -- D:\\repositories\\Particle\\src\\app\\application.c",
+  "file": "D:/repositories/Particle/src/app/application.c",
+  "output": "D:/repositories/Particle/build/clang-debug/src/CMakeFiles/application.dir/app/application.c.obj"
+},
+{
+  "directory": "D:/repositories/Particle/build/clang-debug",
+  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -DINTERNAL_BUILD -DSLOW_CODE_ALLOWED -Dapplication_EXPORTS -ID:\\repositories\\Particle\\src -ID:\\repositories\\Particle\\src\\shared -ID:\\repositories\\Particle\\src\\entity -ID:\\repositories\\Particle\\src\\entity\\pool /DWIN32 /D_WINDOWS /W3 -Wall -Wextra -Wpedantic -fdiagnostics-color=always -Wno-gnu-zero-variadic-macro-arguments -Wno-newline-eof -Wno-unused-function -Wno-unsafe-buffer-usage -Wno-implicit-int-enum-cast -Wno-implicit-void-ptr-cast -w /MDd /Zi /Ob0 /Od /RTC1 /Fosrc\\CMakeFiles\\application.dir\\app\\spatialGrid.c.obj /Fdsrc\\CMakeFiles\\application.dir\\ -c -- D:\\repositories\\Particle\\src\\app\\spatialGrid.c",
+  "file": "D:/repositories/Particle/src/app/spatialGrid.c",
+  "output": "D:/repositories/Particle/build/clang-debug/src/CMakeFiles/application.dir/app/spatialGrid.c.obj"
+}
+]

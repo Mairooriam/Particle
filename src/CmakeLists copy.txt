@@ -1,0 +1,67 @@
+cmake_minimum_required(VERSION 3.10)
+project(hotreload_testing C)
+
+## ENTITY
+add_library(entity_lib STATIC
+    entity/pool/entityPool.c
+)
+target_include_directories(entity_lib PUBLIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}/entity
+    ${CMAKE_CURRENT_SOURCE_DIR}/entity/pool
+       ${CMAKE_CURRENT_SOURCE_DIR}/shared
+)
+
+#ENGINE
+add_executable(engine
+    engine/raylib_platform.c
+    engine/vulkanLayer.c
+)
+target_include_directories(engine PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/entity
+    ${CMAKE_CURRENT_SOURCE_DIR}/entity/pool
+    ${CMAKE_CURRENT_SOURCE_DIR}/shared
+     $ENV{VULKAN_SDK}/Include
+    ${glfw3_INCLUDE_DIRS} 
+)
+target_link_libraries(engine PRIVATE
+    glfw
+    $ENV{VULKAN_SDK}/Lib/vulkan-1.lib
+    winmm
+)
+
+
+# DLL
+add_library(application SHARED
+    app/application.c
+    app/spatialGrid.c
+)
+target_include_directories(application PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/shared
+)
+
+target_link_libraries(application PRIVATE
+    entity_lib
+)
+
+target_link_options(application PRIVATE -Xlinker /SUBSYSTEM:WINDOWS)
+set_target_properties(application PROPERTIES OUTPUT_NAME "application_being_written")
+
+target_compile_definitions(application PRIVATE INTERNAL_BUILD)
+target_compile_definitions(engine PRIVATE INTERNAL_BUILD)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_definitions(entity_lib PRIVATE SLOW_CODE_ALLOWED ENTITY_POOL_DEVELOPMENT)
+    target_compile_definitions(engine PRIVATE SLOW_CODE_ALLOWED)
+    target_compile_definitions(application PRIVATE SLOW_CODE_ALLOWED)
+endif()
+
+
+
+add_custom_command(TARGET application POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy application_being_written.dll application.dll
+    COMMAND ${CMAKE_COMMAND} -E remove application_being_written.dll
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    VERBATIM
+)
