@@ -1,32 +1,56 @@
 [
 {
   "directory": "D:/repositories/Particle/build/clang-debug",
-  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -DENTITY_POOL_DEVELOPMENT -DSLOW_CODE_ALLOWED -ID:\\repositories\\Particle\\src\\entity -ID:\\repositories\\Particle\\src\\entity\\pool -ID:\\repositories\\Particle\\src\\shared /DWIN32 /D_WINDOWS /W3 -Wall -Wextra -Wpedantic -fdiagnostics-color=always -Wno-gnu-zero-variadic-macro-arguments -Wno-newline-eof -Wno-unused-function -Wno-unsafe-buffer-usage -Wno-implicit-int-enum-cast -Wno-implicit-void-ptr-cast -w /MDd /Zi /Ob0 /Od /RTC1 /Fosrc\\CMakeFiles\\entity_lib.dir\\entity\\pool\\entityPool.c.obj /Fdsrc\\CMakeFiles\\entity_lib.dir\\entity_lib.pdb -c -- D:\\repositories\\Particle\\src\\entity\\pool\\entityPool.c",
-  "file": "D:/repositories/Particle/src/entity/pool/entityPool.c",
-  "output": "D:/repositories/Particle/build/clang-debug/src/CMakeFiles/entity_lib.dir/entity/pool/entityPool.c.obj"
+  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -ID:\\repositories\\Particle\\external\\tinyobj -ID:\\repositories\\Particle\\external\\ktx\\include -ID:\\repositories\\Particle\\external\\ktx\\other_include -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /FoCMakeFiles\\ktx.dir\\external\\ktx\\lib\\texture.c.obj /FdCMakeFiles\\ktx.dir\\ktx.pdb -c -- D:\\repositories\\Particle\\external\\ktx\\lib\\texture.c",
+  "file": "D:/repositories/Particle/external/ktx/lib/texture.c",
+  "output": "D:/repositories/Particle/build/clang-debug/CMakeFiles/ktx.dir/external/ktx/lib/texture.c.obj"
 },
 {
   "directory": "D:/repositories/Particle/build/clang-debug",
-  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -DINTERNAL_BUILD -DSLOW_CODE_ALLOWED -ID:\\repositories\\Particle\\src -ID:\\repositories\\Particle\\src\\entity -ID:\\repositories\\Particle\\src\\entity\\pool -ID:\\repositories\\Particle\\src\\shared -IC:\\VulkanSDK\\1.4.341.1\\Include -imsvcD:\\libs\\glfw3\\include /DWIN32 /D_WINDOWS /W3 -Wall -Wextra -Wpedantic -fdiagnostics-color=always -Wno-gnu-zero-variadic-macro-arguments -Wno-newline-eof -Wno-unused-function -Wno-unsafe-buffer-usage -Wno-implicit-int-enum-cast -Wno-implicit-void-ptr-cast -w /MDd /Zi /Ob0 /Od /RTC1 /Fosrc\\CMakeFiles\\engine.dir\\engine\\raylib_platform.c.obj /Fdsrc\\CMakeFiles\\engine.dir\\ -c -- D:\\repositories\\Particle\\src\\engine\\raylib_platform.c",
-  "file": "D:/repositories/Particle/src/engine/raylib_platform.c",
-  "output": "D:/repositories/Particle/build/clang-debug/src/CMakeFiles/engine.dir/engine/raylib_platform.c.obj"
+  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -ID:\\repositories\\Particle\\external\\tinyobj -ID:\\repositories\\Particle\\external\\ktx\\include -ID:\\repositories\\Particle\\external\\ktx\\other_include -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /FoCMakeFiles\\ktx.dir\\external\\ktx\\lib\\hashlist.c.obj /FdCMakeFiles\\ktx.dir\\ktx.pdb -c -- D:\\repositories\\Particle\\external\\ktx\\lib\\hashlist.c",
+  "file": "D:/repositories/Particle/external/ktx/lib/hashlist.c",
+  "output": "D:/repositories/Particle/build/clang-debug/CMakeFiles/ktx.dir/external/ktx/lib/hashlist.c.obj"
 },
 {
   "directory": "D:/repositories/Particle/build/clang-debug",
-  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -DINTERNAL_BUILD -DSLOW_CODE_ALLOWED -ID:\\repositories\\Particle\\src -ID:\\repositories\\Particle\\src\\entity -ID:\\repositories\\Particle\\src\\entity\\pool -ID:\\repositories\\Particle\\src\\shared -IC:\\VulkanSDK\\1.4.341.1\\Include -imsvcD:\\libs\\glfw3\\include /DWIN32 /D_WINDOWS /W3 -Wall -Wextra -Wpedantic -fdiagnostics-color=always -Wno-gnu-zero-variadic-macro-arguments -Wno-newline-eof -Wno-unused-function -Wno-unsafe-buffer-usage -Wno-implicit-int-enum-cast -Wno-implicit-void-ptr-cast -w /MDd /Zi /Ob0 /Od /RTC1 /Fosrc\\CMakeFiles\\engine.dir\\engine\\vulkanLayer.c.obj /Fdsrc\\CMakeFiles\\engine.dir\\ -c -- D:\\repositories\\Particle\\src\\engine\\vulkanLayer.c",
-  "file": "D:/repositories/Particle/src/engine/vulkanLayer.c",
-  "output": "D:/repositories/Particle/build/clang-debug/src/CMakeFiles/engine.dir/engine/vulkanLayer.c.obj"
+  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -ID:\\repositories\\Particle\\external\\tinyobj -ID:\\repositories\\Particle\\external\\ktx\\include -ID:\\repositories\\Particle\\external\\ktx\\other_include -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /FoCMakeFiles\\ktx.dir\\external\\ktx\\lib\\checkheader.c.obj /FdCMakeFiles\\ktx.dir\\ktx.pdb -c -- D:\\repositories\\Particle\\external\\ktx\\lib\\checkheader.c",
+  "file": "D:/repositories/Particle/external/ktx/lib/checkheader.c",
+  "output": "D:/repositories/Particle/build/clang-debug/CMakeFiles/ktx.dir/external/ktx/lib/checkheader.c.obj"
 },
 {
   "directory": "D:/repositories/Particle/build/clang-debug",
-  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -DINTERNAL_BUILD -DSLOW_CODE_ALLOWED -Dapplication_EXPORTS -ID:\\repositories\\Particle\\src -ID:\\repositories\\Particle\\src\\shared -ID:\\repositories\\Particle\\src\\entity -ID:\\repositories\\Particle\\src\\entity\\pool /DWIN32 /D_WINDOWS /W3 -Wall -Wextra -Wpedantic -fdiagnostics-color=always -Wno-gnu-zero-variadic-macro-arguments -Wno-newline-eof -Wno-unused-function -Wno-unsafe-buffer-usage -Wno-implicit-int-enum-cast -Wno-implicit-void-ptr-cast -w /MDd /Zi /Ob0 /Od /RTC1 /Fosrc\\CMakeFiles\\application.dir\\app\\application.c.obj /Fdsrc\\CMakeFiles\\application.dir\\ -c -- D:\\repositories\\Particle\\src\\app\\application.c",
-  "file": "D:/repositories/Particle/src/app/application.c",
-  "output": "D:/repositories/Particle/build/clang-debug/src/CMakeFiles/application.dir/app/application.c.obj"
+  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -ID:\\repositories\\Particle\\external\\tinyobj -ID:\\repositories\\Particle\\external\\ktx\\include -ID:\\repositories\\Particle\\external\\ktx\\other_include -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /FoCMakeFiles\\ktx.dir\\external\\ktx\\lib\\swap.c.obj /FdCMakeFiles\\ktx.dir\\ktx.pdb -c -- D:\\repositories\\Particle\\external\\ktx\\lib\\swap.c",
+  "file": "D:/repositories/Particle/external/ktx/lib/swap.c",
+  "output": "D:/repositories/Particle/build/clang-debug/CMakeFiles/ktx.dir/external/ktx/lib/swap.c.obj"
 },
 {
   "directory": "D:/repositories/Particle/build/clang-debug",
-  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -DINTERNAL_BUILD -DSLOW_CODE_ALLOWED -Dapplication_EXPORTS -ID:\\repositories\\Particle\\src -ID:\\repositories\\Particle\\src\\shared -ID:\\repositories\\Particle\\src\\entity -ID:\\repositories\\Particle\\src\\entity\\pool /DWIN32 /D_WINDOWS /W3 -Wall -Wextra -Wpedantic -fdiagnostics-color=always -Wno-gnu-zero-variadic-macro-arguments -Wno-newline-eof -Wno-unused-function -Wno-unsafe-buffer-usage -Wno-implicit-int-enum-cast -Wno-implicit-void-ptr-cast -w /MDd /Zi /Ob0 /Od /RTC1 /Fosrc\\CMakeFiles\\application.dir\\app\\spatialGrid.c.obj /Fdsrc\\CMakeFiles\\application.dir\\ -c -- D:\\repositories\\Particle\\src\\app\\spatialGrid.c",
-  "file": "D:/repositories/Particle/src/app/spatialGrid.c",
-  "output": "D:/repositories/Particle/build/clang-debug/src/CMakeFiles/application.dir/app/spatialGrid.c.obj"
+  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -ID:\\repositories\\Particle\\external\\tinyobj -ID:\\repositories\\Particle\\external\\ktx\\include -ID:\\repositories\\Particle\\external\\ktx\\other_include -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /FoCMakeFiles\\ktx.dir\\external\\ktx\\lib\\memstream.c.obj /FdCMakeFiles\\ktx.dir\\ktx.pdb -c -- D:\\repositories\\Particle\\external\\ktx\\lib\\memstream.c",
+  "file": "D:/repositories/Particle/external/ktx/lib/memstream.c",
+  "output": "D:/repositories/Particle/build/clang-debug/CMakeFiles/ktx.dir/external/ktx/lib/memstream.c.obj"
+},
+{
+  "directory": "D:/repositories/Particle/build/clang-debug",
+  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -ID:\\repositories\\Particle\\external\\tinyobj -ID:\\repositories\\Particle\\external\\ktx\\include -ID:\\repositories\\Particle\\external\\ktx\\other_include -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /FoCMakeFiles\\ktx.dir\\external\\ktx\\lib\\filestream.c.obj /FdCMakeFiles\\ktx.dir\\ktx.pdb -c -- D:\\repositories\\Particle\\external\\ktx\\lib\\filestream.c",
+  "file": "D:/repositories/Particle/external/ktx/lib/filestream.c",
+  "output": "D:/repositories/Particle/build/clang-debug/CMakeFiles/ktx.dir/external/ktx/lib/filestream.c.obj"
+},
+{
+  "directory": "D:/repositories/Particle/build/clang-debug",
+  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -ID:\\repositories\\Particle\\external\\tinyobj -ID:\\repositories\\Particle\\external\\ktx\\include -ID:\\repositories\\Particle\\external\\ktx\\other_include -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /FoCMakeFiles\\ktx.dir\\external\\ktx\\lib\\vkloader.c.obj /FdCMakeFiles\\ktx.dir\\ktx.pdb -c -- D:\\repositories\\Particle\\external\\ktx\\lib\\vkloader.c",
+  "file": "D:/repositories/Particle/external/ktx/lib/vkloader.c",
+  "output": "D:/repositories/Particle/build/clang-debug/CMakeFiles/ktx.dir/external/ktx/lib/vkloader.c.obj"
+},
+{
+  "directory": "D:/repositories/Particle/build/clang-debug",
+  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -TP -DVK_NO_PROTOTYPES -D_CRT_SECURE_NO_WARNINGS -ID:\\repositories\\Particle\\external\\tinyobj -ID:\\repositories\\Particle\\external\\ktx\\include -ID:\\repositories\\Particle\\external\\ktx\\other_include -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /EHsc -DVK_USE_PLATFORM_WIN32_KHR -DNOMINMAX -D_USE_MATH_DEFINES /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd   -w /Fosrc\\CMakeFiles\\Particle.dir\\engine\\main.cpp.obj /Fdsrc\\CMakeFiles\\Particle.dir\\ -c -- D:\\repositories\\Particle\\src\\engine\\main.cpp",
+  "file": "D:/repositories/Particle/src/engine/main.cpp",
+  "output": "D:/repositories/Particle/build/clang-debug/src/CMakeFiles/Particle.dir/engine/main.cpp.obj"
+},
+{
+  "directory": "D:/repositories/Particle/build/clang-debug",
+  "command": "D:\\DevTools\\LLVM\\bin\\clang-cl.exe  /nologo -TP -DVK_NO_PROTOTYPES -D_CRT_SECURE_NO_WARNINGS -ID:\\repositories\\Particle\\external\\tinyobj -ID:\\repositories\\Particle\\external\\ktx\\include -ID:\\repositories\\Particle\\external\\ktx\\other_include -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /EHsc -DVK_USE_PLATFORM_WIN32_KHR -DNOMINMAX -D_USE_MATH_DEFINES /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd   -w /Fosrc\\CMakeFiles\\Particle.dir\\engine\\vulkanLayer.cpp.obj /Fdsrc\\CMakeFiles\\Particle.dir\\ -c -- D:\\repositories\\Particle\\src\\engine\\vulkanLayer.cpp",
+  "file": "D:/repositories/Particle/src/engine/vulkanLayer.cpp",
+  "output": "D:/repositories/Particle/build/clang-debug/src/CMakeFiles/Particle.dir/engine/vulkanLayer.cpp.obj"
 }
 ]
