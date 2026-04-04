@@ -5,9 +5,9 @@
             "name": "Debug Existing EXE",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/src/engine.exe",
+            "program": "${workspaceFolder}/build/clang-debug/bin/particle.exe",
             "args": [],
-            "cwd": "${workspaceFolder}/build/src",
+            "cwd": "${workspaceFolder}/build/clang-debug/bin",
             "environment": [],
             "stopAtEntry": false
         }

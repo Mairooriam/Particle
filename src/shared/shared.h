@@ -1,11 +1,4 @@
 #pragma once
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include "internal/dynamic_array.h"
-
-#include "internal/mirMath.h"
-#include "internal/memory_allocator.h"
 #include "internal/renderQue.h"
 
 #define Assert(expression)                                                     \
@@ -47,12 +40,3 @@ static GAME_UPDATE(game_update_stub) {
   (void)input;
 }
 
-// ==================== DA functions ====================
-DA_DEFINE(arr_uint32_t)
-DA_DEFINE_ALLOCATOR(arr_uint32_t, MemoryAllocator)
-
-DA_DEFINE(arr_Matrix)
-DA_DEFINE_ALLOCATOR(arr_Matrix, MemoryAllocator)
-
-DA_DEFINE(arr_cstr)
-DA_DEFINE_ALLOCATOR(arr_cstr, MemoryAllocator)

@@ -6,14 +6,7 @@
 # )
 
 
-# target_include_directories(engine PRIVATE
-#     ${CMAKE_CURRENT_SOURCE_DIR}
-#     ${CMAKE_CURRENT_SOURCE_DIR}/entity
-#     ${CMAKE_CURRENT_SOURCE_DIR}/entity/pool
-#     ${CMAKE_CURRENT_SOURCE_DIR}/shared
-#      $ENV{VULKAN_SDK}/Include
-#     ${glfw3_INCLUDE_DIRS} 
-# )
+
 # target_link_libraries(engine PRIVATE
 #     glfw
 #     $ENV{VULKAN_SDK}/Lib/vulkan-1.lib
@@ -21,7 +14,15 @@
 # )
 
 
-add_executable(${NAME} engine/main.cpp engine/vulkanLayer.cpp ../assets/shader.slang)
+add_executable(${NAME} 
+    engine/main.cpp 
+    engine/vulkanLayer.cpp 
+    ../assets/shader.slang
+)
+
+target_include_directories(${NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/shared
+)
 target_compile_definitions(${NAME} PRIVATE VK_NO_PROTOTYPES)
 if (WIN32)
     target_compile_definitions(${NAME} PRIVATE _CRT_SECURE_NO_WARNINGS)
