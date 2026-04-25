@@ -1,17 +1,5 @@
+add_subdirectory(core)
 
-#ENGINE
-# add_executable(engine
-#     engine/raylib_platform.c
-#     engine/vulkanLayer.c
-# )
-
-
-
-# target_link_libraries(engine PRIVATE
-#     glfw
-#     $ENV{VULKAN_SDK}/Lib/vulkan-1.lib
-#     winmm
-# )
 
 
 add_executable(${NAME} 
@@ -29,7 +17,12 @@ if (WIN32)
 endif()
 set_target_properties(${NAME} PROPERTIES DEBUGGER_WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(${NAME} PRIVATE cxx_std_20)
-target_link_libraries(${NAME} PRIVATE ${SDL_LIBRARY} ktx ${Slang_LIBRARY})
+target_link_libraries(${NAME} PRIVATE 
+    ${SDL_LIBRARY} 
+    ktx 
+    ${Slang_LIBRARY}
+    core
+    )
 if (NOT WIN32)
     target_link_libraries(${NAME} PRIVATE glm::glm-header-only)
 endif()
