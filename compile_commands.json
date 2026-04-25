@@ -43,14 +43,26 @@
 },
 {
   "directory": "C:/Users/35850/Desktop/repositories/Particle/build/clang-debug",
-  "command": "C:\\PROGRA~1\\LLVM\\bin\\clang-cl.exe  /nologo -TP -DVK_NO_PROTOTYPES -D_CRT_SECURE_NO_WARNINGS -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\tinyobj -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\other_include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\shared -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /EHsc -DVK_USE_PLATFORM_WIN32_KHR -DNOMINMAX -D_USE_MATH_DEFINES /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd   -w /Fosrc\\CMakeFiles\\Particle.dir\\engine\\main.cpp.obj /Fdsrc\\CMakeFiles\\Particle.dir\\ -c -- C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\engine\\main.cpp",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\clang-cl.exe  /nologo -TP -DVK_NO_PROTOTYPES -D_CRT_SECURE_NO_WARNINGS -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\tinyobj -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\other_include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\shared -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\.. -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /EHsc -DVK_USE_PLATFORM_WIN32_KHR -DNOMINMAX -D_USE_MATH_DEFINES /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd   -w /Fosrc\\CMakeFiles\\Particle.dir\\engine\\main.cpp.obj /Fdsrc\\CMakeFiles\\Particle.dir\\ -c -- C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\engine\\main.cpp",
   "file": "C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\engine\\main.cpp",
   "output": "src\\CMakeFiles\\Particle.dir\\engine\\main.cpp.obj"
 },
 {
   "directory": "C:/Users/35850/Desktop/repositories/Particle/build/clang-debug",
-  "command": "C:\\PROGRA~1\\LLVM\\bin\\clang-cl.exe  /nologo -TP -DVK_NO_PROTOTYPES -D_CRT_SECURE_NO_WARNINGS -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\tinyobj -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\other_include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\shared -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /EHsc -DVK_USE_PLATFORM_WIN32_KHR -DNOMINMAX -D_USE_MATH_DEFINES /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd   -w /Fosrc\\CMakeFiles\\Particle.dir\\engine\\vulkanLayer.cpp.obj /Fdsrc\\CMakeFiles\\Particle.dir\\ -c -- C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\engine\\vulkanLayer.cpp",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\clang-cl.exe  /nologo -TP -DVK_NO_PROTOTYPES -D_CRT_SECURE_NO_WARNINGS -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\tinyobj -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\other_include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\shared -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\.. -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /EHsc -DVK_USE_PLATFORM_WIN32_KHR -DNOMINMAX -D_USE_MATH_DEFINES /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd   -w /Fosrc\\CMakeFiles\\Particle.dir\\engine\\vulkanLayer.cpp.obj /Fdsrc\\CMakeFiles\\Particle.dir\\ -c -- C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\engine\\vulkanLayer.cpp",
   "file": "C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\engine\\vulkanLayer.cpp",
   "output": "src\\CMakeFiles\\Particle.dir\\engine\\vulkanLayer.cpp.obj"
+},
+{
+  "directory": "C:/Users/35850/Desktop/repositories/Particle/build/clang-debug",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\clang-cl.exe  /nologo -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\tinyobj -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\other_include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\.. -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /Fosrc\\core\\CMakeFiles\\core.dir\\platform\\platform.c.obj /Fdsrc\\core\\CMakeFiles\\core.dir\\core.pdb -c -- C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\platform\\platform.c",
+  "file": "C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\platform\\platform.c",
+  "output": "src\\core\\CMakeFiles\\core.dir\\platform\\platform.c.obj"
+},
+{
+  "directory": "C:/Users/35850/Desktop/repositories/Particle/build/clang-debug",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\clang-cl.exe  /nologo -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\tinyobj -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\other_include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\.. -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /Fosrc\\core\\CMakeFiles\\core.dir\\platform\\windows\\wCore.c.obj /Fdsrc\\core\\CMakeFiles\\core.dir\\core.pdb -c -- C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\platform\\windows\\wCore.c",
+  "file": "C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\platform\\windows\\wCore.c",
+  "output": "src\\core\\CMakeFiles\\core.dir\\platform\\windows\\wCore.c.obj"
 }
 ]
