@@ -1,5 +1,5 @@
 #pragma once
-
+#include "shared/internal/memory_allocator.h"
 #include "internal/math/raymath.h"
 #include "shared.h"
 #include "application_types.h"

@@ -1,7 +1,37 @@
 add_subdirectory(core)
 
+# --- ENTITY STATIC LIB ---
+add_library(entity_lib STATIC
+    entity/pool/entityPool.c
+)
+target_include_directories(entity_lib PUBLIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}/entity
+    ${CMAKE_CURRENT_SOURCE_DIR}/entity/pool
+    ${CMAKE_CURRENT_SOURCE_DIR}/shared
+)
+# --- DLL ---
+add_library(application SHARED
+    app/application.c
+    app/spatialGrid.c
+)
+target_include_directories(application PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/app
+    ${CMAKE_CURRENT_SOURCE_DIR}/shared
+    ${CMAKE_CURRENT_SOURCE_DIR}/entity
+    ${CMAKE_CURRENT_SOURCE_DIR}/entity/pool
+)
+target_link_libraries(application PRIVATE core entity_lib)
+set_target_properties(application PROPERTIES OUTPUT_NAME "application_being_written")
+set_target_properties(application PROPERTIES LINK_FLAGS "/MAP")
 
+add_custom_command(TARGET application POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:application> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/application.dll
+    COMMAND ${CMAKE_COMMAND} -E remove $<TARGET_FILE:application>
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    VERBATIM
+)
 
+# --- main executable ---
 add_executable(${NAME} 
     engine/main.cpp 
     engine/vulkanLayer.cpp 
