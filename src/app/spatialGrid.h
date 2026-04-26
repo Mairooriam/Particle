@@ -1,5 +1,6 @@
 #pragma once
 #include "application_types.h"
+#include "shared/internal/memory_allocator.h"
 #include "entityPool_types.h"
 void spatialGrid_init(SpatialGrid *sGrid, arr_Entity *e);
 void spatialGrid_update_dimensions(SpatialGrid *sGrid, Vector3 minBounds,

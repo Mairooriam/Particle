@@ -55,14 +55,26 @@
 },
 {
   "directory": "C:/Users/35850/Desktop/repositories/Particle/build/clang-debug",
-  "command": "C:\\PROGRA~1\\LLVM\\bin\\clang-cl.exe  /nologo -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\tinyobj -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\other_include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\.. -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /Fosrc\\core\\CMakeFiles\\core.dir\\platform\\platform.c.obj /Fdsrc\\core\\CMakeFiles\\core.dir\\core.pdb -c -- C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\platform\\platform.c",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\clang-cl.exe  /nologo -DLOG_USE_COLOR -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\tinyobj -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\other_include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\.. -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /Fosrc\\core\\CMakeFiles\\core.dir\\log.c.obj /Fdsrc\\core\\CMakeFiles\\core.dir\\core.pdb -c -- C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\log.c",
+  "file": "C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\log.c",
+  "output": "src\\core\\CMakeFiles\\core.dir\\log.c.obj"
+},
+{
+  "directory": "C:/Users/35850/Desktop/repositories/Particle/build/clang-debug",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\clang-cl.exe  /nologo -DLOG_USE_COLOR -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\tinyobj -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\other_include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\.. -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /Fosrc\\core\\CMakeFiles\\core.dir\\platform\\platform.c.obj /Fdsrc\\core\\CMakeFiles\\core.dir\\core.pdb -c -- C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\platform\\platform.c",
   "file": "C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\platform\\platform.c",
   "output": "src\\core\\CMakeFiles\\core.dir\\platform\\platform.c.obj"
 },
 {
   "directory": "C:/Users/35850/Desktop/repositories/Particle/build/clang-debug",
-  "command": "C:\\PROGRA~1\\LLVM\\bin\\clang-cl.exe  /nologo -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\tinyobj -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\other_include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\.. -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /Fosrc\\core\\CMakeFiles\\core.dir\\platform\\windows\\wCore.c.obj /Fdsrc\\core\\CMakeFiles\\core.dir\\core.pdb -c -- C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\platform\\windows\\wCore.c",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\clang-cl.exe  /nologo -DLOG_USE_COLOR -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\tinyobj -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\other_include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\.. -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /Fosrc\\core\\CMakeFiles\\core.dir\\platform\\windows\\wCore.c.obj /Fdsrc\\core\\CMakeFiles\\core.dir\\core.pdb -c -- C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\platform\\windows\\wCore.c",
   "file": "C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\platform\\windows\\wCore.c",
   "output": "src\\core\\CMakeFiles\\core.dir\\platform\\windows\\wCore.c.obj"
+},
+{
+  "directory": "C:/Users/35850/Desktop/repositories/Particle/build/clang-debug",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\clang-cl.exe  /nologo -DLOG_USE_COLOR -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\tinyobj -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\other_include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\.. -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /Fosrc\\core\\CMakeFiles\\core.dir\\string.c.obj /Fdsrc\\core\\CMakeFiles\\core.dir\\core.pdb -c -- C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\string.c",
+  "file": "C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\string.c",
+  "output": "src\\core\\CMakeFiles\\core.dir\\string.c.obj"
 }
 ]

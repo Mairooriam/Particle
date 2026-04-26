@@ -9,9 +9,14 @@
 #include <math.h>
 #include "spatialGrid.h"
 #include "entityPool.h"
+#include <stdlib.h>
+#include "shared/internal/dynamic_array.h"
 
+DA_DEFINE_ALLOCATOR(arr_Matrix, allocator)
 // if moving to c++ to prevent name mangling
 // extern "C" GAME_UPDATE(game_update) { pos->y++; }
+
+DLL_EXPORT
 GAME_UPDATE(game_update) {
   Assert(sizeof(GameState) <= gameMemory->permanentMemorySize);
 

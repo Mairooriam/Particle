@@ -14,30 +14,38 @@ extern "C" {
 uint64_t combine_u32_u32(DWORD low, DWORD high);
 
 // ==================== FILE I/O ====================
-FILETIME wCore_file_get_lastWriteTime(const char* filename);
-void wCore_file_FiletimeToString(char* str, size_t bufsize, FILETIME ft);
-// ==================== CLIPBOARD ====================
-// https://learn.microsoft.com/en-us/windows/win32/dataxchg/clipboard-reference
-// https://learn.microsoft.com/en-us/windows/win32/dataxchg/using-the-clipboard?source=recommendations
 
-// TODO: add rest of windows utils for checking file when needed
+void wCore_file_FiletimeToString(char *str, size_t bufsize, FILETIME ft);
+
+// File I/O API (Windows-specific, for platform.c dispatch)
+MirFileResult wCore_file_open(const char *path, MirFile *out,
+                              MirFileAccess accessType);
+MirFileResult wCore_file_write(MirFile *handle, const void *data, size_t size,
+                               size_t *bytesWritten);
+void wCore_file_close(MirFile *handle);
+MirFileResult wCore_file_size(MirFile *file, size_t *size);
+uint64_t wCore_file_lastWritetime(const char *filename);
+
+// ==================== CLIPBOARD ====================
 
 // ==================== DLL ====================
 typedef struct {
-    HMODULE handle;
-    FILETIME lastWriteTime;
-} DLLHandle;
-bool wCore_dll_load(const char* sourcePath, const char* tempPath, DLLHandle* outDLL);
-void wCore_dll_unload(DLLHandle* dll);
-bool wCore_dll_hasChanged(const char* sourcePath, const DLLHandle* dll);
-void* _wCore_dll_getFunction(DLLHandle* dll, const char* functionName);
-#define wCore_dll_LOAD_DLL_FUNCTION(dll, funcPtr, funcName, funcType, successFlag) \
-    do {                                                                           \
-        funcPtr = (funcType)_wCore_dll_getFunction(dll, funcName);                 \
-        if (!funcPtr) {                                                            \
-            successFlag = false;                                                   \
-        }                                                                          \
-    } while (0)
+  HMODULE handle;
+  FILETIME lastWriteTime;
+} wCore_DLLHandle;
+bool wCore_dll_load(const char *sourcePath, const char *tempPath,
+                    wCore_DLLHandle *outDLL);
+void wCore_dll_unload(wCore_DLLHandle *dll);
+bool wCore_dll_hasChanged(const char *sourcePath, const wCore_DLLHandle *dll);
+void *wCore_dll_getFunction(wCore_DLLHandle *dll, const char *functionName);
+#define wCore_dll_LOAD_DLL_FUNCTION(dll, funcPtr, funcName, funcType,          \
+                                    successFlag)                               \
+  do {                                                                         \
+    funcPtr = (funcType)_wCore_dll_getFunction(dll, funcName);                 \
+    if (!funcPtr) {                                                            \
+      successFlag = false;                                                     \
+    }                                                                          \
+  } while (0)
 
 #ifdef __cplusplus
 }

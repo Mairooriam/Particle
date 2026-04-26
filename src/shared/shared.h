@@ -1,6 +1,12 @@
 #pragma once
 #include "internal/renderQue.h"
 
+#ifdef _WIN32
+#define DLL_EXPORT __declspec(dllexport)
+#else
+#define DLL_EXPORT
+#endif
+
 #define Assert(expression)                                                     \
   if (!(expression)) {                                                         \
     __builtin_trap();                                                          \
@@ -30,7 +36,6 @@ typedef struct {
   bool mouseButtons[3]; // Left, middle, right
   bool keys[256];       // Keyboard state
 } Input;
-
 #define GAME_UPDATE(name)                                                      \
   void name(GameMemory *gameMemory, Input *input, float frameTime)
 typedef GAME_UPDATE(GameUpdate);
@@ -39,4 +44,3 @@ static GAME_UPDATE(game_update_stub) {
   (void)frameTime;
   (void)input;
 }
-
