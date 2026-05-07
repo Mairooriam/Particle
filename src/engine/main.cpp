@@ -3,6 +3,7 @@
 #include <core/string.h>
 #include <assert.h>
 #include <core/platform/platform.h>
+#include <stdint.h>
 
 #include "shared.h"
 typedef struct {
@@ -30,7 +31,8 @@ static GameCode loadGameCode(char *sourceDLLfilepath, char *tempDLLfilepath) {
 
   log_debug("Trying to load .dlls");
   if (result.gameCodeDLL) {
-    result.update = (GameUpdate *)GetProcAddress(result.gameCodeDLL, "game_update");
+    result.update =
+        (GameUpdate *)GetProcAddress(result.gameCodeDLL, "game_update");
     if (result.update) {
       result.isvalid = true;
       log_debug("Loading .dlls was succesfull");
@@ -48,7 +50,14 @@ static GameCode loadGameCode(char *sourceDLLfilepath, char *tempDLLfilepath) {
 
   return result;
 }
-
+static void unloadGameCode(GameCode *gameCode) {
+  if (gameCode->gameCodeDLL) {
+    FreeLibrary(gameCode->gameCodeDLL);
+    log_info("Freed .dlls");
+  }
+  gameCode->isvalid = false;
+  gameCode->update = game_update_stub;
+}
 int main(int argc, char const *argv[]) {
   char EXEDirPath[MAX_PATH];
   DWORD SizeOfFilename = GetModuleFileNameA(0, EXEDirPath, sizeof(EXEDirPath));
@@ -118,6 +127,25 @@ int main(int argc, char const *argv[]) {
   init(ctx);
   while (!ctx->quit) {
     uint64_t lastTime{SDL_GetTicks()};
+    code.clock += lastTime;
+    // ==================== FILE WATCHER ====================
+    if (code.reloadDLLRequested && (code.clock >= code.reloadDLLDelay)) {
+      log_info("Reloading DLLs.");
+      unloadGameCode(&code);
+      code = loadGameCode(sourceDLLfilepath, tempDLLfilepath);
+      code.reloadDLLRequested = false;
+      code.clock = 0;
+      gameMemory.reloadDLLHappened = true;
+    }
+
+    uint64_t time = MirFileLastWritetime(sourceDLLfilepath);
+    if (time != code.currentDLLtimestamp) {
+      log_info("reloadDLLRequested!");
+      code.reloadDLLRequested = true;
+    }
+    Input input = {};
+
+    code.update(&gameMemory, &input, lastTime);
     drawFrame(ctx, lastTime);
     pollEvents(ctx, lastTime);
   }

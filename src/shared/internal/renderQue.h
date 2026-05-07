@@ -12,6 +12,11 @@ typedef enum {
 } RenderCommandType;
 
 typedef struct {
+  float* vertices;
+  uint32_t vertexCount;
+} Mesh;
+
+typedef struct {
   RenderCommandType type;
   union {
     struct {
@@ -23,7 +28,7 @@ typedef struct {
       Color color;
     } circle;
     struct {
-      // Mesh *mesh; // For now all use same mesh
+      Mesh *mesh; 
       Matrix *transforms;
       // Material *material;
       size_t count;
