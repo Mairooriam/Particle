@@ -1,6 +1,7 @@
 // application.c
 #include "application.h"
 #include "app/application_types.h"
+#include "core/log.h"
 #include "entityPool_types.h"
 #include "entity_types.h"
 #include "internal/mirMath.h"
@@ -18,14 +19,18 @@ DA_DEFINE_ALLOCATOR(arr_Matrix, allocator)
 
 DLL_EXPORT
 GAME_UPDATE(game_update) {
+  // log_info("Hello from dll.");
+
   Assert(sizeof(GameState) <= gameMemory->permanentMemorySize);
 
   // ==================== INITIALIZATION ====================
   GameState *gameState = (GameState *)gameMemory->permamentMemory;
   if (!gameMemory->isInitialized) {
+    log_info("Game memory wasnt isInitialized. Initializing it now.");
     handle_init(gameMemory, gameState);
   }
   if (gameMemory->reloadDLLHappened) {
+    log_info("Dll reload happened. re-setting allocator function pointers.");
     gameState->permanentAllocator.alloc = arena_alloc;
     gameState->permanentAllocator.free = arena_free;
     gameState->transientAllocator.alloc = arena_alloc;
