@@ -5,10 +5,10 @@
 #include <memory>
 #include <vector>
 #include <SDL3/SDL.h>
+#include "meshLoader.h"
 
 struct vulkanContext {
-  VkBuffer vBuffer;
-  VkDeviceSize vBufSize{0};
+  MeshBuffer mesh{};
   VkDeviceSize indexCount{0};
   SDL_Window *window = nullptr;
   std::vector<VkPhysicalDevice> devices{};

@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include "vulkanLayer.h"
+#include "core/log.h"
 #include "internal/renderQue.h"
 #include <cstdint>
 #include <memory>
@@ -29,7 +30,6 @@
 #include <tiny_obj_loader.h>
 
 constexpr uint32_t maxFramesInFlight{2};
-void *vBufferMapped{nullptr};
 uint32_t imageIndex{0};
 uint32_t frameIndex{0};
 VkInstance instance{VK_NULL_HANDLE};
@@ -49,7 +49,7 @@ std::array<VkCommandBuffer, maxFramesInFlight> commandBuffers;
 std::array<VkFence, maxFramesInFlight> fences;
 std::array<VkSemaphore, maxFramesInFlight> presentSemaphores;
 std::vector<VkSemaphore> renderSemaphores;
-VmaAllocation vBufferAllocation{VK_NULL_HANDLE};
+// vBufferAllocation removed: buffer now owned by vulkanContext::mesh.vertices
 struct ShaderData {
   glm::mat4 projection;
   glm::mat4 view;
@@ -309,6 +309,7 @@ void init(std::unique_ptr<vulkanContext> &ctx) {
                         .layerCount = 1}};
   chk(vkCreateImageView(device, &depthViewCI, nullptr, &depthImageView));
   // Mesh data
+  // FIRST MESH
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -330,10 +331,16 @@ void init(std::unique_ptr<vulkanContext> &ctx) {
     vertices.push_back(v);
     indices.push_back(indices.size());
   }
-  ctx->vBufSize = sizeof(Vertex) * vertices.size();
-  VkDeviceSize iBufSize{sizeof(uint16_t) * indices.size()};
+  // TIME TO MAP TO VULKAN
+
+  ctx->mesh.vertices.size = sizeof(Vertex) * vertices.size();
+  ctx->mesh.indicesSize = sizeof(uint16_t) * indices.size();
+  ctx->mesh.indexCount = static_cast<uint32_t>(indices.size());
+
+  // Single buffer: [vertex data | index data]
   VkBufferCreateInfo bufferCI{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                              .size = ctx->vBufSize + iBufSize,
+                              .size = ctx->mesh.vertices.size +
+                                      ctx->mesh.indicesSize,
                               .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
                                        VK_BUFFER_USAGE_INDEX_BUFFER_BIT};
   VmaAllocationCreateInfo vBufferAllocCI{
@@ -341,13 +348,13 @@ void init(std::unique_ptr<vulkanContext> &ctx) {
                VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT |
                VMA_ALLOCATION_CREATE_MAPPED_BIT,
       .usage = VMA_MEMORY_USAGE_AUTO};
-  VmaAllocationInfo vBufferAllocInfo{};
-  chk(vmaCreateBuffer(allocator, &bufferCI, &vBufferAllocCI, &ctx->vBuffer,
-                      &vBufferAllocation, &vBufferAllocInfo));
-  vBufferMapped = &vBufferAllocInfo.pMappedData;
-  memcpy(vBufferAllocInfo.pMappedData, vertices.data(), ctx->vBufSize);
-  memcpy(((char *)vBufferAllocInfo.pMappedData) + ctx->vBufSize, indices.data(),
-         iBufSize);
+  chk(vmaCreateBuffer(allocator, &bufferCI, &vBufferAllocCI,
+                      &ctx->mesh.vertices.buf, &ctx->mesh.vertices.allocation,
+                      &ctx->mesh.vertices.allocationInfo));
+  void *mapped = ctx->mesh.vertices.allocationInfo.pMappedData;
+  memcpy(mapped, vertices.data(), ctx->mesh.vertices.size);
+  memcpy((char *)mapped + ctx->mesh.vertices.size, indices.data(),
+         ctx->mesh.indicesSize);
   // Shader data buffers
   for (auto i = 0; i < maxFramesInFlight; i++) {
     VkBufferCreateInfo uBufferCI{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -837,18 +844,42 @@ void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime,
   VkRect2D scissor{.extent{.width = static_cast<uint32_t>(windowSize.x),
                            .height = static_cast<uint32_t>(windowSize.y)}};
   vkCmdSetScissor(cb, 0, 1, &scissor);
+
+  // Rendering — draw ctx->mesh directly
+  // TODO: restore renderQueue loop once MeshGPUData/meshTable is wired up
+  // for (int i = 0; i < rq->itemCount; i++) {
+  //   RenderItem *item = &rq->items[i];
+  //   MeshGPUData *gpu = &meshTable[item->mesh];
+  //   if (pipeline != lastPipeline) {
+  //     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+  //     vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS,
+  //                             pipelineLayout, 0, 1, &descriptorSetTex, 0,
+  //                             nullptr);
+  //     lastPipeline = pipeline;
+  //   }
+  //   VkDeviceSize vOffset = 0;
+  //   vkCmdBindVertexBuffers(cb, 0, 1, &gpu->vertexBuffer, &vOffset);
+  //   vkCmdBindIndexBuffer(cb, gpu->indexBuffer, gpu->indexOffset,
+  //   VK_INDEX_TYPE_UINT16); vkCmdPushConstants(cb, pipelineLayout,
+  //   VK_SHADER_STAGE_VERTEX_BIT, 0,
+  //                      sizeof(VkDeviceAddress),
+  //                      &shaderDataBuffers[frameIndex].deviceAddress);
+  //   vkCmdDrawIndexed(cb, gpu->indexCount, item->instanceCount, 0, 0, 0);
+  // }
   vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
   vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
                           0, 1, &descriptorSetTex, 0, nullptr);
-  VkDeviceSize vOffset{0};
-  vkCmdBindVertexBuffers(cb, 0, 1, &ctx->vBuffer, &vOffset);
-  vkCmdBindIndexBuffer(cb, ctx->vBuffer, ctx->vBufSize, VK_INDEX_TYPE_UINT16);
+  VkDeviceSize vOffset = 0;
+  vkCmdBindVertexBuffers(cb, 0, 1, &ctx->mesh.vertices.buf, &vOffset);
+  vkCmdBindIndexBuffer(cb, ctx->mesh.vertices.buf, ctx->mesh.vertices.size,
+                       VK_INDEX_TYPE_UINT16);
   vkCmdPushConstants(cb, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
                      sizeof(VkDeviceAddress),
                      &shaderDataBuffers[frameIndex].deviceAddress);
-  vkCmdDrawIndexed(cb, ctx->indexCount, 3, 0, 0, 0);
-
+  vkCmdDrawIndexed(cb, ctx->mesh.indexCount, 3, 0, 0, 0);
   vkCmdEndRendering(cb);
+
+  // Syncing?
   VkImageMemoryBarrier2 barrierPresent{
       .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
       .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -972,6 +1003,24 @@ void pollEvents(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime) {
         shaderData.selected =
             (shaderData.selected > 0) ? shaderData.selected - 1 : 2;
       }
+      if (event.key.key == SDLK_R) {
+        // Overwrite mesh buffer with a triangle (3 verts, 3 indices)
+        struct SimpleVertex { float pos[3]; float normal[3]; float uv[2]; };
+        SimpleVertex triVerts[3] = {
+          {{0.0f,  1.0f, 0.0f}, {0,0,1}, {0.5f, 1.0f}},
+          {{-1.0f, -1.0f, 0.0f}, {0,0,1}, {0.0f, 0.0f}},
+          {{1.0f, -1.0f, 0.0f}, {0,0,1}, {1.0f, 0.0f}}
+        };
+        uint16_t triIndices[3] = {0, 1, 2};
+        // Write to mapped buffer
+        void *mapped = ctx->mesh.vertices.allocationInfo.pMappedData;
+        memcpy(mapped, triVerts, sizeof(triVerts));
+        memcpy((char*)mapped + sizeof(triVerts), triIndices, sizeof(triIndices));
+        ctx->mesh.vertices.size = sizeof(triVerts);
+        ctx->mesh.indicesSize = sizeof(triIndices);
+        ctx->mesh.indexCount = 3;
+        log_info("Mesh buffer overwritten with triangle");
+      }
     }
     // Window resize
     if (event.type == SDL_EVENT_WINDOW_RESIZED) {
@@ -996,7 +1045,8 @@ void destroy(std::unique_ptr<vulkanContext> ctx) {
   for (auto i = 0; i < swapchainImageViews.size(); i++) {
     vkDestroyImageView(device, swapchainImageViews[i], nullptr);
   }
-  vmaDestroyBuffer(allocator, ctx->vBuffer, vBufferAllocation);
+  vmaDestroyBuffer(allocator, ctx->mesh.vertices.buf,
+                   ctx->mesh.vertices.allocation);
   for (auto i = 0; i < textures.size(); i++) {
     vkDestroyImageView(device, textures[i].view, nullptr);
     vkDestroySampler(device, textures[i].sampler, nullptr);

@@ -125,7 +125,7 @@ int main(int argc, char const *argv[]) {
 
   std::unique_ptr<vulkanContext> ctx = std::make_unique<vulkanContext>();
   init(ctx);
-  RenderQueue renderQueue = {.commands[0]{0, 0, 0, 0, 0, 0, 2}};
+  static RenderQueue renderQueue = {.commands[0]{0, 0, 0, 0, 0, 0, 2}};
   gameMemory.renderQueue = &renderQueue;
   while (!ctx->quit) {
     uint64_t lastTime{SDL_GetTicks()};
@@ -148,6 +148,7 @@ int main(int argc, char const *argv[]) {
     Input input = {};
 
     code.update(&gameMemory, &input, lastTime);
+
     drawFrame(ctx, lastTime, &renderQueue);
     pollEvents(ctx, lastTime);
   }
