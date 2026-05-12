@@ -3,11 +3,6 @@
 #include "internal/math/raymath.h"
 #include <stdint.h>
 
-typedef struct {
-  Vector3 pos;
-  Vector3 color;
-} Vertex;
-
 static inline void matrix_identity_init(Matrix *m) {
   // clang-format off
   *m = (Matrix){1.0f, 0.0f, 0.0f, 0.0f, 

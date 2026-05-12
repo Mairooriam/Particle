@@ -12,55 +12,13 @@ typedef enum {
 } RenderCommandType;
 
 typedef struct {
-  float* vertices;
-  uint32_t vertexCount;
-} Mesh;
+  float x, y, z;       // position
+  float r, g, b;       // color
+  float radius;        // 0 = not a circle (triangle), >0 = circle
+} DrawCommand;
 
+#define MAX_DRAW_COMMANDS 10000
 typedef struct {
-  RenderCommandType type;
-  union {
-    struct {
-      float x, y, width, height;
-      Color color;
-    } rectangle;
-    struct {
-      float centerX, centerY, radius;
-      Color color;
-    } circle;
-    struct {
-      Mesh *mesh; 
-      Matrix *transforms;
-      // Material *material;
-      size_t count;
-    } instance;
-    struct {
-      Vector3 start;
-      Vector3 end;
-      Color color;
-    } line3D;
-    struct {
-      bool wireFrame;
-      int origin; // 0 = center, 1 = ???, 2 = ??
-      float height;
-      float width;
-      float depth;
-      Color color;
-    } cube3D;
-    struct {
-      Vector3 center;
-      float radius;
-      Color color;
-    } sphere3D;
-    struct {
-      Matrix transform;
-    } transform;
-  };
-} RenderCommand;
-
-#define MAX_RENDER_COMMANDS 1000000
-typedef struct {
-  bool isMeshReloadRequired;
-  // Mesh *instanceMesh;
-  RenderCommand commands[MAX_RENDER_COMMANDS];
+  DrawCommand commands[MAX_DRAW_COMMANDS];
   int count;
 } RenderQueue;
