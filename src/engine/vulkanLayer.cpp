@@ -50,10 +50,13 @@ std::array<VkFence, maxFramesInFlight> fences;
 std::array<VkSemaphore, maxFramesInFlight> presentSemaphores;
 std::vector<VkSemaphore> renderSemaphores;
 // vBufferAllocation removed: buffer now owned by vulkanContext::mesh.vertices
+//
+//
+#define MONKI_COUNT 10
 struct ShaderData {
   glm::mat4 projection;
   glm::mat4 view;
-  glm::mat4 model[3];
+  glm::mat4 model[MONKI_COUNT];
   glm::vec4 lightPos{0.0f, -10.0f, 10.0f, 0.0f};
   uint32_t selected{1};
 } shaderData{};
@@ -76,7 +79,7 @@ VkDescriptorSetLayout descriptorSetLayoutTex{VK_NULL_HANDLE};
 VkDescriptorSet descriptorSetTex{VK_NULL_HANDLE};
 Slang::ComPtr<slang::IGlobalSession> slangGlobalSession;
 glm::vec3 camPos{-5.5f, -0.5f, -20.0f};
-glm::vec3 objectRotations[3]{};
+glm::vec3 objectRotations[MONKI_COUNT]{};
 glm::ivec2 windowSize{};
 struct Vertex {
   glm::vec3 pos;
@@ -736,7 +739,7 @@ void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime,
       glm::perspective(glm::radians(45.0f),
                        (float)windowSize.x / (float)windowSize.y, 0.1f, 32.0f);
   shaderData.view = glm::translate(glm::mat4(1.0f), camPos);
-  for (auto i = 0; i < 3; i++) {
+  for (auto i = 0; i < MONKI_COUNT; i++) {
     auto instancePos = glm::vec3((float)(i - 1) * 3.0f, 0.0f, 0.0f);
     shaderData.model[i] = glm::translate(glm::mat4(1.0f), instancePos) *
                           glm::mat4_cast(glm::quat(objectRotations[i]));
@@ -876,7 +879,7 @@ void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime,
   vkCmdPushConstants(cb, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
                      sizeof(VkDeviceAddress),
                      &shaderDataBuffers[frameIndex].deviceAddress);
-  vkCmdDrawIndexed(cb, ctx->mesh.indexCount, 3, 0, 0, 0);
+  vkCmdDrawIndexed(cb, ctx->mesh.indexCount, MONKI_COUNT, 0, 0, 0);
   vkCmdEndRendering(cb);
 
   // Syncing?
@@ -1005,17 +1008,21 @@ void pollEvents(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime) {
       }
       if (event.key.key == SDLK_R) {
         // Overwrite mesh buffer with a triangle (3 verts, 3 indices)
-        struct SimpleVertex { float pos[3]; float normal[3]; float uv[2]; };
-        SimpleVertex triVerts[3] = {
-          {{0.0f,  1.0f, 0.0f}, {0,0,1}, {0.5f, 1.0f}},
-          {{-1.0f, -1.0f, 0.0f}, {0,0,1}, {0.0f, 0.0f}},
-          {{1.0f, -1.0f, 0.0f}, {0,0,1}, {1.0f, 0.0f}}
+        struct SimpleVertex {
+          float pos[3];
+          float normal[3];
+          float uv[2];
         };
+        SimpleVertex triVerts[3] = {
+            {{0.0f, 1.0f, 0.0f}, {0, 0, 1}, {0.5f, 1.0f}},
+            {{-1.0f, -1.0f, 0.0f}, {0, 0, 1}, {0.0f, 0.0f}},
+            {{1.0f, -1.0f, 0.0f}, {0, 0, 1}, {1.0f, 0.0f}}};
         uint16_t triIndices[3] = {0, 1, 2};
         // Write to mapped buffer
         void *mapped = ctx->mesh.vertices.allocationInfo.pMappedData;
         memcpy(mapped, triVerts, sizeof(triVerts));
-        memcpy((char*)mapped + sizeof(triVerts), triIndices, sizeof(triIndices));
+        memcpy((char *)mapped + sizeof(triVerts), triIndices,
+               sizeof(triIndices));
         ctx->mesh.vertices.size = sizeof(triVerts);
         ctx->mesh.indicesSize = sizeof(triIndices);
         ctx->mesh.indexCount = 3;
