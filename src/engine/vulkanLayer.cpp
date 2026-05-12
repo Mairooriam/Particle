@@ -52,7 +52,7 @@ std::vector<VkSemaphore> renderSemaphores;
 // vBufferAllocation removed: buffer now owned by vulkanContext::mesh.vertices
 //
 //
-#define MONKI_COUNT 10
+#define MONKI_COUNT 102500
 struct ShaderData {
   glm::mat4 projection;
   glm::mat4 view;
@@ -78,7 +78,7 @@ VkDescriptorPool descriptorPool{VK_NULL_HANDLE};
 VkDescriptorSetLayout descriptorSetLayoutTex{VK_NULL_HANDLE};
 VkDescriptorSet descriptorSetTex{VK_NULL_HANDLE};
 Slang::ComPtr<slang::IGlobalSession> slangGlobalSession;
-glm::vec3 camPos{-5.5f, -0.5f, -20.0f};
+glm::vec3 camPos{-5.5f, -0.5f, -120.0f};
 glm::vec3 objectRotations[MONKI_COUNT]{};
 glm::ivec2 windowSize{};
 struct Vertex {
@@ -737,10 +737,14 @@ void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime,
   // TODO: learn camera basic transforms
   shaderData.projection =
       glm::perspective(glm::radians(45.0f),
-                       (float)windowSize.x / (float)windowSize.y, 0.1f, 32.0f);
+                       (float)windowSize.x / (float)windowSize.y, 1.0f, 400.0f);
   shaderData.view = glm::translate(glm::mat4(1.0f), camPos);
   for (auto i = 0; i < MONKI_COUNT; i++) {
-    auto instancePos = glm::vec3((float)(i - 1) * 3.0f, 0.0f, 0.0f);
+    // Scatter in grid, add some random offset
+    float x = (i % 32) * 2.5f - 40.0f + (rand() % 100) * 0.01f;
+    float y = ((i / 32) % 32) * 2.5f - 40.0f + (rand() % 100) * 0.01f;
+    float z = ((i / (32 * 32)) % 32) * 2.5f - 10.0f + (rand() % 100) * 0.01f;
+    glm::vec3 instancePos = glm::vec3(x, y, z);
     shaderData.model[i] = glm::translate(glm::mat4(1.0f), instancePos) *
                           glm::mat4_cast(glm::quat(objectRotations[i]));
   }
