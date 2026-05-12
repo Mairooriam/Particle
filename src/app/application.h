@@ -30,7 +30,7 @@ typedef struct {
 
 // ==================== render ====================
 void render(GameMemory *gameMemory, GameState *gameState);
-void push_render_command(RenderQueue *queue, RenderCommand cmd);
+// void push_render_command(RenderQueue *queue, RenderCommand cmd);
 
 // ==================== input ====================
 void handle_input(GameState *gameState, Input *input);

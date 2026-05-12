@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include "vulkanLayer.h"
+#include "internal/renderQue.h"
 #include <cstdint>
 #include <memory>
 #define VOLK_IMPLEMENTATION
@@ -28,7 +29,7 @@
 #include <tiny_obj_loader.h>
 
 constexpr uint32_t maxFramesInFlight{2};
-VkBuffer vBuffer{VK_NULL_HANDLE};
+void *vBufferMapped{nullptr};
 uint32_t imageIndex{0};
 uint32_t frameIndex{0};
 VkInstance instance{VK_NULL_HANDLE};
@@ -341,8 +342,9 @@ void init(std::unique_ptr<vulkanContext> &ctx) {
                VMA_ALLOCATION_CREATE_MAPPED_BIT,
       .usage = VMA_MEMORY_USAGE_AUTO};
   VmaAllocationInfo vBufferAllocInfo{};
-  chk(vmaCreateBuffer(allocator, &bufferCI, &vBufferAllocCI, &vBuffer,
+  chk(vmaCreateBuffer(allocator, &bufferCI, &vBufferAllocCI, &ctx->vBuffer,
                       &vBufferAllocation, &vBufferAllocInfo));
+  vBufferMapped = &vBufferAllocInfo.pMappedData;
   memcpy(vBufferAllocInfo.pMappedData, vertices.data(), ctx->vBufSize);
   memcpy(((char *)vBufferAllocInfo.pMappedData) + ctx->vBufSize, indices.data(),
          iBufSize);
@@ -700,7 +702,8 @@ void init(std::unique_ptr<vulkanContext> &ctx) {
                                 &pipeline));
 }
 
-void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime) {
+void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime,
+               RenderQueue *rq) {
 
   // Sync
   chk(vkWaitForFences(device, 1, &fences[frameIndex], true, UINT64_MAX));
@@ -838,12 +841,13 @@ void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime) {
   vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
                           0, 1, &descriptorSetTex, 0, nullptr);
   VkDeviceSize vOffset{0};
-  vkCmdBindVertexBuffers(cb, 0, 1, &vBuffer, &vOffset);
-  vkCmdBindIndexBuffer(cb, vBuffer, ctx->vBufSize, VK_INDEX_TYPE_UINT16);
+  vkCmdBindVertexBuffers(cb, 0, 1, &ctx->vBuffer, &vOffset);
+  vkCmdBindIndexBuffer(cb, ctx->vBuffer, ctx->vBufSize, VK_INDEX_TYPE_UINT16);
   vkCmdPushConstants(cb, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
                      sizeof(VkDeviceAddress),
                      &shaderDataBuffers[frameIndex].deviceAddress);
   vkCmdDrawIndexed(cb, ctx->indexCount, 3, 0, 0, 0);
+
   vkCmdEndRendering(cb);
   VkImageMemoryBarrier2 barrierPresent{
       .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -992,7 +996,7 @@ void destroy(std::unique_ptr<vulkanContext> ctx) {
   for (auto i = 0; i < swapchainImageViews.size(); i++) {
     vkDestroyImageView(device, swapchainImageViews[i], nullptr);
   }
-  vmaDestroyBuffer(allocator, vBuffer, vBufferAllocation);
+  vmaDestroyBuffer(allocator, ctx->vBuffer, vBufferAllocation);
   for (auto i = 0; i < textures.size(); i++) {
     vkDestroyImageView(device, textures[i].view, nullptr);
     vkDestroySampler(device, textures[i].sampler, nullptr);

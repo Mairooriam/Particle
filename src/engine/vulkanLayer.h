@@ -1,4 +1,5 @@
 #pragma once
+#include "internal/renderQue.h"
 #include <cstdint>
 #include <vulkan/vulkan.h>
 #include <memory>
@@ -25,6 +26,7 @@ struct vulkanContext {
 };
 
 void init(std::unique_ptr<vulkanContext> &ctx);
-void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime);
+void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime,
+               RenderQueue *rq);
 void pollEvents(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime);
 void destroy(std::unique_ptr<vulkanContext> ctx);

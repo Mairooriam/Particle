@@ -39,6 +39,8 @@ GAME_UPDATE(game_update) {
   }
 
   arena_reset(&gameState->transientArena);
+  // gameMemory->renderQueue->commands[gameMemory->renderQueue->count] =
+  //     (DrawCommand){0.0f, 0.0f, 0.0f, 1, 0, 0, 0.5f};
 
   handle_input(gameState, input);
   // arr_mat4 *transforms = arr_mat4_create(5, &gameState->transientAllocator);
@@ -67,11 +69,11 @@ void update_spawners(float frameTime, Entity *e, EntityPool *entityPool) {
     e->clock = 0.0f;
   }
 }
-void push_render_command(RenderQueue *queue, RenderCommand cmd) {
-  if (queue->count < MAX_RENDER_COMMANDS) {
-    queue->commands[queue->count++] = cmd;
-  }
-}
+// void push_render_command(RenderQueue *queue, RenderCommand cmd) {
+//   if (queue->count < MAX_RENDER_COMMANDS) {
+//     queue->commands[queue->count++] = cmd;
+//   }
+// }
 
 void update_entity_position(Entity *e, float frameTime, Vector2 mouseWorldPos) {
   c_Transform *cTp1 = &e->c_transform;
@@ -447,7 +449,7 @@ void render(GameMemory *gameMemory, GameState *gameState) {
   RenderQueue *renderQueue = (RenderQueue *)gameState->transientAllocator.alloc(
       gameState->transientAllocator.context, sizeof(RenderQueue));
   renderQueue->count = 0;
-  renderQueue->isMeshReloadRequired = false;
+  // renderQueue->isMeshReloadRequired = false;
 
   size_t maxTransforms = 10000;
   Matrix *sphereTransforms = (Matrix *)gameState->transientAllocator.alloc(
@@ -487,139 +489,155 @@ void render(GameMemory *gameMemory, GameState *gameState) {
   // }
 
   // ==================== BOUNDS DEBUG RENDERING ====================
-  RenderCommand cubeCmd = {
-      RENDER_CUBE_3D,
-      .cube3D = {false, 1, gameState->maxBounds.x, gameState->maxBounds.y,
-                 gameState->maxBounds.z,
-                 (Color){255, 0, 0, 50}}}; // wireFrame=false, origin=0
-                                           // (center), dimensions, color
-  push_render_command(renderQueue, cubeCmd);
-
-  Color boundsColorX = (Color){255, 0, 0, 200};
-  Color boundsColorY = (Color){0, 0, 255, 200};
-  Color boundsColorZ = (Color){0, 255, 0, 200};
-
-  Vector3 min = gameState->minBounds;
-  Vector3 max = gameState->maxBounds;
-  // Bottom face
-  push_render_command(
-      renderQueue,
-      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, min.y, min.z},
-                                                 (Vector3){max.x, min.y, min.z},
-                                                 boundsColorX}});
-  push_render_command(
-      renderQueue,
-      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, min.y, min.z},
-                                                 (Vector3){max.x, max.y, min.z},
-                                                 boundsColorX}});
-  push_render_command(
-      renderQueue,
-      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, max.y, min.z},
-                                                 (Vector3){min.x, max.y, min.z},
-                                                 boundsColorY}});
-  push_render_command(
-      renderQueue,
-      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, max.y, min.z},
-                                                 (Vector3){min.x, min.y, min.z},
-                                                 boundsColorY}});
-  // Top face
-  push_render_command(
-      renderQueue,
-      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, min.y, max.z},
-                                                 (Vector3){max.x, min.y, max.z},
-                                                 boundsColorZ}});
-  push_render_command(
-      renderQueue,
-      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, min.y, max.z},
-                                                 (Vector3){max.x, max.y, max.z},
-                                                 boundsColorZ}});
-  push_render_command(
-      renderQueue,
-      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, max.y, max.z},
-                                                 (Vector3){min.x, max.y, max.z},
-                                                 boundsColorX}});
-  push_render_command(
-      renderQueue,
-      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, max.y, max.z},
-                                                 (Vector3){min.x, min.y, max.z},
-                                                 boundsColorX}});
-  // Vertical edges
-  push_render_command(
-      renderQueue,
-      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, min.y, min.z},
-                                                 (Vector3){min.x, min.y, max.z},
-                                                 boundsColorY}});
-  push_render_command(
-      renderQueue,
-      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, min.y, min.z},
-                                                 (Vector3){max.x, min.y, max.z},
-                                                 boundsColorX}});
-  push_render_command(
-      renderQueue,
-      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, max.y, min.z},
-                                                 (Vector3){max.x, max.y, max.z},
-                                                 boundsColorZ}});
-  push_render_command(
-      renderQueue,
-      (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, max.y, min.z},
-                                                 (Vector3){min.x, max.y, max.z},
-                                                 boundsColorY}});
-
+  // RenderCommand cubeCmd = {
+  //     RENDER_CUBE_3D,
+  //     .cube3D = {false, 1, gameState->maxBounds.x, gameState->maxBounds.y,
+  //                gameState->maxBounds.z,
+  //                (Color){255, 0, 0, 50}}}; // wireFrame=false, origin=0
+  //                                          // (center), dimensions, color
+  // push_render_command(renderQueue, cubeCmd);
+  //
+  // Color boundsColorX = (Color){255, 0, 0, 200};
+  // Color boundsColorY = (Color){0, 0, 255, 200};
+  // Color boundsColorZ = (Color){0, 255, 0, 200};
+  //
+  // Vector3 min = gameState->minBounds;
+  // Vector3 max = gameState->maxBounds;
+  // // Bottom face
+  // push_render_command(
+  //     renderQueue,
+  //     (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, min.y,
+  //     min.z},
+  //                                                (Vector3){max.x, min.y,
+  //                                                min.z}, boundsColorX}});
+  // push_render_command(
+  //     renderQueue,
+  //     (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, min.y,
+  //     min.z},
+  //                                                (Vector3){max.x, max.y,
+  //                                                min.z}, boundsColorX}});
+  // push_render_command(
+  //     renderQueue,
+  //     (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, max.y,
+  //     min.z},
+  //                                                (Vector3){min.x, max.y,
+  //                                                min.z}, boundsColorY}});
+  // push_render_command(
+  //     renderQueue,
+  //     (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, max.y,
+  //     min.z},
+  //                                                (Vector3){min.x, min.y,
+  //                                                min.z}, boundsColorY}});
+  // // Top face
+  // push_render_command(
+  //     renderQueue,
+  //     (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, min.y,
+  //     max.z},
+  //                                                (Vector3){max.x, min.y,
+  //                                                max.z}, boundsColorZ}});
+  // push_render_command(
+  //     renderQueue,
+  //     (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, min.y,
+  //     max.z},
+  //                                                (Vector3){max.x, max.y,
+  //                                                max.z}, boundsColorZ}});
+  // push_render_command(
+  //     renderQueue,
+  //     (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, max.y,
+  //     max.z},
+  //                                                (Vector3){min.x, max.y,
+  //                                                max.z}, boundsColorX}});
+  // push_render_command(
+  //     renderQueue,
+  //     (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, max.y,
+  //     max.z},
+  //                                                (Vector3){min.x, min.y,
+  //                                                max.z}, boundsColorX}});
+  // // Vertical edges
+  // push_render_command(
+  //     renderQueue,
+  //     (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, min.y,
+  //     min.z},
+  //                                                (Vector3){min.x, min.y,
+  //                                                max.z}, boundsColorY}});
+  // push_render_command(
+  //     renderQueue,
+  //     (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, min.y,
+  //     min.z},
+  //                                                (Vector3){max.x, min.y,
+  //                                                max.z}, boundsColorX}});
+  // push_render_command(
+  //     renderQueue,
+  //     (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){max.x, max.y,
+  //     min.z},
+  //                                                (Vector3){max.x, max.y,
+  //                                                max.z}, boundsColorZ}});
+  // push_render_command(
+  //     renderQueue,
+  //     (RenderCommand){RENDER_LINE_3D, .line3D = {(Vector3){min.x, max.y,
+  //     min.z},
+  //                                                (Vector3){min.x, max.y,
+  //                                                max.z}, boundsColorY}});
+  //
   // ==================== SPATIAL GRID DEBUG RENDERING ====================
-  if (gameState->sGrid && gameState->sGrid->isInitalized) {
-    float spacing = (float)gameState->sGrid->spacing;
-    Vector3 min = gameState->minBounds;
-    Vector3 max = gameState->maxBounds;
-    int numX = gameState->sGrid->numX;
-    int numY = gameState->sGrid->numY;
-    Color gridColor = (Color){100, 255, 100, 255};
-
-    // Vertical grid lines
-    for (int x = 0; x <= numX; x++) {
-      float gx = min.x + x * spacing;
-      push_render_command(
-          renderQueue,
-          (RenderCommand){RENDER_LINE_3D,
-                          .line3D = {(Vector3){gx, min.y, min.z},
-                                     (Vector3){gx, max.y, min.z}, gridColor}});
-      push_render_command(
-          renderQueue,
-          (RenderCommand){RENDER_LINE_3D,
-                          .line3D = {(Vector3){gx, min.y, max.z},
-                                     (Vector3){gx, max.y, max.z}, gridColor}});
-    }
-    // Horizontal grid lines
-    for (int y = 0; y <= numY; y++) {
-      float gy = min.y + y * spacing;
-      push_render_command(
-          renderQueue,
-          (RenderCommand){RENDER_LINE_3D,
-                          .line3D = {(Vector3){min.x, gy, min.z},
-                                     (Vector3){max.x, gy, min.z}, gridColor}});
-      push_render_command(
-          renderQueue,
-          (RenderCommand){RENDER_LINE_3D,
-                          .line3D = {(Vector3){min.x, gy, max.z},
-                                     (Vector3){max.x, gy, max.z}, gridColor}});
-    }
-    // // Cell centers
-    // for (int x = 0; x < numX; x++) {
-    //   for (int y = 0; y < numY; y++) {
-    //     // CELL CENTER
-    //     float cellCenterX = min.x + (x + 0.5f) * spacing;
-    //     float cellCenterY = min.y + (y + 0.5f) * spacing;
-    //     float cellCenterZ = max.z;
-    //     float sphereRadius = 3.0f;
-    //     Color cellColor = (Color){(25 * x) % 255, (25 * y) % 255, 0, 200};
-    //
-    //     push_render_command(
-    //         renderQueue,
-    //         (RenderCommand){
-    //             RENDER_SPHERE_3D,
-    //             .sphere3D = {(Vector3){cellCenterX, cellCenterY,
-    //             cellCenterZ},
-    //                          sphereRadius, cellColor}});
-    //   }
-    // }
-  }
+  // if (gameState->sGrid && gameState->sGrid->isInitalized) {
+  //   float spacing = (float)gameState->sGrid->spacing;
+  //   Vector3 min = gameState->minBounds;
+  //   Vector3 max = gameState->maxBounds;
+  //   int numX = gameState->sGrid->numX;
+  //   int numY = gameState->sGrid->numY;
+  //   Color gridColor = (Color){100, 255, 100, 255};
+  //
+  //   // Vertical grid lines
+  //   for (int x = 0; x <= numX; x++) {
+  //     float gx = min.x + x * spacing;
+  //     push_render_command(
+  //         renderQueue,
+  //         (RenderCommand){RENDER_LINE_3D,
+  //                         .line3D = {(Vector3){gx, min.y, min.z},
+  //                                    (Vector3){gx, max.y, min.z},
+  //                                    gridColor}});
+  //     push_render_command(
+  //         renderQueue,
+  //         (RenderCommand){RENDER_LINE_3D,
+  //                         .line3D = {(Vector3){gx, min.y, max.z},
+  //                                    (Vector3){gx, max.y, max.z},
+  //                                    gridColor}});
+  //   }
+  //   // Horizontal grid lines
+  //   for (int y = 0; y <= numY; y++) {
+  //     float gy = min.y + y * spacing;
+  //     push_render_command(
+  //         renderQueue,
+  //         (RenderCommand){RENDER_LINE_3D,
+  //                         .line3D = {(Vector3){min.x, gy, min.z},
+  //                                    (Vector3){max.x, gy, min.z},
+  //                                    gridColor}});
+  //     push_render_command(
+  //         renderQueue,
+  //         (RenderCommand){RENDER_LINE_3D,
+  //                         .line3D = {(Vector3){min.x, gy, max.z},
+  //                                    (Vector3){max.x, gy, max.z},
+  //                                    gridColor}});
+  //   }
+  // // Cell centers
+  // for (int x = 0; x < numX; x++) {
+  //   for (int y = 0; y < numY; y++) {
+  //     // CELL CENTER
+  //     float cellCenterX = min.x + (x + 0.5f) * spacing;
+  //     float cellCenterY = min.y + (y + 0.5f) * spacing;
+  //     float cellCenterZ = max.z;
+  //     float sphereRadius = 3.0f;
+  //     Color cellColor = (Color){(25 * x) % 255, (25 * y) % 255, 0, 200};
+  //
+  //     push_render_command(
+  //         renderQueue,
+  //         (RenderCommand){
+  //             RENDER_SPHERE_3D,
+  //             .sphere3D = {(Vector3){cellCenterX, cellCenterY,
+  //             cellCenterZ},
+  //                          sphereRadius, cellColor}});
+  //   }
+  // }
+  // }
 }
