@@ -4,6 +4,7 @@
 #include "vulkanLayer.h"
 #include "core/log.h"
 #include "internal/renderQue.h"
+#include "shared.h"
 #include <cstdint>
 #include <memory>
 #define VOLK_IMPLEMENTATION
@@ -52,14 +53,7 @@ std::vector<VkSemaphore> renderSemaphores;
 // vBufferAllocation removed: buffer now owned by vulkanContext::mesh.vertices
 //
 //
-#define MONKI_COUNT 102500
-struct ShaderData {
-  glm::mat4 projection;
-  glm::mat4 view;
-  glm::mat4 model[MONKI_COUNT];
-  glm::vec4 lightPos{0.0f, -10.0f, 10.0f, 0.0f};
-  uint32_t selected{1};
-} shaderData{};
+
 struct ShaderDataBuffer {
   VmaAllocation allocation{VK_NULL_HANDLE};
   VmaAllocationInfo allocationInfo{};
@@ -78,9 +72,6 @@ VkDescriptorPool descriptorPool{VK_NULL_HANDLE};
 VkDescriptorSetLayout descriptorSetLayoutTex{VK_NULL_HANDLE};
 VkDescriptorSet descriptorSetTex{VK_NULL_HANDLE};
 Slang::ComPtr<slang::IGlobalSession> slangGlobalSession;
-glm::vec3 camPos{-5.5f, -0.5f, -120.0f};
-glm::vec3 objectRotations[MONKI_COUNT]{};
-glm::ivec2 windowSize{};
 struct Vertex {
   glm::vec3 pos;
   glm::vec3 normal;
@@ -119,7 +110,7 @@ static inline void chkImpl(bool result, const char *file, int line,
 #define chk(x) chkImpl((x), __FILE__, __LINE__, #x)
 #define chkSwapchain(x, updateSwapchain)                                       \
   chkSwapchainImpl((x), updateSwapchain, __FILE__, __LINE__, #x)
-void init(std::unique_ptr<vulkanContext> &ctx) {
+void init(vulkanContext *ctx, size_t shaderDataSize) {
   chk(SDL_Init(SDL_INIT_VIDEO));
   chk(SDL_Vulkan_LoadLibrary(NULL));
   volkInitialize();
@@ -222,17 +213,18 @@ void init(std::unique_ptr<vulkanContext> &ctx) {
       .instance = instance};
   chk(vmaCreateAllocator(&allocatorCI, &allocator));
   // Window and surface
-  ctx->window = SDL_CreateWindow("How to Vulkan", 1280u, 720u,
-                                 SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+  ctx->window =
+      SDL_CreateWindow("How to Vulkan", ctx->windowSize.x, ctx->windowSize.y,
+                       SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
   assert(ctx->window);
   chk(SDL_Vulkan_CreateSurface(ctx->window, instance, nullptr, &surface));
-  chk(SDL_GetWindowSize(ctx->window, &windowSize.x, &windowSize.y));
+  chk(SDL_GetWindowSize(ctx->window, &ctx->windowSize.x, &ctx->windowSize.y));
   chk(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ctx->devices[ctx->deviceIndex],
                                                 surface, &ctx->surfaceCaps));
   VkExtent2D swapchainExtent{ctx->surfaceCaps.currentExtent};
   if (ctx->surfaceCaps.currentExtent.width == 0xFFFFFFFF) {
-    swapchainExtent = {.width = static_cast<uint32_t>(windowSize.x),
-                       .height = static_cast<uint32_t>(windowSize.y)};
+    swapchainExtent = {.width = static_cast<uint32_t>(ctx->windowSize.x),
+                       .height = static_cast<uint32_t>(ctx->windowSize.y)};
   }
   // Swap chain
   ctx->imageFormat = VK_FORMAT_B8G8R8A8_SRGB;
@@ -287,8 +279,8 @@ void init(std::unique_ptr<vulkanContext> &ctx) {
       .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
       .imageType = VK_IMAGE_TYPE_2D,
       .format = ctx->depthFormat,
-      .extent{.width = static_cast<uint32_t>(windowSize.x),
-              .height = static_cast<uint32_t>(windowSize.y),
+      .extent{.width = static_cast<uint32_t>(ctx->windowSize.x),
+              .height = static_cast<uint32_t>(ctx->windowSize.y),
               .depth = 1},
       .mipLevels = 1,
       .arrayLayers = 1,
@@ -361,7 +353,7 @@ void init(std::unique_ptr<vulkanContext> &ctx) {
   // Shader data buffers
   for (auto i = 0; i < maxFramesInFlight; i++) {
     VkBufferCreateInfo uBufferCI{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                                 .size = sizeof(ShaderData),
+                                 .size = shaderDataSize,
                                  .usage =
                                      VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT};
     VmaAllocationCreateInfo uBufferAllocCI{
@@ -712,8 +704,8 @@ void init(std::unique_ptr<vulkanContext> &ctx) {
                                 &pipeline));
 }
 
-void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime,
-               RenderQueue *rq) {
+void drawFrame(vulkanContext *ctx, uint64_t lastTime, RenderQueue *rq,
+               ShaderData *shaderData) {
 
   // Sync
   chk(vkWaitForFences(device, 1, &fences[frameIndex], true, UINT64_MAX));
@@ -722,33 +714,7 @@ void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime,
                                      presentSemaphores[frameIndex],
                                      VK_NULL_HANDLE, &imageIndex),
                ctx->updateSwapchain);
-  static float val = 0.0f;
-  if (val <= 180.0f) {
-    camPos.x += 0.01f;
-    camPos.y += 0.01f;
-    val++;
-  } else {
-    camPos.x = 0.0f;
-    camPos.y = 0.0f;
-    val = 0;
-  }
-
-  // Update shader data
-  // TODO: learn camera basic transforms
-  shaderData.projection =
-      glm::perspective(glm::radians(45.0f),
-                       (float)windowSize.x / (float)windowSize.y, 1.0f, 400.0f);
-  shaderData.view = glm::translate(glm::mat4(1.0f), camPos);
-  for (auto i = 0; i < MONKI_COUNT; i++) {
-    // Scatter in grid, add some random offset
-    float x = (i % 32) * 2.5f - 40.0f + (rand() % 100) * 0.01f;
-    float y = ((i / 32) % 32) * 2.5f - 40.0f + (rand() % 100) * 0.01f;
-    float z = ((i / (32 * 32)) % 32) * 2.5f - 10.0f + (rand() % 100) * 0.01f;
-    glm::vec3 instancePos = glm::vec3(x, y, z);
-    shaderData.model[i] = glm::translate(glm::mat4(1.0f), instancePos) *
-                          glm::mat4_cast(glm::quat(objectRotations[i]));
-  }
-  memcpy(shaderDataBuffers[frameIndex].allocationInfo.pMappedData, &shaderData,
+  memcpy(shaderDataBuffers[frameIndex].allocationInfo.pMappedData, shaderData,
          sizeof(ShaderData));
   // Build command buffer
   auto cb = commandBuffers[frameIndex];
@@ -811,8 +777,8 @@ void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime,
       .clearValue = {.depthStencil = {1.0f, 0}}};
   VkRenderingInfo renderingInfo{
       .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-      .renderArea{.extent{.width = static_cast<uint32_t>(windowSize.x),
-                          .height = static_cast<uint32_t>(windowSize.y)}},
+      .renderArea{.extent{.width = static_cast<uint32_t>(ctx->windowSize.x),
+                          .height = static_cast<uint32_t>(ctx->windowSize.y)}},
       .layerCount = 1,
       .colorAttachmentCount = 1,
       .pColorAttachments = &colorAttachmentInfo,
@@ -832,8 +798,8 @@ void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime,
 
   VkViewport vp{.x = 0,
                 .y = 0,
-                .width = static_cast<float>(windowSize.x),
-                .height = static_cast<float>(windowSize.y),
+                .width = static_cast<float>(ctx->windowSize.x),
+                .height = static_cast<float>(ctx->windowSize.y),
                 .minDepth = 0.0f,
                 .maxDepth = 1.0f};
   // NOTE: just adds viewport to command buffer
@@ -848,8 +814,8 @@ void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime,
   //   |      cut       cut                 |
   //   |   *                  *             |
   //   --------------------------------------
-  VkRect2D scissor{.extent{.width = static_cast<uint32_t>(windowSize.x),
-                           .height = static_cast<uint32_t>(windowSize.y)}};
+  VkRect2D scissor{.extent{.width = static_cast<uint32_t>(ctx->windowSize.x),
+                           .height = static_cast<uint32_t>(ctx->windowSize.y)}};
   vkCmdSetScissor(cb, 0, 1, &scissor);
 
   // Rendering — draw ctx->mesh directly
@@ -928,15 +894,15 @@ void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime,
                                .pImageIndices = &imageIndex};
   chkSwapchain(vkQueuePresentKHR(queue, &presentInfo), ctx->updateSwapchain);
   if (ctx->updateSwapchain) {
-    chk(SDL_GetWindowSize(ctx->window, &windowSize.x, &windowSize.y));
+    chk(SDL_GetWindowSize(ctx->window, &ctx->windowSize.x, &ctx->windowSize.y));
     ctx->updateSwapchain = false;
     chk(vkDeviceWaitIdle(device));
     chk(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
         ctx->devices[ctx->deviceIndex], surface, &ctx->surfaceCaps));
     ctx->swapchainCI.oldSwapchain = ctx->swapchain;
     ctx->swapchainCI.imageExtent = {
-        .width = static_cast<uint32_t>(windowSize.x),
-        .height = static_cast<uint32_t>(windowSize.y)};
+        .width = static_cast<uint32_t>(ctx->windowSize.x),
+        .height = static_cast<uint32_t>(ctx->windowSize.y)};
     chk(vkCreateSwapchainKHR(device, &ctx->swapchainCI, nullptr,
                              &ctx->swapchain));
     for (auto i = 0; i < ctx->imageCount; i++) {
@@ -962,9 +928,10 @@ void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime,
     vkDestroySwapchainKHR(device, ctx->swapchainCI.oldSwapchain, nullptr);
     vmaDestroyImage(allocator, depthImage, depthImageAllocation);
     vkDestroyImageView(device, depthImageView, nullptr);
-    ctx->depthImageCI.extent = {.width = static_cast<uint32_t>(windowSize.x),
-                                .height = static_cast<uint32_t>(windowSize.y),
-                                .depth = 1};
+    ctx->depthImageCI.extent = {
+        .width = static_cast<uint32_t>(ctx->windowSize.x),
+        .height = static_cast<uint32_t>(ctx->windowSize.y),
+        .depth = 1};
     VmaAllocationCreateInfo allocCI{
         .flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
         .usage = VMA_MEMORY_USAGE_AUTO};
@@ -981,7 +948,7 @@ void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime,
     chk(vkCreateImageView(device, &viewCI, nullptr, &depthImageView));
   }
 }
-void pollEvents(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime) {
+void pollEvents(vulkanContext *ctx, uint64_t lastTime, ShaderData *shaderData) {
   // Event polling
   float elapsedTime{(SDL_GetTicks() - lastTime) / 1000.0f};
   lastTime = SDL_GetTicks();
@@ -991,25 +958,25 @@ void pollEvents(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime) {
       break;
     }
     if (event.type == SDL_EVENT_MOUSE_MOTION) {
-      if (event.button.button == SDL_BUTTON_LEFT) {
-        objectRotations[shaderData.selected].x -=
-            (float)event.motion.yrel * elapsedTime;
-        objectRotations[shaderData.selected].y +=
-            (float)event.motion.xrel * elapsedTime;
-      }
+      // if (event.button.button == SDL_BUTTON_LEFT) {
+      //   shaderData->objectRotations[shaderData->selected].x -=
+      //       (float)event.motion.yrel * elapsedTime;
+      //   shaderData->objectRotations[shaderData->selected].y +=
+      //       (float)event.motion.xrel * elapsedTime;
+      // }
     }
-    if (event.type == SDL_EVENT_MOUSE_WHEEL) {
-      camPos.z += (float)event.wheel.y * elapsedTime * 10.0f;
-    }
+    // if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+    //   camPos.z += (float)event.wheel.y * elapsedTime * 10.0f;
+    // }
     if (event.type == SDL_EVENT_KEY_DOWN) {
-      if (event.key.key == SDLK_PLUS || event.key.key == SDLK_KP_PLUS) {
-        shaderData.selected =
-            (shaderData.selected < 2) ? shaderData.selected + 1 : 0;
-      }
-      if (event.key.key == SDLK_MINUS || event.key.key == SDLK_KP_MINUS) {
-        shaderData.selected =
-            (shaderData.selected > 0) ? shaderData.selected - 1 : 2;
-      }
+      // if (event.key.key == SDLK_PLUS || event.key.key == SDLK_KP_PLUS) {
+      //   shaderData.selected =
+      //       (shaderData.selected < 2) ? shaderData.selected + 1 : 0;
+      // }
+      // if (event.key.key == SDLK_MINUS || event.key.key == SDLK_KP_MINUS) {
+      //   shaderData.selected =
+      //       (shaderData.selected > 0) ? shaderData.selected - 1 : 2;
+      // }
       if (event.key.key == SDLK_R) {
         // Overwrite mesh buffer with a triangle (3 verts, 3 indices)
         struct SimpleVertex {
