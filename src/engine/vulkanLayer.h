@@ -6,11 +6,13 @@
 #include <vector>
 #include <SDL3/SDL.h>
 #include "meshLoader.h"
+#include "shader.h"
 
 struct vulkanContext {
   MeshBuffer mesh{};
   VkDeviceSize indexCount{0};
   SDL_Window *window = nullptr;
+  glm::ivec2 windowSize = {1280, 700};
   std::vector<VkPhysicalDevice> devices{};
   uint32_t deviceIndex{0};
   VkSurfaceCapabilitiesKHR surfaceCaps{};
@@ -25,8 +27,8 @@ struct vulkanContext {
   bool quit{false};
 };
 
-void init(std::unique_ptr<vulkanContext> &ctx);
-void drawFrame(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime,
-               RenderQueue *rq);
-void pollEvents(std::unique_ptr<vulkanContext> &ctx, uint64_t lastTime);
-void destroy(std::unique_ptr<vulkanContext> ctx);
+void init(vulkanContext *ctx, size_t shaderDataSize);
+void drawFrame(vulkanContext *ctx, uint64_t lastTime, RenderQueue *rq,
+               ShaderData *shaderData);
+void pollEvents(vulkanContext *ctx, uint64_t lastTime, ShaderData *shaderData);
+void destroy(vulkanContext *ctx);

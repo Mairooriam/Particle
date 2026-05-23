@@ -15,7 +15,7 @@ Sampler2D textures[];
 struct ShaderData {
     float4x4 projection;
     float4x4 view;
-    float4x4 model[3];
+    float4x4 model[5];
     float4 lightPos;
     uint32_t selected;
 };
