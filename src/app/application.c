@@ -127,9 +127,10 @@ void update_entity_boundaries(Entity *e, float x_bound, float x_bound_min,
   }
 }
 void handle_input(GameState *gameState, Input *input) {
-  gameState->mouseDelta =
-      Vector2Subtract(input->mousePos, gameState->lastFrameInput.mousePos);
-
+  // gameState->mouseDelta =
+  //     Vector2Subtract(input->mousePos, gameState->lastFrameInput.mousePos);
+  log_info("mouse: %.2f, %.2f", input->mouseX, input->mouseY);
+  // log_info("hello from handle_input ");
   if (is_key_pressed(input, &gameState->lastFrameInput, KEY_SPACE)) {
     // NUKE half of entitieseses
     static size_t idx = 0;
@@ -164,7 +165,7 @@ void handle_update(GameState *gameState, float frameTime, Input *input) {
     if (e->flags & ENTITY_FLAG_ACTIVE) {
       if (e->flags & ENTITY_FLAG_HAS_TRANSFORM) {
         e->c_transform.a = (Vector3){0, 9.81, 0};
-        update_entity_position(e, frameTime, input->mousePos);
+        // update_entity_position(e, frameTime, input->mousePos);
         update_entity_boundaries(e, gameState->maxBounds.x,
                                  gameState->minBounds.x, gameState->maxBounds.y,
                                  gameState->minBounds.y, gameState->maxBounds.z,

@@ -137,6 +137,7 @@ int main(int argc, char const *argv[]) {
   glm::vec3 camPos{-5.5f, -0.5f, -120.0f};
   init(&ctx, sizeof(shaderData));
   log_info("shaderDataSize %zu", sizeof(shaderData));
+  Input input = {};
   while (!ctx.quit) {
     uint64_t lastTime{SDL_GetTicks()};
     code.clock += lastTime;
@@ -155,7 +156,6 @@ int main(int argc, char const *argv[]) {
       log_info("reloadDLLRequested!");
       code.reloadDLLRequested = true;
     }
-    Input input = {};
 
     static float val = 0.0f;
     if (val <= 180.0f) {
@@ -187,7 +187,7 @@ int main(int argc, char const *argv[]) {
     code.update(&gameMemory, &input, lastTime);
 
     drawFrame(&ctx, lastTime, &renderQueue, &shaderData);
-    pollEvents(&ctx, lastTime, &shaderData);
+    pollEvents(&ctx, &input);
   }
 
   /* code */

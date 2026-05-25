@@ -30,11 +30,13 @@ typedef struct {
   bool reloadDLLHappened;
 } GameMemory;
 
-typedef struct {
-  Vector2 mousePos;
-  // Camera3D camera;
-  bool mouseButtons[3]; // Left, middle, right
-  bool keys[256];       // Keyboard state
+typedef struct Input {
+  bool quit;
+  bool keys[512]; // indexed by SDL_Scancode
+  bool mouseButtons[5];
+  float mouseX, mouseY;
+  float mouseDeltaX, mouseDeltaY;
+  float mouseWheel;
 } Input;
 #define GAME_UPDATE(name)                                                      \
   void name(GameMemory *gameMemory, Input *input, float frameTime)

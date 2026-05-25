@@ -948,64 +948,96 @@ void drawFrame(vulkanContext *ctx, uint64_t lastTime, RenderQueue *rq,
     chk(vkCreateImageView(device, &viewCI, nullptr, &depthImageView));
   }
 }
-void pollEvents(vulkanContext *ctx, uint64_t lastTime, ShaderData *shaderData) {
-  // Event polling
-  float elapsedTime{(SDL_GetTicks() - lastTime) / 1000.0f};
-  lastTime = SDL_GetTicks();
+void pollEvents(vulkanContext *ctx, Input *input) {
+  input->mouseDeltaX = 0;
+  input->mouseDeltaY = 0;
+  input->mouseWheel = 0;
+
   for (SDL_Event event; SDL_PollEvent(&event);) {
-    if (event.type == SDL_EVENT_QUIT) {
+    switch (event.type) {
+    case SDL_EVENT_QUIT:
       ctx->quit = true;
       break;
-    }
-    if (event.type == SDL_EVENT_MOUSE_MOTION) {
-      // if (event.button.button == SDL_BUTTON_LEFT) {
-      //   shaderData->objectRotations[shaderData->selected].x -=
-      //       (float)event.motion.yrel * elapsedTime;
-      //   shaderData->objectRotations[shaderData->selected].y +=
-      //       (float)event.motion.xrel * elapsedTime;
-      // }
-    }
-    // if (event.type == SDL_EVENT_MOUSE_WHEEL) {
-    //   camPos.z += (float)event.wheel.y * elapsedTime * 10.0f;
-    // }
-    if (event.type == SDL_EVENT_KEY_DOWN) {
-      // if (event.key.key == SDLK_PLUS || event.key.key == SDLK_KP_PLUS) {
-      //   shaderData.selected =
-      //       (shaderData.selected < 2) ? shaderData.selected + 1 : 0;
-      // }
-      // if (event.key.key == SDLK_MINUS || event.key.key == SDLK_KP_MINUS) {
-      //   shaderData.selected =
-      //       (shaderData.selected > 0) ? shaderData.selected - 1 : 2;
-      // }
-      if (event.key.key == SDLK_R) {
-        // Overwrite mesh buffer with a triangle (3 verts, 3 indices)
-        struct SimpleVertex {
-          float pos[3];
-          float normal[3];
-          float uv[2];
-        };
-        SimpleVertex triVerts[3] = {
-            {{0.0f, 1.0f, 0.0f}, {0, 0, 1}, {0.5f, 1.0f}},
-            {{-1.0f, -1.0f, 0.0f}, {0, 0, 1}, {0.0f, 0.0f}},
-            {{1.0f, -1.0f, 0.0f}, {0, 0, 1}, {1.0f, 0.0f}}};
-        uint16_t triIndices[3] = {0, 1, 2};
-        // Write to mapped buffer
-        void *mapped = ctx->mesh.vertices.allocationInfo.pMappedData;
-        memcpy(mapped, triVerts, sizeof(triVerts));
-        memcpy((char *)mapped + sizeof(triVerts), triIndices,
-               sizeof(triIndices));
-        ctx->mesh.vertices.size = sizeof(triVerts);
-        ctx->mesh.indicesSize = sizeof(triIndices);
-        ctx->mesh.indexCount = 3;
-        log_info("Mesh buffer overwritten with triangle");
-      }
-    }
-    // Window resize
-    if (event.type == SDL_EVENT_WINDOW_RESIZED) {
+    case SDL_EVENT_KEY_DOWN:
+      input->keys[event.key.scancode] = true;
+      break;
+    case SDL_EVENT_KEY_UP:
+      input->keys[event.key.scancode] = false;
+      break;
+    case SDL_EVENT_MOUSE_MOTION:
+      input->mouseDeltaX += event.motion.xrel;
+      input->mouseDeltaY += event.motion.yrel;
+      input->mouseX = event.motion.x;
+      input->mouseY = event.motion.y;
+      break;
+    case SDL_EVENT_MOUSE_WHEEL:
+      input->mouseWheel += event.wheel.y;
+      break;
+    case SDL_EVENT_WINDOW_RESIZED:
       ctx->updateSwapchain = true;
+      break;
     }
   }
 }
+// void pollEvents(vulkanContext *ctx, uint64_t lastTime, ShaderData
+// *shaderData) {
+//   // Event polling
+//   float elapsedTime{(SDL_GetTicks() - lastTime) / 1000.0f};
+//   lastTime = SDL_GetTicks();
+//   for (SDL_Event event; SDL_PollEvent(&event);) {
+//     if (event.type == SDL_EVENT_QUIT) {
+//       ctx->quit = true;
+//       break;
+//     }
+//     if (event.type == SDL_EVENT_MOUSE_MOTION) {
+//       // if (event.button.button == SDL_BUTTON_LEFT) {
+//       //   shaderData->objectRotations[shaderData->selected].x -=
+//       //       (float)event.motion.yrel * elapsedTime;
+//       //   shaderData->objectRotations[shaderData->selected].y +=
+//       //       (float)event.motion.xrel * elapsedTime;
+//       // }
+//     }
+//     // if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+//     //   camPos.z += (float)event.wheel.y * elapsedTime * 10.0f;
+//     // }
+//     if (event.type == SDL_EVENT_KEY_DOWN) {
+//       // if (event.key.key == SDLK_PLUS || event.key.key == SDLK_KP_PLUS) {
+//       //   shaderData.selected =
+//       //       (shaderData.selected < 2) ? shaderData.selected + 1 : 0;
+//       // }
+//       // if (event.key.key == SDLK_MINUS || event.key.key == SDLK_KP_MINUS) {
+//       //   shaderData.selected =
+//       //       (shaderData.selected > 0) ? shaderData.selected - 1 : 2;
+//       // }
+//       if (event.key.key == SDLK_R) {
+//         // Overwrite mesh buffer with a triangle (3 verts, 3 indices)
+//         struct SimpleVertex {
+//           float pos[3];
+//           float normal[3];
+//           float uv[2];
+//         };
+//         SimpleVertex triVerts[3] = {
+//             {{0.0f, 1.0f, 0.0f}, {0, 0, 1}, {0.5f, 1.0f}},
+//             {{-1.0f, -1.0f, 0.0f}, {0, 0, 1}, {0.0f, 0.0f}},
+//             {{1.0f, -1.0f, 0.0f}, {0, 0, 1}, {1.0f, 0.0f}}};
+//         uint16_t triIndices[3] = {0, 1, 2};
+//         // Write to mapped buffer
+//         void *mapped = ctx->mesh.vertices.allocationInfo.pMappedData;
+//         memcpy(mapped, triVerts, sizeof(triVerts));
+//         memcpy((char *)mapped + sizeof(triVerts), triIndices,
+//                sizeof(triIndices));
+//         ctx->mesh.vertices.size = sizeof(triVerts);
+//         ctx->mesh.indicesSize = sizeof(triIndices);
+//         ctx->mesh.indexCount = 3;
+//         log_info("Mesh buffer overwritten with triangle");
+//       }
+//     }
+//     // Window resize
+//     if (event.type == SDL_EVENT_WINDOW_RESIZED) {
+//       ctx->updateSwapchain = true;
+//     }
+//   }
+// }
 void destroy(std::unique_ptr<vulkanContext> ctx) {
   // Tear down
   chk(vkDeviceWaitIdle(device));

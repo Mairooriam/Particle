@@ -43,6 +43,24 @@
 },
 {
   "directory": "C:/Users/35850/Desktop/repositories/Particle/build/clang-debug",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\clang-cl.exe  /nologo -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\tinyobj -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\other_include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\entity -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\entity\\pool -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\shared -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /Fosrc\\CMakeFiles\\entity_lib.dir\\entity\\pool\\entityPool.c.obj /Fdsrc\\CMakeFiles\\entity_lib.dir\\entity_lib.pdb -c -- C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\entity\\pool\\entityPool.c",
+  "file": "C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\entity\\pool\\entityPool.c",
+  "output": "src\\CMakeFiles\\entity_lib.dir\\entity\\pool\\entityPool.c.obj"
+},
+{
+  "directory": "C:/Users/35850/Desktop/repositories/Particle/build/clang-debug",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\clang-cl.exe  /nologo -Dapplication_EXPORTS -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\tinyobj -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\other_include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\app -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\shared -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\entity -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\entity\\pool -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\.. -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /Fosrc\\CMakeFiles\\application.dir\\app\\application.c.obj /Fdsrc\\CMakeFiles\\application.dir\\ -c -- C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\app\\application.c",
+  "file": "C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\app\\application.c",
+  "output": "src\\CMakeFiles\\application.dir\\app\\application.c.obj"
+},
+{
+  "directory": "C:/Users/35850/Desktop/repositories/Particle/build/clang-debug",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\clang-cl.exe  /nologo -Dapplication_EXPORTS -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\tinyobj -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\other_include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\app -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\shared -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\entity -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\entity\\pool -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\.. -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd   -w /Fosrc\\CMakeFiles\\application.dir\\app\\spatialGrid.c.obj /Fdsrc\\CMakeFiles\\application.dir\\ -c -- C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\app\\spatialGrid.c",
+  "file": "C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\app\\spatialGrid.c",
+  "output": "src\\CMakeFiles\\application.dir\\app\\spatialGrid.c.obj"
+},
+{
+  "directory": "C:/Users/35850/Desktop/repositories/Particle/build/clang-debug",
   "command": "C:\\PROGRA~1\\LLVM\\bin\\clang-cl.exe  /nologo -TP -DVK_NO_PROTOTYPES -D_CRT_SECURE_NO_WARNINGS -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\tinyobj -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\external\\ktx\\other_include -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\shared -IC:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\core\\.. -imsvcC:\\VulkanSDK\\1.4.341.1\\include /DWIN32 /D_WINDOWS /EHsc -DVK_USE_PLATFORM_WIN32_KHR -DNOMINMAX -D_USE_MATH_DEFINES /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd   -w /Fosrc\\CMakeFiles\\Particle.dir\\engine\\main.cpp.obj /Fdsrc\\CMakeFiles\\Particle.dir\\ -c -- C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\engine\\main.cpp",
   "file": "C:\\Users\\35850\\Desktop\\repositories\\Particle\\src\\engine\\main.cpp",
   "output": "src\\CMakeFiles\\Particle.dir\\engine\\main.cpp.obj"

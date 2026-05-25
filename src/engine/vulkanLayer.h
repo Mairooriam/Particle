@@ -2,11 +2,11 @@
 #include "internal/renderQue.h"
 #include <cstdint>
 #include <vulkan/vulkan.h>
-#include <memory>
 #include <vector>
 #include <SDL3/SDL.h>
 #include "meshLoader.h"
 #include "shader.h"
+#include "shared.h"
 
 struct vulkanContext {
   MeshBuffer mesh{};
@@ -30,5 +30,5 @@ struct vulkanContext {
 void init(vulkanContext *ctx, size_t shaderDataSize);
 void drawFrame(vulkanContext *ctx, uint64_t lastTime, RenderQueue *rq,
                ShaderData *shaderData);
-void pollEvents(vulkanContext *ctx, uint64_t lastTime, ShaderData *shaderData);
+void pollEvents(vulkanContext *ctx, Input *input);
 void destroy(vulkanContext *ctx);
