@@ -7,7 +7,15 @@
   },
   "configurePresets": [
     {
+      "name": "base",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "C:/lib"
+      }
+    },
+    {
       "name": "msvc-debug",
+      "inherits": "base",
       "description": "MSVC Debug Build",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/msvc-debug",
@@ -19,6 +27,7 @@
     },
     {
       "name": "msvc-release",
+      "inherits": "base",
       "description": "MSVC Release Build",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/msvc-release",
@@ -30,6 +39,7 @@
     },
     {
       "name": "mingw-debug",
+      "inherits": "base",
       "description": "MinGW Debug Build",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/mingw-debug",
@@ -41,6 +51,7 @@
     },
     {
       "name": "mingw-release",
+      "inherits": "base",
       "description": "MinGW Release Build",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/mingw-release",
@@ -52,6 +63,7 @@
     },
     {
       "name": "clang-debug",
+      "inherits": "base",
       "description": "Clang-cl Debug Build",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/clang-debug",
@@ -63,6 +75,7 @@
     },
     {
       "name": "clang-release",
+      "inherits": "base",
       "description": "Clang-cl Release Build",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/clang-release",

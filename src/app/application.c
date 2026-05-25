@@ -4,6 +4,7 @@
 #include "core/log.h"
 #include "entityPool_types.h"
 #include "entity_types.h"
+#include "internal/math/raymath.h"
 #include "internal/mirMath.h"
 #include "shared.h"
 #include "stdio.h"
@@ -55,6 +56,44 @@ GAME_UPDATE(game_update) {
 
   // handle_update(gameState, frameTime, input);
   // render(gameMemory, gameState);
+
+  static float val = 0.0f;
+  if (val <= 180.0f) {
+    gameState->camPos.x += 0.01f;
+    gameState->camPos.y += 0.01f;
+    val++;
+  } else {
+    gameState->camPos.x = 0.0f;
+    gameState->camPos.y = 0.0f;
+    val = 0;
+  }
+
+  vec3 camPos = {gameState->camPos.x, gameState->camPos.y, gameState->camPos.z};
+  float aspect = 1280.0 / 700.0;
+  // (float)gameMemory->windowSize[0] / (float)gameMemory->windowSize[1];
+
+  glm_perspective(glm_rad(45.0f), aspect, 1.0f, 400.0f,
+                  gameMemory->shaderData->projection);
+
+  glm_mat4_identity(gameMemory->shaderData->view);
+  glm_translate(gameMemory->shaderData->view, camPos);
+
+  for (int i = 0; i < MONKI_COUNT; i++) {
+    float x = (i % 32) * 2.5f - 40.0f + (rand() % 100) * 0.01f;
+    float y = ((i / 32) % 32) * 2.5f - 40.0f + (rand() % 100) * 0.01f;
+    float z = ((i / (32 * 32)) % 32) * 2.5f - 10.0f + (rand() % 100) * 0.01f;
+
+    vec3 instancePos = {x, y, z};
+    mat4 translation, rotation;
+    glm_mat4_identity(translation);
+    glm_translate(translation, instancePos);
+
+    versor q;
+    glm_euler_zyx(gameState->objectRotations[i], q);
+    glm_quat_mat4(q, rotation);
+
+    glm_mat4_mul(translation, rotation, gameMemory->shaderData->model[i]);
+  }
 
   gameState->lastFrameInput = *input;
 }
@@ -398,6 +437,15 @@ void handle_init(GameMemory *gameMemory, GameState *gameState) {
   // Entity spawner = entity_create_spawner_entity();
   // spawner.c_transform.pos = (Vector3){50, 50, 0};
   // entityPool_push(gameState->entityPool, spawner);
+  for (int i = 0; i < MONKI_COUNT; i++) {
+    gameState->objectRotations[i][0] =
+        ((float)(rand() % 1000) / 1000.0f) * GLM_PI * 2.0f;
+    gameState->objectRotations[i][1] =
+        ((float)(rand() % 1000) / 1000.0f) * GLM_PI * 2.0f;
+    gameState->objectRotations[i][2] =
+        ((float)(rand() % 1000) / 1000.0f) * GLM_PI * 2.0f;
+  }
+  gameState->camPos = (Vector3){-5.5f, -0.5f, -120.0f};
   gameMemory->isInitialized = true;
 }
 Entity entity_create_physics_particle(Vector3 pos, Vector3 velocity) {

@@ -214,17 +214,17 @@ void init(vulkanContext *ctx, size_t shaderDataSize) {
   chk(vmaCreateAllocator(&allocatorCI, &allocator));
   // Window and surface
   ctx->window =
-      SDL_CreateWindow("How to Vulkan", ctx->windowSize.x, ctx->windowSize.y,
+      SDL_CreateWindow("How to Vulkan", ctx->windowSize[0], ctx->windowSize[1],
                        SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
   assert(ctx->window);
   chk(SDL_Vulkan_CreateSurface(ctx->window, instance, nullptr, &surface));
-  chk(SDL_GetWindowSize(ctx->window, &ctx->windowSize.x, &ctx->windowSize.y));
+  chk(SDL_GetWindowSize(ctx->window, &ctx->windowSize[0], &ctx->windowSize[1]));
   chk(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ctx->devices[ctx->deviceIndex],
                                                 surface, &ctx->surfaceCaps));
   VkExtent2D swapchainExtent{ctx->surfaceCaps.currentExtent};
   if (ctx->surfaceCaps.currentExtent.width == 0xFFFFFFFF) {
-    swapchainExtent = {.width = static_cast<uint32_t>(ctx->windowSize.x),
-                       .height = static_cast<uint32_t>(ctx->windowSize.y)};
+    swapchainExtent = {.width = static_cast<uint32_t>(ctx->windowSize[0]),
+                       .height = static_cast<uint32_t>(ctx->windowSize[1])};
   }
   // Swap chain
   ctx->imageFormat = VK_FORMAT_B8G8R8A8_SRGB;
@@ -279,8 +279,8 @@ void init(vulkanContext *ctx, size_t shaderDataSize) {
       .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
       .imageType = VK_IMAGE_TYPE_2D,
       .format = ctx->depthFormat,
-      .extent{.width = static_cast<uint32_t>(ctx->windowSize.x),
-              .height = static_cast<uint32_t>(ctx->windowSize.y),
+      .extent{.width = static_cast<uint32_t>(ctx->windowSize[0]),
+              .height = static_cast<uint32_t>(ctx->windowSize[1]),
               .depth = 1},
       .mipLevels = 1,
       .arrayLayers = 1,
@@ -777,8 +777,8 @@ void drawFrame(vulkanContext *ctx, uint64_t lastTime, RenderQueue *rq,
       .clearValue = {.depthStencil = {1.0f, 0}}};
   VkRenderingInfo renderingInfo{
       .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-      .renderArea{.extent{.width = static_cast<uint32_t>(ctx->windowSize.x),
-                          .height = static_cast<uint32_t>(ctx->windowSize.y)}},
+      .renderArea{.extent{.width = static_cast<uint32_t>(ctx->windowSize[0]),
+                          .height = static_cast<uint32_t>(ctx->windowSize[1])}},
       .layerCount = 1,
       .colorAttachmentCount = 1,
       .pColorAttachments = &colorAttachmentInfo,
@@ -798,8 +798,8 @@ void drawFrame(vulkanContext *ctx, uint64_t lastTime, RenderQueue *rq,
 
   VkViewport vp{.x = 0,
                 .y = 0,
-                .width = static_cast<float>(ctx->windowSize.x),
-                .height = static_cast<float>(ctx->windowSize.y),
+                .width = static_cast<float>(ctx->windowSize[0]),
+                .height = static_cast<float>(ctx->windowSize[1]),
                 .minDepth = 0.0f,
                 .maxDepth = 1.0f};
   // NOTE: just adds viewport to command buffer
@@ -814,8 +814,9 @@ void drawFrame(vulkanContext *ctx, uint64_t lastTime, RenderQueue *rq,
   //   |      cut       cut                 |
   //   |   *                  *             |
   //   --------------------------------------
-  VkRect2D scissor{.extent{.width = static_cast<uint32_t>(ctx->windowSize.x),
-                           .height = static_cast<uint32_t>(ctx->windowSize.y)}};
+  VkRect2D scissor{
+      .extent{.width = static_cast<uint32_t>(ctx->windowSize[0]),
+              .height = static_cast<uint32_t>(ctx->windowSize[1])}};
   vkCmdSetScissor(cb, 0, 1, &scissor);
 
   // Rendering — draw ctx->mesh directly
@@ -894,15 +895,16 @@ void drawFrame(vulkanContext *ctx, uint64_t lastTime, RenderQueue *rq,
                                .pImageIndices = &imageIndex};
   chkSwapchain(vkQueuePresentKHR(queue, &presentInfo), ctx->updateSwapchain);
   if (ctx->updateSwapchain) {
-    chk(SDL_GetWindowSize(ctx->window, &ctx->windowSize.x, &ctx->windowSize.y));
+    chk(SDL_GetWindowSize(ctx->window, &ctx->windowSize[0],
+                          &ctx->windowSize[1]));
     ctx->updateSwapchain = false;
     chk(vkDeviceWaitIdle(device));
     chk(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
         ctx->devices[ctx->deviceIndex], surface, &ctx->surfaceCaps));
     ctx->swapchainCI.oldSwapchain = ctx->swapchain;
     ctx->swapchainCI.imageExtent = {
-        .width = static_cast<uint32_t>(ctx->windowSize.x),
-        .height = static_cast<uint32_t>(ctx->windowSize.y)};
+        .width = static_cast<uint32_t>(ctx->windowSize[0]),
+        .height = static_cast<uint32_t>(ctx->windowSize[1])};
     chk(vkCreateSwapchainKHR(device, &ctx->swapchainCI, nullptr,
                              &ctx->swapchain));
     for (auto i = 0; i < ctx->imageCount; i++) {
@@ -929,8 +931,8 @@ void drawFrame(vulkanContext *ctx, uint64_t lastTime, RenderQueue *rq,
     vmaDestroyImage(allocator, depthImage, depthImageAllocation);
     vkDestroyImageView(device, depthImageView, nullptr);
     ctx->depthImageCI.extent = {
-        .width = static_cast<uint32_t>(ctx->windowSize.x),
-        .height = static_cast<uint32_t>(ctx->windowSize.y),
+        .width = static_cast<uint32_t>(ctx->windowSize[0]),
+        .height = static_cast<uint32_t>(ctx->windowSize[1]),
         .depth = 1};
     VmaAllocationCreateInfo allocCI{
         .flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,

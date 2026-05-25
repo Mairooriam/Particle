@@ -1,3 +1,4 @@
+#include "shader.h"
 #include "vulkanLayer.h"
 #include <core/log.h>
 #include <core/string.h>
@@ -101,7 +102,7 @@ int main(int argc, char const *argv[]) {
   LPVOID baseAddress = 0;
 #endif
 
-  GameMemory gameMemory = {0};
+  GameMemory gameMemory = {};
   gameMemory.permanentMemorySize = MegaBytes(512);
   gameMemory.transientMemorySize = MegaBytes(512);
   gameMemory.reloadDLLHappened = false;
@@ -131,12 +132,11 @@ int main(int argc, char const *argv[]) {
 
   static RenderQueue renderQueue = {.commands[0]{0, 0, 0, 0, 0, 0, 2}};
   gameMemory.renderQueue = &renderQueue;
-
-  ShaderData shaderData{};
+  ShaderData shaderData = {};
+  gameMemory.shaderData = &shaderData;
   glm::vec3 objectRotations[MONKI_COUNT];
-  glm::vec3 camPos{-5.5f, -0.5f, -120.0f};
-  init(&ctx, sizeof(shaderData));
-  log_info("shaderDataSize %zu", sizeof(shaderData));
+  init(&ctx, sizeof(ShaderData));
+  log_info("shaderDataSize %zu", sizeof(ShaderData));
   Input input = {};
   while (!ctx.quit) {
     uint64_t lastTime{SDL_GetTicks()};
@@ -157,36 +157,9 @@ int main(int argc, char const *argv[]) {
       code.reloadDLLRequested = true;
     }
 
-    static float val = 0.0f;
-    if (val <= 180.0f) {
-      camPos.x += 0.01f;
-      camPos.y += 0.01f;
-      val++;
-    } else {
-      camPos.x = 0.0f;
-      camPos.y = 0.0f;
-      val = 0;
-    }
-
-    // Update shader data
-    // TODO: learn camera basic transforms
-    shaderData.projection = glm::perspective(
-        glm::radians(45.0f), (float)ctx.windowSize.x / (float)ctx.windowSize.y,
-        1.0f, 400.0f);
-    shaderData.view = glm::translate(glm::mat4(1.0f), camPos);
-    for (auto i = 0; i < MONKI_COUNT; i++) {
-      // Scatter in grid, add some random offset
-      float x = (i % 32) * 2.5f - 40.0f + (rand() % 100) * 0.01f;
-      float y = ((i / 32) % 32) * 2.5f - 40.0f + (rand() % 100) * 0.01f;
-      float z = ((i / (32 * 32)) % 32) * 2.5f - 10.0f + (rand() % 100) * 0.01f;
-      glm::vec3 instancePos = glm::vec3(x, y, z);
-      shaderData.model[i] = glm::translate(glm::mat4(1.0f), instancePos) *
-                            glm::mat4_cast(glm::quat(objectRotations[i]));
-    }
-
     code.update(&gameMemory, &input, lastTime);
 
-    drawFrame(&ctx, lastTime, &renderQueue, &shaderData);
+    drawFrame(&ctx, lastTime, &renderQueue, gameMemory.shaderData);
     pollEvents(&ctx, &input);
   }
 

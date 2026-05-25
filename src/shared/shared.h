@@ -1,5 +1,6 @@
 #pragma once
 #include "internal/renderQue.h"
+#include "shader.h"
 
 #ifdef _WIN32
 #define DLL_EXPORT __declspec(dllexport)
@@ -25,6 +26,7 @@ typedef struct {
   size_t permanentMemorySize;
   size_t transientMemorySize;
   RenderQueue *renderQueue;
+  ShaderData *shaderData;
   void *permamentMemory;
   void *transientMemory;
   bool reloadDLLHappened;

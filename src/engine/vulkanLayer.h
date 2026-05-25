@@ -12,7 +12,7 @@ struct vulkanContext {
   MeshBuffer mesh{};
   VkDeviceSize indexCount{0};
   SDL_Window *window = nullptr;
-  glm::ivec2 windowSize = {1280, 700};
+  ivec2 windowSize = {1280, 700};
   std::vector<VkPhysicalDevice> devices{};
   uint32_t deviceIndex{0};
   VkSurfaceCapabilitiesKHR surfaceCaps{};

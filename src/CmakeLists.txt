@@ -9,6 +9,8 @@ target_include_directories(entity_lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/entity/pool
     ${CMAKE_CURRENT_SOURCE_DIR}/shared
 )
+
+target_link_libraries(entity_lib PRIVATE cglm::cglm)
 # --- DLL ---
 add_library(application SHARED
     app/application.c
@@ -19,8 +21,13 @@ target_include_directories(application PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/shared
     ${CMAKE_CURRENT_SOURCE_DIR}/entity
     ${CMAKE_CURRENT_SOURCE_DIR}/entity/pool
+
 )
-target_link_libraries(application PRIVATE core entity_lib)
+target_link_libraries(application PRIVATE 
+core 
+entity_lib
+cglm::cglm
+)
 set_target_properties(application PROPERTIES OUTPUT_NAME "application_being_written")
 set_target_properties(application PROPERTIES LINK_FLAGS "/MAP")
 
@@ -40,6 +47,7 @@ add_executable(${NAME}
 
 target_include_directories(${NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/shared
+
 )
 target_compile_definitions(${NAME} PRIVATE VK_NO_PROTOTYPES)
 if (WIN32)
@@ -52,11 +60,8 @@ target_link_libraries(${NAME} PRIVATE
     ktx 
     ${Slang_LIBRARY}
     core
+    cglm::cglm
     )
-if (NOT WIN32)
-    target_link_libraries(${NAME} PRIVATE glm::glm-header-only)
-endif()
-
 
 add_custom_command(TARGET ${NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
